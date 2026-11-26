@@ -4,6 +4,7 @@ pub(super) async fn start(
     assets: PathBuf,
     port: u16,
     join_origin: Option<String>,
+    multi_session: bool,
 ) -> Result<(), String> {
     let root = tokio::fs::canonicalize(assets)
         .await
@@ -28,11 +29,20 @@ pub(super) async fn start(
     // port is not where `web --print-code --port N` will look.
     let pairing_path = pairing_file(bound_port);
     publish_pairing_code(&pairing_path, &pairing);
+    let reset_path = reset_file(bound_port);
+    let reset_token = secret();
+    if let Err(error) = publish_reset_token(&reset_path, &reset_token) {
+        eprintln!("warning: could not publish reset token for `web --reset-session`: {error}");
+    }
     let join_base = join_origin.unwrap_or_else(|| origin.clone());
     eprintln!(
         "TikTools local browser: {origin}\nOne-use pairing code (valid 5 minutes): {pairing}\nOne-click join: {} (same one-use code, valid 5 minutes)",
         join_link(&join_base, &pairing)
     );
+    let multi_session = multi_session_enabled(multi_session);
+    if multi_session {
+        eprintln!("Multiple browsers enabled (up to {MAX_SESSIONS}); reset revokes all of them.");
+    }
     let state = Arc::new(App {
         root,
         asset_token: secret(),
@@ -40,11 +50,13 @@ pub(super) async fn start(
         authority,
         join_base,
         pairing_file: pairing_path.clone(),
+        reset_file: reset_path.clone(),
+        reset_token: Mutex::new(reset_token),
+        multi_session,
         auth: Mutex::new(Auth {
             pairing: Some(pairing),
             issued: Instant::now(),
-            session: None,
-            paired_at: None,
+            sessions: Vec::new(),
             attempts: 0,
             renewed_at: None,
         }),
@@ -53,9 +65,11 @@ pub(super) async fn start(
     });
     let shutdown_state = state.clone();
     let pairing_path_for_shutdown = pairing_path;
+    let reset_path_for_shutdown = reset_path;
     let router = Router::new()
         .route("/__local/pair", post(pair))
         .route("/__local/pair/renew", post(renew_pairing))
+        .route(SESSION_RESET_PATH, post(reset_session))
         .route("/__local/session/touch", post(session_touch))
         .route("/__local/pair.js", get(pair_script))
         .route("/__local/ws", get(upgrade))
@@ -80,9 +94,10 @@ pub(super) async fn start(
         })
         .await
         .map_err(|error| error.to_string());
-    // Best-effort readout cleanup. A stale file is harmless: the reader still
-    // enforces the TTL and checks that the adapter is listening.
+    // Best-effort readout cleanup. A stale file is harmless: the readers still
+    // check adapter liveness (and the pairing TTL).
     let _ = std::fs::remove_file(&pairing_path_for_shutdown);
+    let _ = std::fs::remove_file(&reset_path_for_shutdown);
     result
 }
 

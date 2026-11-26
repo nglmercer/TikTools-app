@@ -11,15 +11,18 @@ mod socket;
 use assets::asset;
 #[cfg(all(test, unix))]
 use assets::resolve_plugin_asset;
-use auth::{secret, session_touch};
-use options::join_link;
+use auth::{secret, session_touch, token_matches};
+use options::{join_link, multi_session_enabled};
 pub use options::run;
 #[cfg(test)]
-use options::{parse_options, parse_print_code_options};
+use options::{parse_action_options, parse_options, parse_print_code_options};
 #[cfg(test)]
 use pairing::{fixture_code_from, pairing_code};
-use pairing::{mint_pairing, pair, renew_pairing};
-use readout::{current_pairing_code, pairing_file, publish_pairing_code};
+use pairing::{mint_pairing, pair, renew_pairing, reset_session};
+use readout::{
+    current_pairing_code, current_reset_token, pairing_file, publish_pairing_code,
+    publish_reset_token, reset_file,
+};
 #[cfg(test)]
 use readout::{
     current_pairing_code_at, load_pairing_snapshot, now_unix, snapshot_remaining,
@@ -71,15 +74,29 @@ const PAIRING_TTL_SECS: u64 = 300;
 /// Deterministic pairing override for automated login tests. Never set in
 /// production: anyone holding the value can pair without the terminal.
 const PAIRING_FIXTURE_ENV: &str = "TIKTOOLS_PAIRING_FIXTURE";
+/// Opt-in: several browsers may hold a session at once. Off by default so a
+/// paired adapter keeps the single-owner behaviour of the loopback transport.
+const MULTI_SESSION_ENV: &str = "TIKTOOLS_WEB_MULTI_SESSION";
+const MAX_SESSIONS: usize = 8;
+/// Loopback port the adapter binds unless `--port` overrides it. Shared by the
+/// server parser and the offline actions so they always look in the same place.
+const DEFAULT_PORT: u16 = 8787;
+/// Recovery route, shared between the server router and the raw TCP request
+/// the `--reset-session` action writes by hand.
+const SESSION_RESET_PATH: &str = "/__local/session/reset";
+
+/// One paired browser. The idle window slides with activity; the absolute
+/// ceiling is fixed at pairing time and cannot be extended.
+struct Session {
+    token: String,
+    last: Instant,
+    paired_at: Instant,
+}
 
 struct Auth {
     pairing: Option<String>,
     issued: Instant,
-    /// Session token paired with the last authenticated activity that keeps it
-    /// alive. Activity slides this window; it never extends the ceiling below.
-    session: Option<(String, Instant)>,
-    /// Pairing time. Bounds how long activity may keep renewing the session.
-    paired_at: Option<Instant>,
+    sessions: Vec<Session>,
     attempts: u8,
     renewed_at: Option<Instant>,
 }
@@ -91,6 +108,11 @@ struct App {
     authority: String,
     join_base: String,
     pairing_file: PathBuf,
+    /// Local-only recovery credential: a separate CLI reads this 0600 file to
+    /// invalidate every session and mint a fresh code without a restart.
+    reset_file: PathBuf,
+    reset_token: Mutex<String>,
+    multi_session: bool,
     auth: Mutex<Auth>,
     clients: Arc<Semaphore>,
     stopping: tokio::sync::watch::Sender<bool>,
@@ -105,6 +127,12 @@ struct PairingSnapshot {
     code: String,
     issued_at_unix: u64,
     expires_in_secs: u64,
+    pid: u32,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct ResetSnapshot {
+    token: String,
     pid: u32,
 }
 

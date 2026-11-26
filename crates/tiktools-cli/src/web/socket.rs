@@ -10,9 +10,12 @@ use tokio_tungstenite::tungstenite::protocol::{Role, WebSocketConfig};
 use tokio_tungstenite::tungstenite::Message;
 
 pub(super) async fn upgrade(State(app): State<Arc<App>>, mut request: Request<Body>) -> Response {
-    if !app.same_origin(request.headers()) || !app.authorized(request.headers()) {
+    if !app.same_origin(request.headers()) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
+    let Some(session_token) = app.authorized_token(request.headers()) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
     let Ok(permit) = app.clients.clone().try_acquire_owned() else {
         return StatusCode::TOO_MANY_REQUESTS.into_response();
     };
@@ -53,7 +56,7 @@ pub(super) async fn upgrade(State(app): State<Arc<App>>, mut request: Request<Bo
         )
         .await;
         let _permit = permit;
-        socket_loop(socket, client, app).await;
+        socket_loop(socket, client, app, session_token).await;
     });
 
     let mut response = Response::builder()
@@ -68,6 +71,7 @@ async fn socket_loop(
     mut socket: tokio_tungstenite::WebSocketStream<TokioIo<hyper::upgrade::Upgraded>>,
     client: ControlClient,
     app: Arc<App>,
+    session_token: String,
 ) {
     let mut stopping = app.stopping.subscribe();
     if *stopping.borrow() {
@@ -80,10 +84,12 @@ async fn socket_loop(
         let outgoing = tokio::select! {
             _ = stopping.changed() => break,
             _ = session_clock.tick() => {
-                // An open, authenticated socket is activity: slide the idle
-                // window so a working tab is never logged out. The absolute
-                // ceiling still ends the session eventually.
-                if !app.touch_session() || client.is_closed() { break; }
+                // An open, authenticated socket is activity: slide this
+                // session's idle window so a working tab is never logged out.
+                // The absolute ceiling still ends the session eventually, and
+                // a revoked session closes its socket instead of inheriting
+                // the keep-alive of whichever browser paired next.
+                if !app.touch_session_token(&session_token) || client.is_closed() { break; }
                 continue;
             }
             message = socket.next() => {

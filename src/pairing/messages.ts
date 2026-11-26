@@ -17,8 +17,8 @@ const en = {
   requesting: 'Requesting a new code…',
   newCodePrinted: 'New code printed in the terminal. Enter it here within five minutes.',
   waitSeconds: 'Please wait {seconds} seconds before requesting another code.',
-  lockedOut: 'Too many attempts. Restart the adapter to pair again.',
-  alreadyPaired: 'Already paired. Reload this page, or restart the adapter to pair another browser.',
+  lockedOut: 'Too many attempts. Run tiktools web --reset-session --port N to clear them.',
+  alreadyPaired: 'Already paired. Reload if this browser holds the session, or run tiktools web --reset-session --port N to revoke all sessions and pair another browser.',
   renewFailed: 'Could not request a code. Check the terminal where the adapter is running.',
 } as const;
 
@@ -38,8 +38,8 @@ const es: Catalog = {
   requesting: 'Solicitando un código nuevo…',
   newCodePrinted: 'Código nuevo impreso en la terminal. Introdúcelo aquí en los próximos cinco minutos.',
   waitSeconds: 'Espera {seconds} segundos antes de solicitar otro código.',
-  lockedOut: 'Demasiados intentos. Reinicia el adaptador para volver a vincular.',
-  alreadyPaired: 'Ya está vinculado. Recarga esta página o reinicia el adaptador para vincular otro navegador.',
+  lockedOut: 'Demasiados intentos. Ejecuta tiktools web --reset-session --port N para limpiarlos.',
+  alreadyPaired: 'Ya está vinculado. Recarga si este navegador tiene la sesión, o ejecuta tiktools web --reset-session --port N para revocar todas las sesiones y vincular otro navegador.',
   renewFailed: 'No se pudo solicitar un código. Revisa la terminal donde se está ejecutando el adaptador.',
 };
 
@@ -56,8 +56,8 @@ const pt: Catalog = {
   requesting: 'Solicitando um novo código…',
   newCodePrinted: 'Novo código exibido no terminal. Digite-o aqui em até cinco minutos.',
   waitSeconds: 'Aguarde {seconds} segundos antes de solicitar outro código.',
-  lockedOut: 'Muitas tentativas. Reinicie o adaptador para parear novamente.',
-  alreadyPaired: 'Já pareado. Recarregue esta página ou reinicie o adaptador para parear outro navegador.',
+  lockedOut: 'Muitas tentativas. Execute tiktools web --reset-session --port N para limpá-las.',
+  alreadyPaired: 'Pareado. Recarregue se este navegador tiver a sessão, ou execute tiktools web --reset-session --port N para revogar todas as sessões e parear outro navegador.',
   renewFailed: 'Não foi possível solicitar um código. Verifique o terminal onde o adaptador está em execução.',
 };
 
@@ -74,8 +74,8 @@ const fr: Catalog = {
   requesting: "Demande d'un nouveau code…",
   newCodePrinted: 'Nouveau code affiché dans le terminal. Saisissez-le ici dans les cinq minutes.',
   waitSeconds: 'Patientez {seconds} secondes avant de demander un autre code.',
-  lockedOut: "Trop de tentatives. Redémarrez l'adaptateur pour vous appairer à nouveau.",
-  alreadyPaired: "Déjà appairé. Rechargez cette page ou redémarrez l'adaptateur pour appairer un autre navigateur.",
+  lockedOut: 'Trop de tentatives. Exécutez tiktools web --reset-session --port N pour les effacer.',
+  alreadyPaired: "Appairé. Rechargez si ce navigateur détient la session, ou exécutez tiktools web --reset-session --port N pour révoquer toutes les sessions et appairer un autre navigateur.",
   renewFailed: "Impossible de demander un code. Vérifiez le terminal où l'adaptateur est en cours d'exécution.",
 };
 
@@ -92,8 +92,8 @@ const zh: Catalog = {
   requesting: '正在请求新配对码…',
   newCodePrinted: '新配对码已显示在终端中。请在五分钟内在此输入。',
   waitSeconds: '请等待 {seconds} 秒后再请求另一个配对码。',
-  lockedOut: '尝试次数过多。请重启适配器后重新配对。',
-  alreadyPaired: '已配对。请刷新此页面，或重启适配器以配对另一个浏览器。',
+  lockedOut: '尝试次数过多。运行 tiktools web --reset-session --port N 清除限制。',
+  alreadyPaired: '已配对。如果此浏览器持有会话请刷新页面，或运行 tiktools web --reset-session --port N 撤销所有会话并配对另一个浏览器。',
   renewFailed: '无法请求配对码。请检查运行适配器的终端。',
 };
 
@@ -110,8 +110,8 @@ const ja: Catalog = {
   requesting: '新しいコードを要求しています…',
   newCodePrinted: '新しいコードがターミナルに表示されました。5分以内にここに入力してください。',
   waitSeconds: '別のコードを要求するまで {seconds} 秒お待ちください。',
-  lockedOut: '試行回数が多すぎます。アダプターを再起動して、もう一度ペアリングしてください。',
-  alreadyPaired: 'ペアリング済みです。このページを再読み込みするか、アダプターを再起動して別のブラウザをペアリングしてください。',
+  lockedOut: '試行回数が多すぎます。tiktools web --reset-session --port N を実行してクリアしてください。',
+  alreadyPaired: 'ペアリング済みです。このブラウザがセッションを持っている場合は再読み込みしてください。別のブラウザを使う場合は tiktools web --reset-session --port N ですべてのセッションを無効化できます。',
   renewFailed: 'コードを要求できませんでした。アダプターを実行しているターミナルを確認してください。',
 };
 

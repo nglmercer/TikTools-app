@@ -65,13 +65,28 @@ pub(super) async fn pair(
     let session = secret();
     let cookie = app.session_cookie(&session);
     let now = Instant::now();
-    auth.session = Some((session, now));
-    auth.paired_at = Some(now);
+    if app.multi_session {
+        // Additional browsers keep their own live session; evict the oldest
+        // first so a stale tab cannot grow the list without bound.
+        auth.sessions.retain(|entry| entry.alive());
+        if auth.sessions.len() >= MAX_SESSIONS {
+            auth.sessions.remove(0);
+        }
+    } else {
+        // The default single-owner transport replaces any previous session.
+        auth.sessions.clear();
+    }
+    auth.sessions.push(Session {
+        token: session,
+        last: now,
+        paired_at: now,
+    });
     ([(header::SET_COOKIE, cookie)], Json(json!({"ok": true}))).into_response()
 }
 
 // Renewal changes only the human code. It never returns credentials or resets
-// the shared attempt counter, and cannot invalidate a live paired session.
+// the shared attempt counter. In the default single-owner mode it cannot
+// invalidate a live session; with multi-session enabled it may add another one.
 pub(super) async fn renew_pairing(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
     if !app.same_origin(&headers) {
         return StatusCode::FORBIDDEN.into_response();
@@ -79,7 +94,7 @@ pub(super) async fn renew_pairing(State(app): State<Arc<App>>, headers: HeaderMa
     let Ok(mut auth) = app.auth.lock() else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
-    if auth.session_valid() {
+    if !app.multi_session && auth.session_valid() {
         return (
             StatusCode::CONFLICT,
             Json(json!({"error":"already_paired"})),
@@ -138,6 +153,63 @@ pub(super) async fn renew_pairing(State(app): State<Arc<App>>, headers: HeaderMa
     (
         StatusCode::OK,
         Json(json!({"ok":true,"expiresInSeconds":PAIRING_TTL_SECS,"retryAfterSeconds":30})),
+    )
+        .into_response()
+}
+
+/// Local recovery from a stuck pairing state: invalidate every browser session,
+/// clear the attempt counter and mint a fresh code. The CLI proves possession
+/// of a 0600 reset token, so a web page cannot revoke the owner's access.
+/// In multi-session mode this deliberately revokes all other browsers too,
+/// handing the adapter back to whoever claims the new code.
+pub(super) async fn reset_session(
+    State(app): State<Arc<App>>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Response {
+    if !app.same_origin(&headers) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    let Some(provided) = body.get("token").and_then(Value::as_str) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    {
+        let reset = app.reset_token.lock().unwrap();
+        if !token_matches(provided, &reset) {
+            return StatusCode::UNAUTHORIZED.into_response();
+        }
+    }
+    let code = match mint_pairing() {
+        Ok(code) => code,
+        Err(error) => return (StatusCode::INTERNAL_SERVER_ERROR, error).into_response(),
+    };
+    // Rotate the recovery token before changing auth state: a failed write
+    // leaves the session untouched and the old token still usable.
+    let next_token = secret();
+    if let Err(error) = publish_reset_token(&app.reset_file, &next_token) {
+        eprintln!("warning: could not publish reset token: {error}");
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    {
+        let mut reset = app.reset_token.lock().unwrap();
+        *reset = next_token;
+    }
+    {
+        let mut auth = app.auth.lock().unwrap();
+        auth.clear_sessions();
+        auth.pairing = Some(code.clone());
+        auth.issued = Instant::now();
+        auth.attempts = 0;
+        auth.renewed_at = None;
+    }
+    publish_pairing_code(&app.pairing_file, &code);
+    eprintln!(
+        "Session reset; all paired browsers were revoked.\nOne-use pairing code (valid 5 minutes): {code}\nOne-click join: {}",
+        join_link(&app.join_base, &code)
+    );
+    (
+        StatusCode::OK,
+        Json(json!({"ok":true,"expiresInSeconds":PAIRING_TTL_SECS})),
     )
         .into_response()
 }

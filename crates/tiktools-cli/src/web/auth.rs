@@ -1,32 +1,25 @@
 use super::*;
 
+impl Session {
+    pub(super) fn alive(&self) -> bool {
+        self.last.elapsed() < SESSION_LIFETIME
+            && self.paired_at.elapsed() < SESSION_ABSOLUTE_LIFETIME
+    }
+
+    fn remaining_seconds(&self) -> u64 {
+        let idle = SESSION_LIFETIME.saturating_sub(self.last.elapsed());
+        let absolute = SESSION_ABSOLUTE_LIFETIME.saturating_sub(self.paired_at.elapsed());
+        idle.min(absolute).as_secs()
+    }
+}
+
 impl Auth {
     pub(super) fn session_valid(&self) -> bool {
-        match (&self.session, self.paired_at) {
-            (Some((_, last)), Some(paired)) => {
-                last.elapsed() < SESSION_LIFETIME && paired.elapsed() < SESSION_ABSOLUTE_LIFETIME
-            }
-            _ => false,
-        }
+        self.sessions.iter().any(Session::alive)
     }
 
-    /// Slide the idle window after a request proved possession of the cookie.
-    pub(super) fn touch(&mut self) {
-        if self.session_valid() {
-            if let Some((_, last)) = self.session.as_mut() {
-                *last = Instant::now();
-            }
-        }
-    }
-
-    /// Seconds until the idle or absolute window closes, whichever is first.
-    pub(super) fn remaining_seconds(&self) -> u64 {
-        let (Some((_, last)), Some(paired)) = (&self.session, self.paired_at) else {
-            return 0;
-        };
-        let idle = SESSION_LIFETIME.saturating_sub(last.elapsed());
-        let absolute = SESSION_ABSOLUTE_LIFETIME.saturating_sub(paired.elapsed());
-        idle.min(absolute).as_secs()
+    pub(super) fn clear_sessions(&mut self) {
+        self.sessions.clear();
     }
 }
 
@@ -45,46 +38,56 @@ impl App {
         )
     }
 
-    pub(super) fn authorized(&self, headers: &HeaderMap) -> bool {
-        let Ok(auth) = self.auth.lock() else {
-            return false;
-        };
-        if !auth.session_valid() {
-            return false;
-        }
-        let Some((token, _)) = &auth.session else {
-            return false;
-        };
-        cookie_matches(headers, &self.cookie_name(), token)
+    fn session_index(&self, auth: &Auth, headers: &HeaderMap) -> Option<usize> {
+        let name = self.cookie_name();
+        auth.sessions
+            .iter()
+            .position(|session| session.alive() && cookie_matches(headers, &name, &session.token))
     }
 
-    /// Validate the cookie and slide the idle window. Returns the token and the
-    /// remaining lifetime so the caller can also refresh the cookie.
+    pub(super) fn authorized(&self, headers: &HeaderMap) -> bool {
+        match self.auth.lock() {
+            Ok(auth) => self.session_index(&auth, headers).is_some(),
+            Err(_) => false,
+        }
+    }
+
+    /// Token of the live session the cookie identifies. The websocket binds
+    /// its heartbeat to it so one browser's activity never keeps another
+    /// browser's idle window open.
+    pub(super) fn authorized_token(&self, headers: &HeaderMap) -> Option<String> {
+        let auth = self.auth.lock().ok()?;
+        let index = self.session_index(&auth, headers)?;
+        Some(auth.sessions[index].token.clone())
+    }
+
+    /// Validate the cookie, slide that session's idle window and return its
+    /// token and remaining lifetime so the caller can reissue the cookie.
     pub(super) fn authorized_touch(&self, headers: &HeaderMap) -> Option<(String, u64)> {
         let mut auth = self.auth.lock().ok()?;
-        if !auth.session_valid() {
-            return None;
-        }
-        let token = auth.session.as_ref()?.0.clone();
-        if !cookie_matches(headers, &self.cookie_name(), &token) {
-            return None;
-        }
-        auth.touch();
-        Some((token, auth.remaining_seconds()))
+        let index = self.session_index(&auth, headers)?;
+        let session = &mut auth.sessions[index];
+        session.last = Instant::now();
+        Some((session.token.clone(), session.remaining_seconds()))
     }
 
-    /// Keep the session alive while its socket is open. Returns false once the
-    /// session is no longer valid so the caller can close the connection.
-    pub(super) fn touch_session(&self) -> bool {
+    /// Keep one session alive while its socket is open. Returns false once
+    /// that session is gone or expired so the caller closes the connection.
+    pub(super) fn touch_session_token(&self, token: &str) -> bool {
         let Ok(mut auth) = self.auth.lock() else {
             return false;
         };
-        if !auth.session_valid() {
+        let Some(session) = auth
+            .sessions
+            .iter_mut()
+            .find(|session| session.alive() && session.token == token)
+        else {
             return false;
-        }
-        auth.touch();
+        };
+        session.last = Instant::now();
         true
     }
+
     pub(super) fn same_origin(&self, headers: &HeaderMap) -> bool {
         headers
             .get(header::ORIGIN)
@@ -96,6 +99,20 @@ impl App {
 pub(super) fn secret() -> String {
     let bytes: [u8; 32] = rand::rng().random();
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+/// Compare two fixed-length secrets without short-circuiting on the first
+/// differing byte. The reset token is read from a 0600 file by the CLI.
+pub(super) fn token_matches(provided: &str, expected: &str) -> bool {
+    let (provided, expected) = (provided.as_bytes(), expected.as_bytes());
+    if provided.len() != expected.len() {
+        return false;
+    }
+    let mut difference = 0u8;
+    for (left, right) in provided.iter().zip(expected) {
+        difference |= left ^ right;
+    }
+    difference == 0
 }
 
 fn cookie_matches(headers: &HeaderMap, name: &str, token: &str) -> bool {

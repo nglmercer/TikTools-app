@@ -83,12 +83,7 @@ async fn plugin_asset(app: Arc<App>, headers: HeaderMap, request: Request) -> Re
     let valid_session = app
         .auth
         .lock()
-        .ok()
-        .and_then(|auth| {
-            auth.session
-                .as_ref()
-                .map(|(_, issued)| issued.elapsed() < SESSION_LIFETIME)
-        })
+        .map(|auth| auth.session_valid())
         .unwrap_or(false);
     let prefix = format!("/__plugins/{}/", app.asset_token);
     let Some(rest) = request.uri().path().strip_prefix(&prefix) else {

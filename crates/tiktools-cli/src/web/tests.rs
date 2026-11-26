@@ -87,7 +87,7 @@ fn usage_rejects_public_binding_and_standalone_before_connecting() {
         false
     )
     .is_err());
-    let (_, port, join_origin) = parse_options(
+    let (_, port, join_origin, _) = parse_options(
         &[
             "--assets".into(),
             "dist/web".into(),
@@ -103,7 +103,7 @@ fn usage_rejects_public_binding_and_standalone_before_connecting() {
 
 #[test]
 fn join_origin_stays_on_loopback_http() {
-    let (_, _, join_origin) = parse_options(
+    let (_, _, join_origin, _) = parse_options(
         &[
             "--assets".into(),
             "dist/web".into(),
@@ -143,11 +143,18 @@ fn join_origin_stays_on_loopback_http() {
     );
 }
 
+const TEST_RESET_TOKEN: &str =
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
 fn state(root: PathBuf) -> Arc<App> {
-    state_with_pairing_file(root, test_pairing_file())
+    state_with_pairing_file(root, test_pairing_file(), false)
 }
 
-/// Unique readout path per test so parallel tests never share a file.
+fn state_multi(root: PathBuf) -> Arc<App> {
+    state_with_pairing_file(root, test_pairing_file(), true)
+}
+
+/// Unique readout paths per test so parallel tests never share a file.
 fn test_pairing_file() -> PathBuf {
     let unique = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -159,7 +166,22 @@ fn test_pairing_file() -> PathBuf {
     ))
 }
 
-fn state_with_pairing_file(root: PathBuf, pairing_file: PathBuf) -> Arc<App> {
+fn test_reset_file() -> PathBuf {
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_nanos())
+        .unwrap_or(0);
+    std::env::temp_dir().join(format!(
+        "tiktools-web-reset-test-{}-{unique}.json",
+        std::process::id()
+    ))
+}
+
+fn state_with_pairing_file(
+    root: PathBuf,
+    pairing_file: PathBuf,
+    multi_session: bool,
+) -> Arc<App> {
     Arc::new(App {
         root,
         asset_token: secret(),
@@ -167,11 +189,13 @@ fn state_with_pairing_file(root: PathBuf, pairing_file: PathBuf) -> Arc<App> {
         authority: "127.0.0.1:8787".into(),
         join_base: "http://127.0.0.1:8787".into(),
         pairing_file,
+        reset_file: test_reset_file(),
+        reset_token: Mutex::new(TEST_RESET_TOKEN.into()),
+        multi_session,
         auth: Mutex::new(Auth {
             pairing: Some("012345".into()),
             issued: Instant::now(),
-            session: None,
-            paired_at: None,
+            sessions: Vec::new(),
             attempts: 0,
             renewed_at: None,
         }),
@@ -224,9 +248,9 @@ async fn activity_slides_the_idle_window_but_not_the_absolute_ceiling() {
     let app = state(PathBuf::new());
     let response = pair(State(app.clone()), origin(), Json(json!({"code":"012345"}))).await;
     assert_eq!(response.status(), StatusCode::OK);
-    let token = app.auth.lock().unwrap().session.as_ref().unwrap().0.clone();
+    let token = app.auth.lock().unwrap().sessions[0].token.clone();
     // Nearly idle: an authenticated touch renews it.
-    app.auth.lock().unwrap().session.as_mut().unwrap().1 =
+    app.auth.lock().unwrap().sessions[0].last =
         Instant::now() - (SESSION_LIFETIME - Duration::from_secs(5));
     assert!(app.authorized(&session_headers(&app, &token)));
     let touched = session_touch(State(app.clone()), session_headers(&app, &token)).await;
@@ -237,18 +261,10 @@ async fn activity_slides_the_idle_window_but_not_the_absolute_ceiling() {
     let body: Value = serde_json::from_slice(&body).unwrap();
     assert!(body["remainingSeconds"].as_u64().unwrap() > 3000);
     assert!(
-        app.auth
-            .lock()
-            .unwrap()
-            .session
-            .as_ref()
-            .unwrap()
-            .1
-            .elapsed()
-            < Duration::from_secs(1)
+        app.auth.lock().unwrap().sessions[0].last.elapsed() < Duration::from_secs(1)
     );
     // Idle again: the touch endpoint refuses and never revives the session.
-    app.auth.lock().unwrap().session.as_mut().unwrap().1 = Instant::now() - SESSION_LIFETIME;
+    app.auth.lock().unwrap().sessions[0].last = Instant::now() - SESSION_LIFETIME;
     assert!(!app.authorized(&session_headers(&app, &token)));
     assert_eq!(
         session_touch(State(app.clone()), session_headers(&app, &token))
@@ -257,9 +273,10 @@ async fn activity_slides_the_idle_window_but_not_the_absolute_ceiling() {
         StatusCode::UNAUTHORIZED
     );
     // Activity cannot outlive the absolute pairing ceiling.
-    app.auth.lock().unwrap().session.as_mut().unwrap().1 = Instant::now();
-    app.auth.lock().unwrap().paired_at = Some(Instant::now() - SESSION_ABSOLUTE_LIFETIME);
-    assert!(!app.touch_session());
+    app.auth.lock().unwrap().sessions[0].last = Instant::now();
+    app.auth.lock().unwrap().sessions[0].paired_at =
+        Instant::now() - SESSION_ABSOLUTE_LIFETIME;
+    assert!(!app.touch_session_token(&token));
     assert_eq!(
         session_touch(State(app.clone()), session_headers(&app, &token))
             .await
@@ -271,7 +288,7 @@ async fn activity_slides_the_idle_window_but_not_the_absolute_ceiling() {
 async fn session_touch_requires_same_origin_and_the_session_cookie() {
     let app = state(PathBuf::new());
     pair(State(app.clone()), origin(), Json(json!({"code":"012345"}))).await;
-    let token = app.auth.lock().unwrap().session.as_ref().unwrap().0.clone();
+    let token = app.auth.lock().unwrap().sessions[0].token.clone();
     assert_eq!(
         session_touch(State(app.clone()), HeaderMap::new())
             .await
@@ -384,13 +401,13 @@ async fn renewal_preserves_a_live_session_and_allows_an_expired_session_to_pair_
             .status(),
         StatusCode::OK
     );
-    let token = app.auth.lock().unwrap().session.as_ref().unwrap().0.clone();
+    let token = app.auth.lock().unwrap().sessions[0].token.clone();
     assert_eq!(
         renew_pairing(State(app.clone()), origin()).await.status(),
         StatusCode::CONFLICT
     );
-    assert_eq!(app.auth.lock().unwrap().session.as_ref().unwrap().0, token);
-    app.auth.lock().unwrap().session.as_mut().unwrap().1 = Instant::now() - SESSION_LIFETIME;
+    assert_eq!(app.auth.lock().unwrap().sessions[0].token, token);
+    app.auth.lock().unwrap().sessions[0].last = Instant::now() - SESSION_LIFETIME;
     assert_eq!(
         renew_pairing(State(app.clone()), origin()).await.status(),
         StatusCode::OK
@@ -479,7 +496,7 @@ async fn pairing_requires_origin_is_one_use_and_cookie_expires() {
             .status(),
         StatusCode::UNAUTHORIZED
     );
-    app.auth.lock().unwrap().session.as_mut().unwrap().1 = Instant::now() - SESSION_LIFETIME;
+    app.auth.lock().unwrap().sessions[0].last = Instant::now() - SESSION_LIFETIME;
     assert!(!app.authorized(&headers));
 }
 #[tokio::test]
@@ -511,8 +528,11 @@ async fn assets_reject_traversal_and_symlink_escape() {
         .await
         .unwrap();
     let app = state(root.clone());
-    app.auth.lock().unwrap().session = Some(("test-session".into(), Instant::now()));
-    app.auth.lock().unwrap().paired_at = Some(Instant::now());
+    app.auth.lock().unwrap().sessions.push(Session {
+        token: "test-session".into(),
+        last: Instant::now(),
+        paired_at: Instant::now(),
+    });
     let mut headers = HeaderMap::new();
     headers.insert(
         header::COOKIE,
@@ -640,7 +660,7 @@ async fn readout_fails_closed_without_server_and_opens_with_it() {
 #[tokio::test]
 async fn renew_publishes_code_and_pair_consumes_it() {
     let path = test_pairing_file();
-    let app = state_with_pairing_file(PathBuf::new(), path.clone());
+    let app = state_with_pairing_file(PathBuf::new(), path.clone(), false);
     let response = renew_pairing(State(app.clone()), origin()).await;
     assert_eq!(response.status(), StatusCode::OK);
     let code = app.auth.lock().unwrap().pairing.clone().unwrap();
@@ -652,4 +672,201 @@ async fn renew_publishes_code_and_pair_consumes_it() {
         !path.exists(),
         "a spent code must not linger in the readout"
     );
+}
+
+#[test]
+fn multi_session_and_reset_actions_are_parsed_as_separate_commands() {
+    let (_, _, _, multi) =
+        parse_options(&["--assets".into(), "dist/web".into()], false).unwrap();
+    assert!(!multi);
+    let (_, _, _, multi) = parse_options(
+        &["--assets".into(), "dist/web".into(), "--multi-session".into()],
+        false,
+    )
+    .unwrap();
+    assert!(multi);
+    assert_eq!(
+        parse_action_options(&["--print-code".into()], "--print-code"),
+        Ok(8787)
+    );
+    assert!(parse_action_options(
+        &["--reset-session".into(), "--multi-session".into()],
+        "--reset-session"
+    )
+    .is_err());
+}
+
+#[tokio::test]
+async fn reset_requires_the_same_origin_and_the_recovery_token() {
+    let app = state(PathBuf::new());
+    assert_eq!(
+        reset_session(
+            State(app.clone()),
+            HeaderMap::new(),
+            Json(json!({"token": TEST_RESET_TOKEN}))
+        )
+        .await
+        .status(),
+        StatusCode::FORBIDDEN
+    );
+    for body in [json!({"token":"wrong"}), json!({})] {
+        assert_eq!(
+            reset_session(State(app.clone()), origin(), Json(body))
+                .await
+                .status(),
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    assert_eq!(app.auth.lock().unwrap().pairing.as_deref(), Some("012345"));
+}
+
+#[tokio::test]
+async fn reset_revokes_all_sessions_clears_lockout_and_rotates_the_token() {
+    let app = state(PathBuf::new());
+    assert_eq!(
+        pair(State(app.clone()), origin(), Json(json!({"code":"012345"})))
+            .await
+            .status(),
+        StatusCode::OK
+    );
+    let old_token = app.auth.lock().unwrap().sessions[0].token.clone();
+    assert!(app.authorized(&session_headers(&app, &old_token)));
+    {
+        let mut auth = app.auth.lock().unwrap();
+        auth.attempts = 8;
+        auth.renewed_at = Some(Instant::now());
+    }
+    let response = reset_session(
+        State(app.clone()),
+        origin(),
+        Json(json!({"token": TEST_RESET_TOKEN})),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), 4096).await.unwrap();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&body).unwrap()["expiresInSeconds"],
+        PAIRING_TTL_SECS
+    );
+    {
+        let auth = app.auth.lock().unwrap();
+        assert!(auth.sessions.is_empty());
+        assert_eq!(auth.attempts, 0);
+        assert!(auth.renewed_at.is_none());
+        assert_ne!(auth.pairing.as_deref(), Some("012345"));
+    }
+    assert!(!app.authorized(&session_headers(&app, &old_token)));
+    assert_eq!(
+        renew_pairing(State(app.clone()), origin()).await.status(),
+        StatusCode::OK,
+        "reset clears the shared cooldown and lockout"
+    );
+    // The recovery token is single use: the old value no longer works.
+    assert_eq!(
+        reset_session(
+            State(app.clone()),
+            origin(),
+            Json(json!({"token": TEST_RESET_TOKEN}))
+        )
+        .await
+        .status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_ne!(*app.reset_token.lock().unwrap(), TEST_RESET_TOKEN);
+    let rotated = app.reset_token.lock().unwrap().clone();
+    assert_eq!(
+        reset_session(
+            State(app.clone()),
+            origin(),
+            Json(json!({"token": rotated}))
+        )
+        .await
+        .status(),
+        StatusCode::OK
+    );
+}
+
+#[tokio::test]
+async fn multi_session_adds_browsers_and_a_reset_revokes_all_of_them() {
+    let app = state_multi(PathBuf::new());
+    assert_eq!(
+        pair(State(app.clone()), origin(), Json(json!({"code":"012345"})))
+            .await
+            .status(),
+        StatusCode::OK
+    );
+    let first = app.auth.lock().unwrap().sessions[0].token.clone();
+    // A live session no longer blocks renewal when multi-session is enabled.
+    assert_eq!(
+        renew_pairing(State(app.clone()), origin()).await.status(),
+        StatusCode::OK
+    );
+    let code = app.auth.lock().unwrap().pairing.clone().unwrap();
+    assert_eq!(
+        pair(State(app.clone()), origin(), Json(json!({"code":code})))
+            .await
+            .status(),
+        StatusCode::OK
+    );
+    let second = app.auth.lock().unwrap().sessions[1].token.clone();
+    assert_ne!(first, second);
+    assert!(app.authorized(&session_headers(&app, &first)));
+    assert!(app.authorized(&session_headers(&app, &second)));
+    assert_eq!(
+        reset_session(
+            State(app.clone()),
+            origin(),
+            Json(json!({"token": TEST_RESET_TOKEN}))
+        )
+        .await
+        .status(),
+        StatusCode::OK
+    );
+    assert!(!app.authorized(&session_headers(&app, &first)));
+    assert!(!app.authorized(&session_headers(&app, &second)));
+}
+
+#[tokio::test]
+async fn socket_keepalive_slides_only_its_own_session() {
+    let app = state_multi(PathBuf::new());
+    assert_eq!(
+        pair(State(app.clone()), origin(), Json(json!({"code":"012345"})))
+            .await
+            .status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        renew_pairing(State(app.clone()), origin()).await.status(),
+        StatusCode::OK
+    );
+    let code = app.auth.lock().unwrap().pairing.clone().unwrap();
+    assert_eq!(
+        pair(State(app.clone()), origin(), Json(json!({"code":code})))
+            .await
+            .status(),
+        StatusCode::OK
+    );
+    let (first, second) = {
+        let auth = app.auth.lock().unwrap();
+        (auth.sessions[0].token.clone(), auth.sessions[1].token.clone())
+    };
+    // Both browsers nearly idle: activity on the first socket revives only
+    // the first session; the second browser still times out on its own clock.
+    {
+        let mut auth = app.auth.lock().unwrap();
+        let nearly_idle = Instant::now() - (SESSION_LIFETIME - Duration::from_secs(5));
+        auth.sessions[0].last = nearly_idle;
+        auth.sessions[1].last = nearly_idle;
+    }
+    assert!(app.touch_session_token(&first));
+    {
+        let auth = app.auth.lock().unwrap();
+        assert!(auth.sessions[0].last.elapsed() < Duration::from_secs(1));
+        assert!(auth.sessions[1].last.elapsed() > Duration::from_secs(3500));
+    }
+    // An expired or unknown token cannot be kept alive through the socket.
+    assert!(!app.touch_session_token("not-a-session"));
+    app.auth.lock().unwrap().sessions[0].last = Instant::now() - SESSION_LIFETIME;
+    assert!(!app.touch_session_token(&first));
+    assert!(app.touch_session_token(&second));
 }

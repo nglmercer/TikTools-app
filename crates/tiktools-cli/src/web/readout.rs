@@ -6,6 +6,12 @@ pub(super) fn pairing_file(port: u16) -> PathBuf {
         .join(format!("tiktools-web-pairing-{port}.json"))
 }
 
+pub(super) fn reset_file(port: u16) -> PathBuf {
+    tiktools_core::paths::AppPaths::from_environment()
+        .temp
+        .join(format!("tiktools-web-reset-{port}.json"))
+}
+
 pub(super) fn now_unix() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -13,7 +19,7 @@ pub(super) fn now_unix() -> u64 {
         .unwrap_or(0)
 }
 
-pub(super) fn write_pairing_file(path: &Path, snapshot: &PairingSnapshot) -> std::io::Result<()> {
+fn write_private_json<T: serde::Serialize>(path: &Path, value: &T) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -25,11 +31,7 @@ pub(super) fn write_pairing_file(path: &Path, snapshot: &PairingSnapshot) -> std
     let result = (|| -> std::io::Result<()> {
         use std::io::Write;
         let mut file = options.open(&tmp)?;
-        file.write_all(
-            serde_json::to_vec(snapshot)
-                .map_err(std::io::Error::other)?
-                .as_slice(),
-        )?;
+        file.write_all(serde_json::to_vec(value).map_err(std::io::Error::other)?.as_slice())?;
         file.sync_all()?;
         drop(file);
         std::fs::rename(&tmp, path)?;
@@ -39,6 +41,10 @@ pub(super) fn write_pairing_file(path: &Path, snapshot: &PairingSnapshot) -> std
         let _ = std::fs::remove_file(&tmp);
     }
     result
+}
+
+pub(super) fn write_pairing_file(path: &Path, snapshot: &PairingSnapshot) -> std::io::Result<()> {
+    write_private_json(path, snapshot)
 }
 
 pub(super) fn publish_pairing_code(path: &Path, code: &str) {
@@ -51,6 +57,32 @@ pub(super) fn publish_pairing_code(path: &Path, code: &str) {
     if let Err(error) = write_pairing_file(path, &snapshot) {
         eprintln!("warning: could not publish pairing code for `web --print-code`: {error}");
     }
+}
+
+pub(super) fn publish_reset_token(path: &Path, token: &str) -> std::io::Result<()> {
+    let snapshot = ResetSnapshot {
+        token: token.to_owned(),
+        pid: std::process::id(),
+    };
+    write_private_json(path, &snapshot)
+}
+
+/// Recovery credential for a separate CLI process. Same fail-closed checks as
+/// the pairing readout: a stale file from a dead adapter cannot be used.
+pub(super) fn current_reset_token(port: u16) -> Result<String, String> {
+    let bytes = std::fs::read(reset_file(port))
+        .map_err(|_| "no active local browser adapter".to_string())?;
+    let snapshot: ResetSnapshot =
+        serde_json::from_slice(&bytes).map_err(|_| "invalid reset token".to_string())?;
+    if snapshot.token.len() != 64
+        || !snapshot.token.bytes().all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err("invalid reset token".to_string());
+    }
+    if !server_listening(port) {
+        return Err("local browser adapter is not running".to_string());
+    }
+    Ok(snapshot.token)
 }
 
 pub(super) fn load_pairing_snapshot(path: &Path) -> Result<PairingSnapshot, String> {

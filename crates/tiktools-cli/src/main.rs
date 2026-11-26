@@ -85,8 +85,10 @@ commands:
                                 Cloud publisher flow (requires sign-in)
   host --stdio [--events]       headless host on stdio (streams events with --events)
   host --ipc                    headless host on local IPC (refuses when a host is running)
-  web --assets <directory> [--port N]  local browser adapter (requires local-web feature)
+  web --assets <directory> [--port N] [--join-origin URL] [--multi-session]
+                                    local browser adapter (requires local-web feature)
   web --print-code [--port N]       print the active pairing code without restarting
+  web --reset-session [--port N]    revoke every paired browser and print a fresh code
 
 commands run against the running host over local IPC by default; when no
 host is running they fail with host_unavailable instead of starting a
