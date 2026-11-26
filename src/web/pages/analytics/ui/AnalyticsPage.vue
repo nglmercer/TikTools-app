@@ -20,6 +20,7 @@ import AnalyticsSessionsTable from '@/entities/analytics/ui/AnalyticsSessionsTab
 import AnalyticsInsights from '@/entities/analytics/ui/AnalyticsInsights.vue';
 import AnalyticsMetricStrip from '@/entities/analytics/ui/AnalyticsMetricStrip.vue';
 import { formatCount } from '@/shared/lib/intl.ts';
+import { registerGuideActions } from '@/features/guided-help/model/guide-actions.ts';
 import { loadViewState, usePersistentViewState } from '@/shared/lib/view-state.ts';
 import AnalyticsRangeBar from '@/features/select-analytics-range/ui/AnalyticsRangeBar.vue';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
@@ -106,13 +107,35 @@ watch([span, creator], refresh, { immediate: true });
 // race-safe because the store keeps the newest request only.
 const POLL_MS = 30_000;
 let poll: ReturnType<typeof setInterval> | null = null;
+let unregisterGuideActions: (() => void) | undefined;
 onMounted(() => {
   poll = setInterval(() => {
     if (document.visibilityState === 'visible' && creator.value && !loading.value) refresh();
   }, POLL_MS);
+  // The tour targets live behind tabs since the redesign: each semantic
+  // action switches to the tab carrying them and reports already-there as
+  // no-progress, the same contract the automations page follows.
+  unregisterGuideActions = registerGuideActions('analytics', {
+    'analytics.selectOverview': () => {
+      if (tab.value === 'overview') return false;
+      tab.value = 'overview';
+      return true;
+    },
+    'analytics.selectContributors': () => {
+      if (tab.value === 'contributors') return false;
+      tab.value = 'contributors';
+      return true;
+    },
+    'analytics.selectSessions': () => {
+      if (tab.value === 'sessions') return false;
+      tab.value = 'sessions';
+      return true;
+    },
+  });
 });
 onBeforeUnmount(() => {
   if (poll) clearInterval(poll);
+  unregisterGuideActions?.();
 });
 
 usePersistentViewState('analytics', () => ({
@@ -242,7 +265,7 @@ usePersistentViewState('analytics', () => ({
           flush
         >
           <AnalyticsSessionsTable
-            v-if="summary.sessionList.length"
+            v-if="summary.sessionList?.length"
             :sessions="summary.sessionList"
           />
           <p

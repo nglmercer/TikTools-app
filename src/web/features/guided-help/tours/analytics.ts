@@ -13,8 +13,8 @@ export default defineTour({
     { id: 'metrics', target: 'analytics-metrics', policy: 'skip' },
     { id: 'activity', target: 'analytics-activity', policy: 'skip' },
     { id: 'facts', target: 'analytics-facts', policy: 'skip' },
-    { id: 'contributors', target: 'analytics-contributors', policy: 'skip' },
-    { id: 'sessions', target: 'analytics-sessions', policy: 'skip' },
+    { id: 'contributors', target: 'analytics-contributors', policy: 'skip', prepareActions: ['analytics.selectContributors'] },
+    { id: 'sessions', target: 'analytics-sessions', policy: 'skip', prepareActions: ['analytics.selectSessions'] },
   ],
   steps: {
     range: {
