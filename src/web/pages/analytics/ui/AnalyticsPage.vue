@@ -8,7 +8,6 @@ import {
   analyticsRangeKeys,
   dayToIsoDate,
   formatDayDate,
-  formatSpan,
   isSingleDaySpan,
   isoDateToDay,
   resolveAnalyticsRange,
@@ -27,6 +26,7 @@ import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconChart from '@/shared/ui/icon/icons/IconChart.vue';
 import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
+import BaseDateText from '@/shared/ui/date-text/BaseDateText.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import type { TableSort } from '@/shared/ui/table/table-types.ts';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
@@ -73,10 +73,6 @@ const emptyDescription = computed(() => {
   return t('analytics.empty.hint');
 });
 
-const spanLabel = computed(() =>
-  summary.value ? formatSpan({ startDay: summary.value.startDay, endDay: summary.value.endDay }, locale.value) : '',
-);
-
 function refresh(): void {
   void store.load(creator.value, span.value);
 }
@@ -106,7 +102,11 @@ watch([range, metric, query, customStart, customEnd], persist);
           v-if="summary"
           class="analytics-page__subtitle"
         >
-          {{ spanLabel }}
+          <BaseDateText
+            :value="summary.startDay * 86400"
+            :end-value="summary.endDay * 86400"
+            utc
+          />
           <span aria-hidden="true">·</span>
           {{ t('analytics.facts.sessionsValue', { count: summary.sessions }) }}
         </p>

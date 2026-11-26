@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AnalyticsSummaryData } from '../../../../shared/messages.ts';
 import { formatCount } from '@/shared/lib/intl.ts';
-import { formatDayDate } from '../lib/analytics-range.ts';
+import BaseDateText from '@/shared/ui/date-text/BaseDateText.vue';
 import { formatHourLabel } from '../lib/analytics-metrics.ts';
 import { hourTotals, summarizeDaySeries, summarizeHourlySeries } from '../lib/analytics-insights.ts';
 
@@ -60,7 +60,11 @@ const social = computed(() =>
         <dt>{{ t('analytics.insights.bestDay') }}</dt>
         <dd>
           <template v-if="chats.peakDay !== null && chats.peakValue > 0">
-            {{ formatDayDate(chats.peakDay, locale) }} · {{ formatCount(chats.peakValue, locale) }}
+            <BaseDateText
+              :value="chats.peakDay * 86400"
+              utc
+            />
+            · {{ formatCount(chats.peakValue, locale) }}
           </template>
           <template v-else>
             —

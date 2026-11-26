@@ -32,9 +32,9 @@ const titleId = useId();
         <slot name="status" />
       </span>
       <span
-        v-if="subtitle"
+        v-if="subtitle || $slots.subtitle"
         class="base-panel__subtitle"
-      >{{ subtitle }}</span>
+      ><slot name="subtitle">{{ subtitle }}</slot></span>
       <span
         v-if="$slots.actions"
         class="base-panel__actions"

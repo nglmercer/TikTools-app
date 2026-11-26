@@ -3,14 +3,10 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AnalyticsSummaryData } from '../../../../shared/messages.ts';
 import { analyticsMetrics, hourRowsToSeries, type AnalyticsMetric } from '@/entities/analytics/lib/analytics-metrics.ts';
-import {
-  formatDayDate,
-  formatSpan,
-  formatZoneShort,
-  isSingleDaySpan,
-} from '@/entities/analytics/lib/analytics-range.ts';
+import { formatZoneShort, isSingleDaySpan } from '@/entities/analytics/lib/analytics-range.ts';
 import AnalyticsDailyChart from '@/entities/analytics/ui/AnalyticsDailyChart.vue';
 import AnalyticsHourlyChart from '@/entities/analytics/ui/AnalyticsHourlyChart.vue';
+import BaseDateText from '@/shared/ui/date-text/BaseDateText.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
 
@@ -30,19 +26,22 @@ const hasHourly = computed(() =>
     Object.entries(row).some(([key, value]) => key !== 'hour' && typeof value === 'number' && value > 0),
   ),
 );
-const subtitle = computed(() => {
-  if (!singleDay.value) return formatSpan(span.value, locale.value);
-  const zone = formatZoneShort(locale.value);
-  return [formatDayDate(span.value.startDay, locale.value), zone].filter(Boolean).join(' · ');
-});
+const zoneSuffix = computed(() => formatZoneShort(locale.value));
 const metricOptions = computed(() => analyticsMetrics.map((value) => ({ value, label: t(`analytics.metrics.${value}`) })));
 </script>
 
 <template>
   <BasePanel
     :title="singleDay ? t('analytics.activity.today') : t('analytics.activity.title')"
-    :subtitle="subtitle"
   >
+    <template #subtitle>
+      <BaseDateText
+        :value="summary.startDay * 86400"
+        :end-value="singleDay ? undefined : summary.endDay * 86400"
+        utc
+      />
+      <template v-if="singleDay && zoneSuffix"> · {{ zoneSuffix }}</template>
+    </template>
     <template #actions>
       <BaseSegmented
         v-model="metric"

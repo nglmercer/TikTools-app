@@ -2,10 +2,10 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AnalyticsTopViewer } from '../../../../shared/messages.ts';
+import BaseDateText from '@/shared/ui/date-text/BaseDateText.vue';
 import BaseTable from '@/shared/ui/table/BaseTable.vue';
 import type { TableSort } from '@/shared/ui/table/table-types.ts';
 import { formatCount } from '@/shared/lib/intl.ts';
-import { formatClockTime, formatDayDate, isoDateToDay, systemDay } from '../lib/analytics-range.ts';
 import {
   filterContributors,
   rankContributors,
@@ -36,7 +36,7 @@ const columns = computed(() => [
     sortable: true,
   },
   { key: 'share', label: t('analytics.contributorsShare'), width: '90px', align: 'end' as const, sortable: false },
-  { key: 'lastSeen', label: t('analytics.contributors.lastActive'), width: '96px', align: 'end' as const, sortable: true },
+  { key: 'lastSeen', label: t('analytics.contributors.lastActive'), width: '150px', align: 'end' as const, sortable: true },
 ]);
 
 const rows = computed(() => {
@@ -49,14 +49,6 @@ const rows = computed(() => {
   }));
 });
 
-/** Clock time for same-day activity, date + time when the range spans days. */
-function formatLastSeen(unixSecs: number): string {
-  const day = isoDateToDay(new Date(unixSecs * 1000).toISOString().slice(0, 10));
-  const today = systemDay(Date.now());
-  const time = formatClockTime(unixSecs, locale.value);
-  if (day !== null && day !== today) return `${formatDayDate(day, locale.value)} · ${time}`;
-  return time;
-}
 </script>
 
 <template>
@@ -109,7 +101,12 @@ function formatLastSeen(unixSecs: number): string {
       </span>
     </template>
     <template #cell-lastSeen="{ value }">
-      {{ formatLastSeen(Number(value)) }}
+      <BaseDateText
+        v-if="Number(value) > 0"
+        :value="Number(value)"
+        mode="datetime"
+      />
+      <template v-else>—</template>
     </template>
     <template #empty>
       {{ query ? t('analytics.contributors.noMatches') : t('analytics.contributors.empty') }}

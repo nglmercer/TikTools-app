@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { analyticsRangeKeys, type AnalyticsRangeKey } from '@/entities/analytics/lib/analytics-range.ts';
-import BaseDateField from '@/shared/ui/date-field/BaseDateField.vue';
+import BaseDateRange from '@/shared/ui/date-range/BaseDateRange.vue';
 import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
 
 const range = defineModel<AnalyticsRangeKey>('range', { required: true });
@@ -20,25 +20,14 @@ const options = computed(() => analyticsRangeKeys.map((key) => ({ value: key, la
       :options="options"
       :aria-label="t('analytics.rangeLabel')"
     />
-    <div
+    <BaseDateRange
       v-if="range === 'custom'"
+      v-model:start="start"
+      v-model:end="end"
       class="range-bar__custom"
-    >
-      <label class="range-bar__field">
-        <span>{{ t('analytics.ranges.from') }}</span>
-        <BaseDateField
-          v-model="start"
-          :max="end"
-        />
-      </label>
-      <label class="range-bar__field">
-        <span>{{ t('analytics.ranges.to') }}</span>
-        <BaseDateField
-          v-model="end"
-          :min="start"
-        />
-      </label>
-    </div>
+      :from-label="t('analytics.ranges.from')"
+      :to-label="t('analytics.ranges.to')"
+    />
   </div>
 </template>
 
@@ -50,15 +39,4 @@ const options = computed(() => analyticsRangeKeys.map((key) => ({ value: key, la
   gap: var(--space-5);
 }
 
-.range-bar__custom {
-  display: flex;
-  gap: var(--space-5);
-}
-
-.range-bar__field {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  color: var(--color-text-muted);
-}
 </style>
