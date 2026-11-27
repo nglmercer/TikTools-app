@@ -1,40 +1,24 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::Path,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, RwLock,
     },
 };
 
-use tiktools_plugin_api::{HostCompat, PluginRuntimeKind};
+use tiktools_plugin_api::PluginRuntimeKind;
 use tiktools_plugin_package::{
-    pack, sign_archive, KeyId, KeyRole, PackRequest, PackageArchive, Sha256Digest, SigningKey,
-    TrustStore, TrustedKey,
+    KeyId, KeyRole, PackageArchive, Sha256Digest, SigningKey, TrustStore, TrustedKey,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use crate::test_support::{StaticServer, TempDir};
+use crate::test_support::{host, init_registry, keys, package, Keys, StaticServer, TempDir};
 use crate::{
     join_url, latest_compatible, resolve, shard_path, Advisory, AdvisorySeverity, DownloadRequest,
     Downloader, IndexWriter, PackageDocument, RegistriesConfig, RegistryClient, RegistryError,
     RegistrySource, RejectionReason, ResolveRequest, SearchQuery,
 };
-
-struct Keys {
-    root: SigningKey,
-    index: SigningKey,
-    publisher: SigningKey,
-}
-
-fn keys() -> Keys {
-    Keys {
-        root: SigningKey::generate(KeyId::parse("root-1").unwrap(), None).unwrap(),
-        index: SigningKey::generate(KeyId::parse("index-1").unwrap(), None).unwrap(),
-        publisher: SigningKey::generate(KeyId::parse("acme-1").unwrap(), Some("acme".to_owned()))
-            .unwrap(),
-    }
-}
 
 #[tokio::test]
 async fn fixed_client_ignores_legacy_sources_and_persisted_trust_controls() {
@@ -180,74 +164,8 @@ async fn fixed_client_does_not_follow_cloud_redirects_to_another_origin() {
     assert_eq!(foreign.requests.load(Ordering::Acquire), 0);
 }
 
-fn host() -> HostCompat {
-    HostCompat::new(semver::Version::new(0, 4, 0)).with_target("linux-x64-gnu")
-}
-
-fn package(
-    directory: &TempDir,
-    id: &str,
-    version: &str,
-    extra: serde_json::Value,
-    key: Option<&SigningKey>,
-) -> PathBuf {
-    let source = directory.join(&format!("src-{id}-{version}"));
-    fs::create_dir_all(&source).unwrap();
-    let mut manifest = serde_json::json!({
-        "schemaVersion": 3,
-        "id": id,
-        "name": "Acme TTS",
-        "version": version,
-        "runtime": "process",
-        "entry": "tts",
-        "publisher": "acme",
-        "license": "MIT",
-        "categories": ["audio"],
-        "tags": ["tts", "voice"],
-        "description": "Reads chat aloud",
-        "permissions": ["audio.output"],
-    });
-    manifest
-        .as_object_mut()
-        .unwrap()
-        .extend(extra.as_object().unwrap().clone());
-    fs::write(
-        source.join("plugin.json"),
-        serde_json::to_vec(&manifest).unwrap(),
-    )
-    .unwrap();
-    fs::write(source.join("tts"), format!("binary {version}")).unwrap();
-    let output = pack(&PackRequest {
-        manifest: source.join("plugin.json"),
-        entry: Some(source.join("tts")),
-        output: directory.join(&format!("out/{id}-{version}.plugin")),
-        target: None,
-    })
-    .unwrap();
-    if let Some(key) = key {
-        sign_archive(&output.path, key).unwrap();
-    }
-    output.path
-}
-
 fn signed_registry(directory: &TempDir, keys: &Keys) -> IndexWriter {
-    let writer = IndexWriter::open(
-        directory.join("registry"),
-        "test",
-        Some(SigningKey::from_json(&keys.index.to_json()).unwrap()),
-    );
-    writer
-        .init(
-            &keys.root,
-            vec![
-                TrustedKey::new(keys.index.public_key(), KeyRole::Index),
-                TrustedKey::new(keys.publisher.public_key(), KeyRole::Publisher).publisher("acme"),
-            ],
-            Some("Test registry".to_owned()),
-            None,
-        )
-        .unwrap();
-    writer
+    init_registry(directory.join("registry"), keys, "Test registry")
 }
 
 fn client(

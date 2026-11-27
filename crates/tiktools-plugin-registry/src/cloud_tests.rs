@@ -4,92 +4,25 @@ use std::{
     sync::{atomic::Ordering, Arc, RwLock},
 };
 
-use tiktools_plugin_api::HostCompat;
 use tiktools_plugin_package::{
-    pack, sign_archive, KeyId, KeyRole, PackRequest, PackageArchive, Sha256Digest, SigningKey,
-    TrustStore, TrustedKey,
+    sign_archive, KeyId, KeyRole, PackageArchive, Sha256Digest, SigningKey, TrustStore, TrustedKey,
 };
 
-use crate::test_support::{StaticServer, TempDir};
+use crate::test_support::{
+    host, init_registry, keys, keys_with, package as support_package, Keys, StaticServer, TempDir,
+};
 use crate::{
     cloud_source, generation_files_url, join_url, latest_compatible, resolve, Advisory,
     AdvisorySeverity, DownloadRequest, Downloader, IndexWriter, RegistriesConfig, RegistryClient,
     RegistryError, RegistrySource, RejectionReason, ResolveRequest, SearchQuery,
 };
 
-struct Keys {
-    root: SigningKey,
-    index: SigningKey,
-    publisher: SigningKey,
-}
-
-fn keys() -> Keys {
-    keys_with("root-1", "index-1", "acme-1")
-}
-
-fn keys_with(root: &str, index: &str, publisher: &str) -> Keys {
-    Keys {
-        root: SigningKey::generate(KeyId::parse(root).unwrap(), None).unwrap(),
-        index: SigningKey::generate(KeyId::parse(index).unwrap(), None).unwrap(),
-        publisher: SigningKey::generate(KeyId::parse(publisher).unwrap(), Some("acme".to_owned()))
-            .unwrap(),
-    }
-}
-
-fn host() -> HostCompat {
-    HostCompat::new(semver::Version::new(0, 4, 0)).with_target("linux-x64-gnu")
-}
-
 fn package(directory: &TempDir, id: &str, version: &str) -> PathBuf {
-    let source = directory.join(&format!("src-{id}-{version}"));
-    fs::create_dir_all(&source).unwrap();
-    let manifest = serde_json::json!({
-        "schemaVersion": 3,
-        "id": id,
-        "name": "Acme TTS",
-        "version": version,
-        "runtime": "process",
-        "entry": "tts",
-        "publisher": "acme",
-        "license": "MIT",
-        "categories": ["audio"],
-        "tags": ["tts", "voice"],
-        "description": "Reads chat aloud",
-        "permissions": ["audio.output"],
-    });
-    fs::write(
-        source.join("plugin.json"),
-        serde_json::to_vec(&manifest).unwrap(),
-    )
-    .unwrap();
-    fs::write(source.join("tts"), format!("binary {version}")).unwrap();
-    pack(&PackRequest {
-        manifest: source.join("plugin.json"),
-        entry: Some(source.join("tts")),
-        output: directory.join(&format!("out/{id}-{version}.plugin")),
-        target: None,
-    })
-    .unwrap()
-    .path
+    support_package(directory, id, version, serde_json::json!({}), None)
 }
 
 fn signed_tree(tree: PathBuf, keys: &Keys, archives: &[PathBuf], description: &str) -> IndexWriter {
-    let writer = IndexWriter::open(
-        tree,
-        "test",
-        Some(SigningKey::from_json(&keys.index.to_json()).unwrap()),
-    );
-    writer
-        .init(
-            &keys.root,
-            vec![
-                TrustedKey::new(keys.index.public_key(), KeyRole::Index),
-                TrustedKey::new(keys.publisher.public_key(), KeyRole::Publisher).publisher("acme"),
-            ],
-            Some(description.to_owned()),
-            None,
-        )
-        .unwrap();
+    let writer = init_registry(tree, keys, description);
     for archive in archives {
         writer.add(archive, "stable", None).unwrap();
     }

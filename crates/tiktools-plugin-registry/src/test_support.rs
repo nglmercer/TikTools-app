@@ -9,7 +9,12 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use tiktools_plugin_package::Sha256Digest;
+use tiktools_plugin_api::HostCompat;
+use tiktools_plugin_package::{
+    pack, sign_archive, KeyId, KeyRole, PackRequest, Sha256Digest, SigningKey, TrustedKey,
+};
+
+use crate::IndexWriter;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub(crate) struct TempDir(PathBuf);
@@ -145,4 +150,95 @@ impl StaticServer {
     pub(crate) fn stop(self) {
         self.task.abort();
     }
+}
+
+pub(crate) struct Keys {
+    pub(crate) root: SigningKey,
+    pub(crate) index: SigningKey,
+    pub(crate) publisher: SigningKey,
+}
+
+pub(crate) fn keys() -> Keys {
+    keys_with("root-1", "index-1", "acme-1")
+}
+
+pub(crate) fn keys_with(root: &str, index: &str, publisher: &str) -> Keys {
+    Keys {
+        root: SigningKey::generate(KeyId::parse(root).unwrap(), None).unwrap(),
+        index: SigningKey::generate(KeyId::parse(index).unwrap(), None).unwrap(),
+        publisher: SigningKey::generate(KeyId::parse(publisher).unwrap(), Some("acme".to_owned()))
+            .unwrap(),
+    }
+}
+
+pub(crate) fn host() -> HostCompat {
+    HostCompat::new(semver::Version::new(0, 4, 0)).with_target("linux-x64-gnu")
+}
+
+pub(crate) fn package(
+    directory: &TempDir,
+    id: &str,
+    version: &str,
+    extra: serde_json::Value,
+    key: Option<&SigningKey>,
+) -> PathBuf {
+    let source = directory.join(&format!("src-{id}-{version}"));
+    fs::create_dir_all(&source).unwrap();
+    let mut manifest = serde_json::json!({
+        "schemaVersion": 3,
+        "id": id,
+        "name": "Acme TTS",
+        "version": version,
+        "runtime": "process",
+        "entry": "tts",
+        "publisher": "acme",
+        "license": "MIT",
+        "categories": ["audio"],
+        "tags": ["tts", "voice"],
+        "description": "Reads chat aloud",
+        "permissions": ["audio.output"],
+    });
+    manifest
+        .as_object_mut()
+        .unwrap()
+        .extend(extra.as_object().unwrap().clone());
+    fs::write(
+        source.join("plugin.json"),
+        serde_json::to_vec(&manifest).unwrap(),
+    )
+    .unwrap();
+    fs::write(source.join("tts"), format!("binary {version}")).unwrap();
+    let output = pack(&PackRequest {
+        manifest: source.join("plugin.json"),
+        entry: Some(source.join("tts")),
+        output: directory.join(&format!("out/{id}-{version}.plugin")),
+        target: None,
+    })
+    .unwrap();
+    if let Some(key) = key {
+        sign_archive(&output.path, key).unwrap();
+    }
+    output.path
+}
+
+/// An index writer over `tree`, signed by the index key, trusting the index
+/// key and the `acme` publisher under the root key.
+pub(crate) fn init_registry(tree: PathBuf, keys: &Keys, description: &str) -> IndexWriter {
+    let writer = IndexWriter::open(
+        tree,
+        "test",
+        Some(SigningKey::from_json(&keys.index.to_json()).unwrap()),
+    );
+    writer
+        .init(
+            &keys.root,
+            vec![
+                TrustedKey::new(keys.index.public_key(), KeyRole::Index),
+                TrustedKey::new(keys.publisher.public_key(), KeyRole::Publisher).publisher("acme"),
+            ],
+            Some(description.to_owned()),
+            None,
+        )
+        .unwrap();
+    writer
 }
