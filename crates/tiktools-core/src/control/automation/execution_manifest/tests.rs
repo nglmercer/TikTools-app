@@ -1,4 +1,5 @@
 use super::*;
+use crate::control::test_support::pair_authorization;
 use crate::{collaboration::*, control::CommandCaller, paths::AppPaths};
 use std::sync::Arc;
 
@@ -49,45 +50,11 @@ impl Drop for Fixture {
     }
 }
 fn author(core: &AppCore) -> Authorization {
-    let service = core.collaboration().unwrap();
-    let mut config = service.configuration().unwrap();
-    config.enabled = true;
-    config.advertised_origin = Some("http://127.0.0.1:8788".into());
-    service.configure(config).unwrap();
-    let invite = service
-        .create_invitation(InviteCreate {
-            grant: Grant {
-                capabilities: [Capability::AutomationRead, Capability::AutomationEdit].into(),
-                ..Grant::default()
-            },
-        })
-        .unwrap();
-    let exchange = "b".repeat(64);
-    let pending = service
-        .redeem(
-            Redeem {
-                invite_id: invite.invite_id,
-                secret: invite.secret,
-                client_label: "Manifest fixture author".into(),
-                client_kind: ClientKind::Agent,
-                exchange_secret_hash: hash_secret(&exchange),
-            },
-            "fixture",
-        )
-        .unwrap();
-    service.decide_request(&pending.request_id, true).unwrap();
-    let credentials = service
-        .collect(
-            Collect {
-                request_id: pending.request_id,
-                exchange_secret: exchange,
-            },
-            "fixture",
-        )
-        .unwrap();
-    service
-        .authenticate_live(&credentials.access_token, false, false)
-        .unwrap()
+    let grant = Grant {
+        capabilities: [Capability::AutomationRead, Capability::AutomationEdit].into(),
+        ..Grant::default()
+    };
+    pair_authorization(core, grant, "Manifest fixture author", 'b')
 }
 fn delegated(core: &AppCore, auth: &Authorization, id: &str) {
     core.automation_command(CommandCaller::Remote(auth.clone()),CommandRequest{command_id:format!("manifest-proposal-{}",fastrand::u64(..)),host_instance_id:core.collaboration().unwrap().instance_id().into(),expected_revision:"0".into()},AutomationMutation::Create{kind:AutomationKind::Event,record:json!({"id":id,"name":"Saved proposal","enabled":false,"trigger":"tiktok.chat","actionIds":["same"],"authority":"owner","provenance":{"authority":{"kind":"owner"}},"principalId":"forged-body-principal","sessionId":"forged-body-session"})}).unwrap();

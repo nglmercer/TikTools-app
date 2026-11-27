@@ -1,6 +1,10 @@
 //! Helpers shared by the owner journal unit tests: a silent host emitter, the
 //! app paths under one root and a core opened over them.
-use crate::{paths::AppPaths, AppCore, HostEmitter, NoopMediaHost};
+use crate::{
+    collaboration::{hash_secret, Authorization, ClientKind, Collect, Grant, InviteCreate, Redeem},
+    paths::AppPaths,
+    AppCore, HostEmitter, NoopMediaHost,
+};
 use std::{path::Path, sync::Arc};
 
 pub(crate) struct Emitter;
@@ -29,4 +33,49 @@ pub(crate) fn open_core(paths: &AppPaths) -> Arc<AppCore> {
         Arc::new(NoopMediaHost),
         paths.clone(),
     ))
+}
+
+/// Pairs a remote client holding `grant` and returns its live authorization.
+/// Collaboration is switched on the first time; `exchange` is the fill
+/// character of the 64-character exchange secret.
+pub(crate) fn pair_authorization(
+    core: &AppCore,
+    grant: Grant,
+    client_label: &str,
+    exchange: char,
+) -> Authorization {
+    let service = core.collaboration().unwrap();
+    let mut config = service.configuration().unwrap();
+    if !config.enabled {
+        config.enabled = true;
+        config.advertised_origin = Some("http://127.0.0.1:8788".into());
+        service.configure(config).unwrap();
+    }
+    let invite = service.create_invitation(InviteCreate { grant }).unwrap();
+    let exchange = exchange.to_string().repeat(64);
+    let pending = service
+        .redeem(
+            Redeem {
+                invite_id: invite.invite_id,
+                secret: invite.secret,
+                client_label: client_label.into(),
+                client_kind: ClientKind::Agent,
+                exchange_secret_hash: hash_secret(&exchange),
+            },
+            "fixture",
+        )
+        .unwrap();
+    service.decide_request(&pending.request_id, true).unwrap();
+    let credentials = service
+        .collect(
+            Collect {
+                request_id: pending.request_id,
+                exchange_secret: exchange,
+            },
+            "fixture",
+        )
+        .unwrap();
+    service
+        .authenticate_live(&credentials.access_token, false, false)
+        .unwrap()
 }

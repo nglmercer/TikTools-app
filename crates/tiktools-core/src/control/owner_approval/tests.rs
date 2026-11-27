@@ -1,5 +1,5 @@
 use super::*;
-use crate::control::test_support::{open_core, paths};
+use crate::control::test_support::{open_core, pair_authorization, paths};
 use crate::{
     collaboration::*,
     control::{AutomationMutation, CommandCaller, OwnerAdoptionOutcome, OwnerAdoptionSubmit},
@@ -11,50 +11,18 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 const SOURCE: &str = "private-native-approval-source";
 fn author(core: &AppCore) -> Authorization {
-    let s = core.collaboration().unwrap();
-    let mut c = s.configuration().unwrap();
-    c.enabled = true;
-    c.advertised_origin = Some("http://127.0.0.1:8788".into());
-    s.configure(c).unwrap();
-    let i = s
-        .create_invitation(InviteCreate {
-            grant: Grant {
-                capabilities: [
-                    Capability::AutomationRead,
-                    Capability::AutomationEdit,
-                    Capability::LiveRead,
-                    Capability::PointsRead,
-                    Capability::PointsAdjust,
-                ]
-                .into(),
-                ..Grant::default()
-            },
-        })
-        .unwrap();
-    let secret = "e".repeat(64);
-    let p = s
-        .redeem(
-            Redeem {
-                invite_id: i.invite_id,
-                secret: i.secret,
-                client_label: "Native approval fixture".into(),
-                client_kind: ClientKind::Agent,
-                exchange_secret_hash: hash_secret(&secret),
-            },
-            "fixture",
-        )
-        .unwrap();
-    s.decide_request(&p.request_id, true).unwrap();
-    let c = s
-        .collect(
-            Collect {
-                request_id: p.request_id,
-                exchange_secret: secret,
-            },
-            "fixture",
-        )
-        .unwrap();
-    s.authenticate_live(&c.access_token, false, false).unwrap()
+    let grant = Grant {
+        capabilities: [
+            Capability::AutomationRead,
+            Capability::AutomationEdit,
+            Capability::LiveRead,
+            Capability::PointsRead,
+            Capability::PointsAdjust,
+        ]
+        .into(),
+        ..Grant::default()
+    };
+    pair_authorization(core, grant, "Native approval fixture", 'e')
 }
 struct Fixture {
     core: Option<Arc<AppCore>>,

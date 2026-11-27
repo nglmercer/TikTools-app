@@ -69,40 +69,7 @@ impl Fixture {
         }
     }
     pub(crate) fn pair(&self, grant: Grant) -> Authorization {
-        let service = self.core().collaboration().unwrap();
-        let mut config = service.configuration().unwrap();
-        if !config.enabled {
-            config.enabled = true;
-            config.advertised_origin = Some("http://127.0.0.1:8788".into());
-            service.configure(config).unwrap();
-        }
-        let invite = service.create_invitation(InviteCreate { grant }).unwrap();
-        let exchange = "e".repeat(64);
-        let pending = service
-            .redeem(
-                Redeem {
-                    invite_id: invite.invite_id,
-                    secret: invite.secret,
-                    client_label: "Approval runtime author".into(),
-                    client_kind: ClientKind::Agent,
-                    exchange_secret_hash: hash_secret(&exchange),
-                },
-                "fixture",
-            )
-            .unwrap();
-        service.decide_request(&pending.request_id, true).unwrap();
-        let credentials = service
-            .collect(
-                Collect {
-                    request_id: pending.request_id,
-                    exchange_secret: exchange,
-                },
-                "fixture",
-            )
-            .unwrap();
-        service
-            .authenticate_live(&credentials.access_token, false, false)
-            .unwrap()
+        super::test_support::pair_authorization(self.core(), grant, "Approval runtime author", 'e')
     }
     pub(crate) fn draft(&self, auth: &Authorization, kind: AutomationKind, mut record: Value) {
         record["enabled"] = false.into();
