@@ -1,4 +1,5 @@
 use super::*;
+use crate::control::test_support::pair_service;
 use crate::{collaboration::*, paths::AppPaths};
 struct Fixture {
     db: DatabaseManager,
@@ -34,40 +35,7 @@ impl Fixture {
         Self { db, service, root }
     }
     fn auth(&self, grant: Grant) -> Authorization {
-        let invitation = self
-            .service
-            .create_invitation(InviteCreate { grant })
-            .unwrap();
-        let exchange = "a".repeat(64);
-        let pending = self
-            .service
-            .redeem(
-                Redeem {
-                    invite_id: invitation.invite_id,
-                    secret: invitation.secret,
-                    client_label: "Draft author".into(),
-                    client_kind: ClientKind::Agent,
-                    exchange_secret_hash: hash_secret(&exchange),
-                },
-                "fixture",
-            )
-            .unwrap();
-        self.service
-            .decide_request(&pending.request_id, true)
-            .unwrap();
-        let credentials = self
-            .service
-            .collect(
-                Collect {
-                    request_id: pending.request_id,
-                    exchange_secret: exchange,
-                },
-                "fixture",
-            )
-            .unwrap();
-        self.service
-            .authenticate_live(&credentials.access_token, false, false)
-            .unwrap()
+        pair_service(&self.service, grant, "Draft author", 'a')
     }
     fn author(&self) -> Authorization {
         self.auth(Grant {

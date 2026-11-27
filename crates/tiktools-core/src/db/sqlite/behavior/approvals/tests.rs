@@ -1,4 +1,5 @@
 use super::*;
+use crate::control::test_support::pair_service;
 use crate::{collaboration::*, services::automation_manifest as manifest};
 use std::sync::Arc;
 
@@ -101,45 +102,11 @@ impl Fixture {
         self.db.open(&self.db.automation_path()).unwrap().query_row("SELECT generation,state FROM behavior_execution_approvals WHERE scope=?1 AND resource_id=?2",params![scope,id],|r| Ok((r.get(0)?,r.get(1)?))).unwrap()
     }
     fn author(&self) -> Authorization {
-        let invitation = self
-            .service
-            .create_invitation(InviteCreate {
-                grant: Grant {
-                    capabilities: [Capability::AutomationRead, Capability::AutomationEdit].into(),
-                    ..Grant::default()
-                },
-            })
-            .unwrap();
-        let exchange = "a".repeat(64);
-        let pending = self
-            .service
-            .redeem(
-                Redeem {
-                    invite_id: invitation.invite_id,
-                    secret: invitation.secret,
-                    client_label: "Author".into(),
-                    client_kind: ClientKind::Agent,
-                    exchange_secret_hash: hash_secret(&exchange),
-                },
-                "fixture",
-            )
-            .unwrap();
-        self.service
-            .decide_request(&pending.request_id, true)
-            .unwrap();
-        let credentials = self
-            .service
-            .collect(
-                Collect {
-                    request_id: pending.request_id,
-                    exchange_secret: exchange,
-                },
-                "fixture",
-            )
-            .unwrap();
-        self.service
-            .authenticate_live(&credentials.access_token, false, false)
-            .unwrap()
+        let grant = Grant {
+            capabilities: [Capability::AutomationRead, Capability::AutomationEdit].into(),
+            ..Grant::default()
+        };
+        pair_service(&self.service, grant, "Author", 'a')
     }
     fn delegated(&self, auth: &Authorization, table: &str, record: Value) {
         let id = record["id"].as_str().unwrap();

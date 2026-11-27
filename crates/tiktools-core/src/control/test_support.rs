@@ -1,7 +1,10 @@
 //! Helpers shared by the owner journal unit tests: a silent host emitter, the
 //! app paths under one root and a core opened over them.
 use crate::{
-    collaboration::{hash_secret, Authorization, ClientKind, Collect, Grant, InviteCreate, Redeem},
+    collaboration::{
+        hash_secret, Authorization, ClientKind, CollaborationService, Collect, Grant, InviteCreate,
+        Redeem,
+    },
     paths::AppPaths,
     AppCore, HostEmitter, NoopMediaHost,
 };
@@ -51,6 +54,17 @@ pub(crate) fn pair_authorization(
         config.advertised_origin = Some("http://127.0.0.1:8788".into());
         service.configure(config).unwrap();
     }
+    pair_service(&service, grant, client_label, exchange)
+}
+
+/// Invites, redeems, approves and collects a client on an already enabled
+/// collaboration `service`.
+pub(crate) fn pair_service(
+    service: &CollaborationService,
+    grant: Grant,
+    client_label: &str,
+    exchange: char,
+) -> Authorization {
     let invite = service.create_invitation(InviteCreate { grant }).unwrap();
     let exchange = exchange.to_string().repeat(64);
     let pending = service
