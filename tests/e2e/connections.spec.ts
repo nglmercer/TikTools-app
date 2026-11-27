@@ -16,6 +16,7 @@ import {
   sonicboomDisconnectedState,
 } from './fixtures/states.ts';
 import { SEL } from './support/selectors.ts';
+import { PLUGIN_ID } from '../shared/index.ts';
 
 async function openConnections(page: Parameters<typeof installFakeHost>[0]) {
   const tab = page.getByRole('link', { name: t('navigation.connections') });
@@ -138,12 +139,12 @@ async function repoAutomaticState() {
 
 test('automatic REPO setup chooses a profile and distinguishes API availability from gameplay readiness', async ({ page }) => {
   const state = await repoAutomaticState();
-  state.pluginTokenCandidates = { 'repo.game': [
+  state.pluginTokenCandidates = { [PLUGIN_ID.repoGame]: [
     { id: 'aabbccddeeff0011', label: 'Steam — Local installation' },
     { id: '1122334455667788', label: 'Mod profile: Stream' },
   ] };
-  state.pluginSetupEndpoints = { 'repo.game': 'http://127.0.0.1:18053' };
-  state.pluginSetupHealth = { 'repo.game': { ok: false, reachable: true, gameplayReady: false, latencyMs: 1, error: HOST_MESSAGES.apiReachableGameplayUnavailable } };
+  state.pluginSetupEndpoints = { [PLUGIN_ID.repoGame]: 'http://127.0.0.1:18053' };
+  state.pluginSetupHealth = { [PLUGIN_ID.repoGame]: { ok: false, reachable: true, gameplayReady: false, latencyMs: 1, error: HOST_MESSAGES.apiReachableGameplayUnavailable } };
   const capture = await installFakeHost(page, state);
   await page.goto('/');
   await waitForFrontend(page);

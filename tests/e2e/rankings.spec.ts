@@ -4,6 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
+import { EVENT_KIND, RPC } from '../shared/index.ts';
 
 /**
  * Ranking and competition RPCs are answered by a small in-page store layered
@@ -62,8 +63,8 @@ test('creates a gift ranking prefilled from the live room and copies its OBS URL
   await page.getByRole('button', { name: t('rankingsPage.form.create') }).click();
 
   await expect(page.getByText(t('rankingsPage.form.created'))).toBeVisible();
-  const [created] = await calls(page, 'rankings.create');
-  expect(created).toMatchObject({ id: 'top-gifts', creatorId: 'creator', roomId: 'room', window: { type: 'daily' }, sources: [{ source: 'tiktok.gift', metric: 'gift.diamonds' }] });
+  const [created] = await calls(page, RPC.rankingsCreate);
+  expect(created).toMatchObject({ id: 'top-gifts', creatorId: 'creator', roomId: 'room', window: { type: 'daily' }, sources: [{ source: EVENT_KIND.tiktokGift, metric: 'gift.diamonds' }] });
   await expect(page.getByText('Ana — 30')).toBeVisible();
 
   await page.getByRole('button', { name: t('rankingsPage.detail.copyUrl') }).click();

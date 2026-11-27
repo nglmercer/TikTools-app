@@ -5,7 +5,7 @@ import { readHostState, installFakeHost, waitForFrontend } from './fixtures/tikt
 import { emptyState, sonicboomConnectedState } from './fixtures/states.ts';
 import { SONICBOOM_ID } from './fixtures/plugins.ts';
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
-import { ROUTE } from '../shared/index.ts';
+import { EVENT_KIND, ROUTE, RPC } from '../shared/index.ts';
 import { SEL } from './support/selectors.ts';
 
 const t = (key: string, params?: Record<string, string | number>): string => testMessage('en', key, params);
@@ -21,7 +21,7 @@ const expandCard = async (panel: import('@playwright/test').Locator, name: strin
  * the v2 workspace, and plugin settings are listed by key name only.
  */
 
-const event = (id: string, name: string) => ({ schemaVersion: 1, id, name, enabled: true, trigger: 'tiktok.chat', filters: [], cooldownMs: 0, cooldownScope: 'user', runMode: 'all', actionIds: [] });
+const event = (id: string, name: string) => ({ schemaVersion: 1, id, name, enabled: true, trigger: EVENT_KIND.tiktokChat, filters: [], cooldownMs: 0, cooldownScope: 'user', runMode: 'all', actionIds: [] });
 
 test('the Events tab lists what changed since the last snapshot and asks before resetting', async ({ page }) => {
   const state = emptyState();
@@ -47,7 +47,7 @@ test('the Events tab lists what changed since the last snapshot and asks before 
   await expect(panel.getByRole('alertdialog')).toContainText('Greeting renamed');
   await panel.getByRole('button', { name: t('common.cancel') }).click();
   await expect(panel.getByRole('alertdialog')).toHaveCount(0);
-  expect((await readHostState(page)).calls.some((call) => call.method === 'automation.update')).toBe(false);
+  expect((await readHostState(page)).calls.some((call) => call.method === RPC.automationUpdate)).toBe(false);
 
   // Marking the section as reviewed asks first, then makes the current records the reference copy.
   await panel.getByRole('button', { name: t('syncChanges.markReviewed') }).click();
@@ -57,13 +57,13 @@ test('the Events tab lists what changed since the last snapshot and asks before 
   await expect(panel.getByRole('button', { name: t('syncChanges.markReviewed') })).toBeDisabled();
   const reference = await page.evaluate(() => JSON.parse(localStorage.getItem('tiktools.sync.snapshot.automation-events') ?? '{}'));
   expect(Object.keys(reference).sort()).toEqual(['greet', 'new']);
-  expect((await readHostState(page)).calls.some((call) => call.method === 'automation.update')).toBe(false);
+  expect((await readHostState(page)).calls.some((call) => call.method === RPC.automationUpdate)).toBe(false);
   capture.assertClean();
 });
 
 test('Plugins send the whole pass and resolve a conflict through the v2 contract', async ({ page }) => {
   const state = sonicboomConnectedState();
-  state.announcedMethods = ['cloud.status', 'sync.status', 'sync.v2.section', 'sync.v2.selected', 'sync.v2.changes.list', 'sync.v2.now', 'sync.v2.conflict.review', 'sync.v2.conflict.resolve'];
+  state.announcedMethods = [RPC.cloudStatus, RPC.syncStatus, 'sync.v2.section', 'sync.v2.selected', 'sync.v2.changes.list', 'sync.v2.now', 'sync.v2.conflict.review', 'sync.v2.conflict.resolve'];
   const value = (enabled: boolean, revision: number) => ({ state: 'present', revision, version: '1.0.0', enabled, value: { schemaVersion: 1, pluginId: SONICBOOM_ID, version: '1.0.0', enabled } });
   const hidden = (revision: number | null) => ({ state: 'present', revision, version: null, enabled: null, value: null });
   state.sync = {
@@ -99,7 +99,7 @@ test('Plugins send the whole pass and resolve a conflict through the v2 contract
 
 test('the Plugins button explains why it is disabled when sync is off', async ({ page }) => {
   const state = sonicboomConnectedState();
-  state.announcedMethods = ['cloud.status', 'sync.status', 'sync.v2.section', 'sync.v2.changes.list'];
+  state.announcedMethods = [RPC.cloudStatus, RPC.syncStatus, 'sync.v2.section', 'sync.v2.changes.list'];
   state.sync = { signedIn: true, enabled: false, entries: [], resolved: [] };
   const capture = await installFakeHost(page, state);
   await page.goto(ROUTE.plugins);

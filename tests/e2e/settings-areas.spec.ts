@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { readHostState, installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState, sonicboomConnectedState } from './fixtures/states.ts';
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
-import { ROUTE } from '../shared/index.ts';
+import { ROUTE, RPC } from '../shared/index.ts';
 
 const t = (key: string): string => testMessage('en', key);
 
@@ -58,7 +58,7 @@ test('the old plugin updates link opens the plugin preferences and goes back', a
 
 test('Cloud areas appear in their own page only when the host announces them', async ({ page }) => {
   const state = emptyState();
-  state.announcedMethods = ['bundles.overlays.create', 'bundles.packages.preflight', 'integrations.connections'];
+  state.announcedMethods = ['bundles.overlays.create', RPC.bundlesPackagesPreflight, RPC.integrationsConnections];
   await installFakeHost(page, state);
   await page.goto(ROUTE.overlays);
   await waitForFrontend(page);

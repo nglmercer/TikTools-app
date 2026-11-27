@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 
 import { installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
-import { ROUTE } from '../shared/index.ts';
+import { ROUTE, RPC } from '../shared/index.ts';
 import { SEL } from './support/selectors.ts';
 
 /**
@@ -23,7 +23,7 @@ const wire = (kind: string, id: string, title: string) => ({
 
 function catalogState() {
   const state = emptyState();
-  state.announcedMethods = ['catalog.items', 'catalog.mine', 'catalog.item', 'cloudLibrary.list'];
+  state.announcedMethods = [RPC.catalogItems, RPC.catalogMine, 'catalog.item', 'cloudLibrary.list'];
   state.catalog = {
     items: [wire('plugin', 'tiktools.tts', 'Voice reader'), wire('template', 'tpl-gift', t('automations.builtinTemplates.giftSoundTitle')), wire('profile', 'prof-1', 'Giftwall starter')],
     library: [{ id: '00000000-0000-4000-8000-000000000001', kind: 'template', slug: 'gift', revision: '3', title: t('automations.builtinTemplates.giftSoundTitle'), sha256: sha, status: 'published' }],

@@ -9,6 +9,7 @@ import {
   waitForFrontend,
   readHostState,
 } from './fixtures/tiktools-host.ts';
+import { RPC } from '../shared/index.ts';
 
 async function openConnections(page: Parameters<typeof installFakeHost>[0]): Promise<void> {
   const tab = page.getByRole('link', { name: t('navigation.connections') });
@@ -50,8 +51,8 @@ test('the explorer stays inert until opened, then connects only the chosen room'
   const row = page.getByRole('row').filter({ hasText: '@creator_two' });
   await row.getByRole('button', { name: t('connection.connect') }).click();
 
-  await expect.poll(async () => (await discoveryCalls(page, 'live.connect')).length).toBe(1);
-  const connect = (await discoveryCalls(page, 'live.connect'))[0];
+  await expect.poll(async () => (await discoveryCalls(page, RPC.liveConnect)).length).toBe(1);
+  const connect = (await discoveryCalls(page, RPC.liveConnect))[0];
   expect(connect?.params).toMatchObject({
     uniqueId: 'creator_two',
     roomId: '7100000000000000002',
@@ -73,14 +74,14 @@ test('a random pick previews a candidate and never connects on its own', async (
   await expect(page.getByText(t('connections.explore.randomPreview'))).toBeVisible();
 
   // Previewing must not connect by itself.
-  expect(await discoveryCalls(page, 'live.connect')).toHaveLength(0);
+  expect(await discoveryCalls(page, RPC.liveConnect)).toHaveLength(0);
 
   await page.getByRole('button', { name: 'Dismiss' }).click();
   await expect(page.getByText(t('connections.explore.randomPreview'))).toHaveCount(0);
 
   await page.getByRole('button', { name: t('connections.explore.random') }).click();
   await page.locator('.live-explorer__random').getByRole('button', { name: t('connection.connect') }).click();
-  await expect.poll(async () => (await discoveryCalls(page, 'live.connect')).length).toBe(1);
+  await expect.poll(async () => (await discoveryCalls(page, RPC.liveConnect)).length).toBe(1);
 
   await assertNoUnhandledCalls(page);
   capture.assertClean();

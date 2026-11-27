@@ -5,13 +5,14 @@ import { expect, test } from '@playwright/test';
 import { assertNoUnhandledCalls, emitTopic, installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
 import { SEL } from './support/selectors.ts';
+import { TOPIC } from '../shared/index.ts';
 
 test('feed rows stay badge-free and open details in the shared panel', async ({ page }) => {
   const capture = await installFakeHost(page, emptyState());
   await page.goto('/');
   await waitForFrontend(page);
 
-  await emitTopic(page, 'live.ui-event', {
+  await emitTopic(page, TOPIC.liveUiEvent, {
     event: {
       kind: 'gift',
       author: 'flor',
@@ -51,7 +52,7 @@ test('the avatar opens the user profile in the same panel', async ({ page }) => 
   await page.goto('/');
   await waitForFrontend(page);
 
-  await emitTopic(page, 'live.ui-event', {
+  await emitTopic(page, TOPIC.liveUiEvent, {
     event: { kind: 'chat', author: 'alice', nickname: 'Alice', text: 'hola', msgId: 'aside-chat-1' },
   });
 

@@ -6,6 +6,7 @@ import type { Page } from '@playwright/test';
 import { assertNoUnhandledCalls, installFakeHost, readHostState, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
 import { SEL } from './support/selectors.ts';
+import { RPC } from '../shared/index.ts';
 
 async function openOverlays(page: Page) {
   const capture = await installFakeHost(page, emptyState(), { theme: 'dark' });
@@ -27,7 +28,7 @@ test('layer text edits update the preview, save, and survive navigation', async 
   await expect(page.locator('.widget-layer-text.is-message')).toHaveText('Thanks Viewer Name!');
   await page.getByRole('button', { name: t('overlays.editor.save'), exact: true }).click();
   await expect(page.getByText(t('overlays.editor.saved'), { exact: true })).toBeVisible();
-  expect((await readHostState(page)).calls.some((call) => call.method === 'app.state.set' && call.params['key'] === 'widgets.design.follow')).toBe(true);
+  expect((await readHostState(page)).calls.some((call) => call.method === RPC.appStateSet && call.params['key'] === 'widgets.design.follow')).toBe(true);
   await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
   await page.getByRole('link', { name: 'Overlays', exact: true }).click();
   await layers(page).getByRole('option', { name: /Message Text/ }).click();

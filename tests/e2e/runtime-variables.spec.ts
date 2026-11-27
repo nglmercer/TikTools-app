@@ -3,11 +3,11 @@ import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test, type Locator } from '@playwright/test';
 import { countCalls, installFakeHost, readHostState, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
-import { ROUTE } from '../shared/index.ts';
+import { ROUTE, RPC } from '../shared/index.ts';
 
 test('Variables preserves explicit types and keeps local secrets masked', async ({ page }, testInfo) => {
   const state = emptyState();
-  state.announcedMethods = ['globals.typed.list', 'globals.typed.replace'];
+  state.announcedMethods = [RPC.globalsTypedList, RPC.globalsTypedReplace];
   state.typedGlobals = {
     commandPort: { type: 'text', value: '8080' },
     credentials: { type: 'secret', value: 'local-browser-test-private' },
@@ -44,7 +44,7 @@ const openChange = (panel: Locator, name: string) => panel
 
 test('Variables Changes adopts a reviewed value and withdraws a secret without replacing its local copy', async ({ page }, testInfo) => {
   const state = emptyState();
-  state.announcedMethods = ['cloud.status', 'globals.typed.list', 'globals.typed.replace', 'sync.status', 'sync.v2.selected', 'sync.v2.variables.review', 'sync.v2.variables.send', 'sync.v2.variables.fetch', 'sync.v2.variables.apply', 'sync.v2.variables.withdraw'];
+  state.announcedMethods = [RPC.cloudStatus, RPC.globalsTypedList, RPC.globalsTypedReplace, RPC.syncStatus, 'sync.v2.selected', 'sync.v2.variables.review', 'sync.v2.variables.send', 'sync.v2.variables.fetch', 'sync.v2.variables.apply', 'sync.v2.variables.withdraw'];
   state.sync = { signedIn: true, enabled: true, entries: [], resolved: [] };
   state.typedGlobals = { ordinary: { type: 'secret', value: 'local-browser-private-value' } };
   state.variableComparisons = [
@@ -73,13 +73,13 @@ test('Variables Changes adopts a reviewed value and withdraws a secret without r
   await expect.poll(() => countCalls(page, 'sync.v2.variables.withdraw')).toBe(1);
   expect((await readHostState(page)).typedGlobals?.ordinary).toEqual({ type: 'secret', value: 'local-browser-private-value' });
   expect(await countCalls(page, 'sync.v2.now')).toBe(0);
-  expect(await countCalls(page, 'globals.typed.replace')).toBe(0);
+  expect(await countCalls(page, RPC.globalsTypedReplace)).toBe(0);
   capture.assertClean();
 });
 
 test('editing another variable retains the exact native integer', async ({ page }) => {
   const state = emptyState();
-  state.announcedMethods = ['globals.typed.list', 'globals.typed.replace'];
+  state.announcedMethods = [RPC.globalsTypedList, RPC.globalsTypedReplace];
   state.typedGlobals = {
     counter: { type: 'number', value: JSON.parse('9223372036854775807') as number, numberText: '9223372036854775807' },
     label: { type: 'text', value: 'before' },
@@ -95,6 +95,6 @@ test('editing another variable retains the exact native integer', async ({ page 
   expect((await readHostState(page)).typedGlobals?.counter).toMatchObject({ type: 'number', numberText: '9223372036854775807' });
   expect((await readHostState(page)).globals?.counter).toBe('9223372036854775807');
   await expect(rows.nth(1).getByRole('textbox', { name: t('globals.value') })).toHaveValue('9223372036854775807');
-  expect(await countCalls(page, 'globals.set')).toBe(0);
+  expect(await countCalls(page, RPC.globalsSet)).toBe(0);
   capture.assertClean();
 });

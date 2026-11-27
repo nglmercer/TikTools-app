@@ -13,6 +13,7 @@ import {
 } from './fixtures/tiktools-host.ts';
 import { emptyState, ttsPageState } from './fixtures/states.ts';
 import { PLUGIN_TITLE } from './support/selectors.ts';
+import { PLUGIN_ID } from '../shared/index.ts';
 
 test('boots to the feed with named navigation and an active tab marker', async ({ page }) => {
   const consoleCapture = await installFakeHost(page, emptyState());
@@ -52,7 +53,7 @@ test('dynamic plugin tab appears, renders, and falls back when removed', async (
   snapshot.pluginPages = [];
   snapshot.plugins = [];
   await writeHostState(page, dropped);
-  await emitTopic(page, 'plugin.uninstalled', { pluginId: 'sonicboom.server' });
+  await emitTopic(page, 'plugin.uninstalled', { pluginId: PLUGIN_ID.sonicboomServer });
   await expect(page.getByRole('link', { name: PLUGIN_TITLE.tts })).toHaveCount(0);
   await expect(page.getByRole('link', { name: t('navigation.plugins') })).toHaveAttribute(
     'aria-current',

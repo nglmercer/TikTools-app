@@ -5,6 +5,7 @@ import { expect, test } from '@playwright/test';
 import { assertNoUnhandledCalls, emitPush, emitTopic, installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
 import { SEL } from './support/selectors.ts';
+import { TOPIC } from '../shared/index.ts';
 
 test('feed appends only format new cards and still update locale, search, and clear', async ({ page }) => {
   const capture = await installFakeHost(page, emptyState());
@@ -26,7 +27,7 @@ test('feed appends only format new cards and still update locale, search, and cl
   await page.goto('/');
   await waitForFrontend(page);
   await expect(page.getByText(t('feed.empty'), { exact: false })).toBeVisible();
-  const emitChat = (index: number) => emitTopic(page, 'live.ui-event', {
+  const emitChat = (index: number) => emitTopic(page, TOPIC.liveUiEvent, {
     event: { kind: 'chat', author: 'alice', text: `feed message ${index}`, msgId: `feed-${index}` },
   });
   await emitChat(1);
@@ -56,7 +57,7 @@ test('events keep arriving while another tab is open and are waiting on return',
   const capture = await installFakeHost(page, emptyState());
   await page.goto('/');
   await waitForFrontend(page);
-  await emitTopic(page, 'live.ui-event', { event: { kind: 'chat', author: 'alice', text: 'before', msgId: 'before' } });
+  await emitTopic(page, TOPIC.liveUiEvent, { event: { kind: 'chat', author: 'alice', text: 'before', msgId: 'before' } });
   await expect(page.locator(SEL.eventCard)).toHaveCount(1);
   const setTab = (tab: string) => page.evaluate((target) => {
     (window as unknown as { __tiktools_benchmark_controls__: { setTab(tab: string): void } }).__tiktools_benchmark_controls__.setTab(target);
@@ -80,7 +81,7 @@ test('image-disabled diagnostic mode removes avatar and gift image requests', as
   await page.evaluate(() => {
     (window as unknown as { __tiktools_benchmark_controls__: { setImagesEnabled(enabled: boolean): void } }).__tiktools_benchmark_controls__.setImagesEnabled(false);
   });
-  await emitTopic(page, 'live.ui-event', { event: { kind: 'gift', author: 'alice', text: 'gift', msgId: 'gift-image-ab',
+  await emitTopic(page, TOPIC.liveUiEvent, { event: { kind: 'gift', author: 'alice', text: 'gift', msgId: 'gift-image-ab',
     avatarUrl: 'https://example.invalid/avatar.png', giftDetails: { name: 'Rose', count: 1, diamonds: 1, imageUrl: 'https://example.invalid/gift.png' } } });
   await expect(page.locator(SEL.eventCard)).toHaveCount(1);
   await expect(page.locator('.event-card img')).toHaveCount(0);
@@ -103,7 +104,7 @@ test('autoscroll and paused position survive feed navigation', async ({ page }) 
   await expect.poll(bottomDistance).toBeLessThan(2);
   await page.getByRole('button', { name: /auto-scroll/ }).click();
   await page.locator(SEL.feedStream).evaluate((node) => { node.scrollTop = 100; });
-  await emitTopic(page, 'live.ui-event', { event: { kind: 'chat', author: 'alice', text: 'paused', msgId: 'paused-scroll' } });
+  await emitTopic(page, TOPIC.liveUiEvent, { event: { kind: 'chat', author: 'alice', text: 'paused', msgId: 'paused-scroll' } });
   await expect(page.locator(SEL.eventCard)).toHaveCount(100); // the per-type window evicts the oldest card
   // Evicting the oldest card above the reader moves the offset by its height so the visible rows stay put.
   const anchored = await page.locator(SEL.feedStream).evaluate((node) => node.scrollTop);
