@@ -381,6 +381,34 @@ fn coordinator(root: &Path, server: &Server, account: &str) -> WorkspaceCoordina
 }
 // These low-level tests supply a trusted product fixture directly, without
 // running the separate protocol cutover transaction.
+/// Bootstraps `coordinator`, guards it for product uploads and stages the
+/// standard decision (plugin `acme.plugin`, consent 42, source generation 7).
+fn stage_product_fixture(
+    coordinator: &WorkspaceCoordinator,
+    server: &Server,
+) -> (WorkspaceKey, crate::V2ProductDecision) {
+    coordinator.bootstrap(&[], None).unwrap();
+    guard_product_fixture(coordinator);
+    let target = key("plugin-selections", "acme.plugin");
+    let decision = crate::V2ProductDecision {
+        origin: server.origin.clone(),
+        account_id: "account-a".into(),
+        config_generation: 42,
+        source_generation: 7,
+        plugin_id: "acme.plugin".into(),
+        selection: Some(selection()),
+    };
+    coordinator
+        .stage_product_decision(
+            target.clone(),
+            WorkspaceEdit::Put(serde_json::to_value(selection()).unwrap()),
+            7,
+            &decision.digest().unwrap(),
+        )
+        .unwrap();
+    (target, decision)
+}
+
 fn guard_product_fixture(coordinator: &WorkspaceCoordinator) {
     let mut snapshot = coordinator.snapshot().unwrap();
     snapshot.state.mark_product_guarded();
@@ -744,25 +772,7 @@ async fn changed_source_after_prepare_is_not_sent() {
     let session = Arc::new(connect(&server, "device-a").await);
     let temp = tempfile::tempdir().unwrap();
     let coordinator = coordinator(&temp.path().join("private"), &server, "account-a");
-    coordinator.bootstrap(&[], None).unwrap();
-    guard_product_fixture(&coordinator);
-    let target = key("plugin-selections", "acme.plugin");
-    let decision = crate::V2ProductDecision {
-        origin: server.origin.clone(),
-        account_id: "account-a".into(),
-        config_generation: 42,
-        source_generation: 7,
-        plugin_id: "acme.plugin".into(),
-        selection: Some(selection()),
-    };
-    coordinator
-        .stage_product_decision(
-            target.clone(),
-            WorkspaceEdit::Put(serde_json::to_value(selection()).unwrap()),
-            7,
-            &decision.digest().unwrap(),
-        )
-        .unwrap();
+    let (target, _) = stage_product_fixture(&coordinator, &server);
     let source = ChangedOnEmission(ProductUploadFixture {
         generation: AtomicU64::new(7),
         consent: 42,
@@ -802,25 +812,7 @@ async fn product_review_barrier_rejects_a_cancelled_write_that_arrives_late() {
         &server,
         "account-a",
     ));
-    coordinator.bootstrap(&[], None).unwrap();
-    guard_product_fixture(&coordinator);
-    let target = key("plugin-selections", "acme.plugin");
-    let decision = crate::V2ProductDecision {
-        origin: server.origin.clone(),
-        account_id: "account-a".into(),
-        config_generation: 42,
-        source_generation: 7,
-        plugin_id: "acme.plugin".into(),
-        selection: Some(selection()),
-    };
-    coordinator
-        .stage_product_decision(
-            target.clone(),
-            WorkspaceEdit::Put(serde_json::to_value(selection()).unwrap()),
-            7,
-            &decision.digest().unwrap(),
-        )
-        .unwrap();
+    let (target, decision) = stage_product_fixture(&coordinator, &server);
     let source = Arc::new(ProductUploadFixture {
         generation: AtomicU64::new(7),
         consent: 42,
@@ -1154,25 +1146,7 @@ async fn product_uncertain_keep_local_requires_fresh_review_source_and_publicati
     let session = Arc::new(connect(&server, "device-a").await);
     let temp = tempfile::tempdir().unwrap();
     let coordinator = coordinator(&temp.path().join("private"), &server, "account-a");
-    coordinator.bootstrap(&[], None).unwrap();
-    guard_product_fixture(&coordinator);
-    let target = key("plugin-selections", "acme.plugin");
-    let decision = crate::V2ProductDecision {
-        origin: server.origin.clone(),
-        account_id: "account-a".into(),
-        config_generation: 42,
-        source_generation: 7,
-        plugin_id: "acme.plugin".into(),
-        selection: Some(selection()),
-    };
-    coordinator
-        .stage_product_decision(
-            target.clone(),
-            WorkspaceEdit::Put(serde_json::to_value(selection()).unwrap()),
-            7,
-            &decision.digest().unwrap(),
-        )
-        .unwrap();
+    let (target, _) = stage_product_fixture(&coordinator, &server);
     let current = Arc::new(AtomicBool::new(true));
     let deny_publication = Arc::new(AtomicBool::new(false));
     let check = current.clone();
@@ -1552,25 +1526,7 @@ async fn cancelled_while_last_eligibility_check_is_blocked_does_not_send() {
         &server,
         "account-a",
     ));
-    coordinator.bootstrap(&[], None).unwrap();
-    guard_product_fixture(&coordinator);
-    let target = key("plugin-selections", "acme.plugin");
-    let decision = crate::V2ProductDecision {
-        origin: server.origin.clone(),
-        account_id: "account-a".into(),
-        config_generation: 42,
-        source_generation: 7,
-        plugin_id: "acme.plugin".into(),
-        selection: Some(selection()),
-    };
-    coordinator
-        .stage_product_decision(
-            target.clone(),
-            WorkspaceEdit::Put(serde_json::to_value(selection()).unwrap()),
-            7,
-            &decision.digest().unwrap(),
-        )
-        .unwrap();
+    let (target, _) = stage_product_fixture(&coordinator, &server);
     let source = Arc::new(ProductUploadFixture {
         generation: AtomicU64::new(7),
         consent: 42,
@@ -1712,25 +1668,7 @@ async fn product_worker_cancellation_does_not_block_executor_or_send_after_sourc
         &server,
         "account-a",
     ));
-    coordinator.bootstrap(&[], None).unwrap();
-    guard_product_fixture(&coordinator);
-    let target = key("plugin-selections", "acme.plugin");
-    let decision = crate::V2ProductDecision {
-        origin: server.origin.clone(),
-        account_id: "account-a".into(),
-        config_generation: 42,
-        source_generation: 7,
-        plugin_id: "acme.plugin".into(),
-        selection: Some(selection()),
-    };
-    coordinator
-        .stage_product_decision(
-            target.clone(),
-            WorkspaceEdit::Put(serde_json::to_value(selection()).unwrap()),
-            7,
-            &decision.digest().unwrap(),
-        )
-        .unwrap();
+    let (target, _) = stage_product_fixture(&coordinator, &server);
     let (entered_tx, entered_rx) = oneshot::channel();
     let (finished_tx, finished_rx) = oneshot::channel();
     let (release_tx, release_rx) = std::sync::mpsc::channel();
@@ -1805,25 +1743,7 @@ async fn product_worker_deadline_returns_while_source_blocked_without_sending_la
         &server,
         "account-a",
     ));
-    coordinator.bootstrap(&[], None).unwrap();
-    guard_product_fixture(&coordinator);
-    let target = key("plugin-selections", "acme.plugin");
-    let decision = crate::V2ProductDecision {
-        origin: server.origin.clone(),
-        account_id: "account-a".into(),
-        config_generation: 42,
-        source_generation: 7,
-        plugin_id: "acme.plugin".into(),
-        selection: Some(selection()),
-    };
-    coordinator
-        .stage_product_decision(
-            target.clone(),
-            WorkspaceEdit::Put(serde_json::to_value(selection()).unwrap()),
-            7,
-            &decision.digest().unwrap(),
-        )
-        .unwrap();
+    let (target, _) = stage_product_fixture(&coordinator, &server);
     let (entered_tx, entered_rx) = oneshot::channel();
     let (finished_tx, finished_rx) = oneshot::channel();
     let (release_tx, release_rx) = std::sync::mpsc::channel();
@@ -1915,25 +1835,7 @@ async fn cancelled_product_worker_releases_http_lease_and_retains_unknown_result
         &server,
         "account-a",
     ));
-    coordinator.bootstrap(&[], None).unwrap();
-    guard_product_fixture(&coordinator);
-    let target = key("plugin-selections", "acme.plugin");
-    let decision = crate::V2ProductDecision {
-        origin: server.origin.clone(),
-        account_id: "account-a".into(),
-        config_generation: 42,
-        source_generation: 7,
-        plugin_id: "acme.plugin".into(),
-        selection: Some(selection()),
-    };
-    coordinator
-        .stage_product_decision(
-            target.clone(),
-            WorkspaceEdit::Put(serde_json::to_value(selection()).unwrap()),
-            7,
-            &decision.digest().unwrap(),
-        )
-        .unwrap();
+    let (target, _) = stage_product_fixture(&coordinator, &server);
     let source = Arc::new(ProductUploadFixture {
         generation: AtomicU64::new(7),
         consent: 42,
