@@ -472,6 +472,20 @@ async fn prepare_product_conflict(
     );
 }
 
+/// Reviews the `acme.one` conflict and starts keep-local while the outbox is
+/// set to fail at the finish step, leaving an interrupted keep-local journal.
+async fn interrupt_keep_local(sync: &SyncCoordinator, outbox: &mut ProductOutbox) {
+    let review = sync
+        .review_product_conflict("acme.one", outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_finish = true;
+    assert!(sync
+        .keep_local_product_conflict(&review, outbox)
+        .await
+        .is_err());
+}
+
 /// Holds the next export response: arms the gate, starts `operation` and returns
 /// once the server has the request, so the test can change state while it waits.
 /// Release it with `mock.held_export.release.notify_one()`.
@@ -847,15 +861,7 @@ async fn previous_consent_rebase_abandon_recovers_after_interrupted_restore() {
         .legacy_snapshot(&mock.origin, "user-a")
         .unwrap()
         .unwrap();
-    let review = sync
-        .review_product_conflict("acme.one", &mut outbox)
-        .await
-        .unwrap();
-    outbox.0.lock().unwrap().fail_rebase_finish = true;
-    assert!(sync
-        .keep_local_product_conflict(&review, &mut outbox)
-        .await
-        .is_err());
+    interrupt_keep_local(&sync, &mut outbox).await;
     sync.set_enabled(false).unwrap();
     sync.set_enabled(true).unwrap();
     sync.with_v1_local_edit(|_| outbox.stage("acme.one", 2, false))
@@ -1065,15 +1071,7 @@ async fn product_abandon_recovers_after_restoring_json_and_retains_newer_edit() 
         .legacy_snapshot(&mock.origin, "user-a")
         .unwrap()
         .unwrap();
-    let review = sync
-        .review_product_conflict("acme.one", &mut outbox)
-        .await
-        .unwrap();
-    outbox.0.lock().unwrap().fail_rebase_finish = true;
-    assert!(sync
-        .keep_local_product_conflict(&review, &mut outbox)
-        .await
-        .is_err());
+    interrupt_keep_local(&sync, &mut outbox).await;
     sync.with_v1_local_edit(|_| outbox.stage("acme.one", 2, false))
         .unwrap();
     let review = sync
@@ -1127,15 +1125,7 @@ async fn product_abandon_rejects_review_if_candidate_or_consent_changes() {
     login(&auth, "product-abandon-stale").await;
     let mut outbox = ProductOutbox::default();
     prepare_product_conflict(&sync, &mock, &mut outbox).await;
-    let review = sync
-        .review_product_conflict("acme.one", &mut outbox)
-        .await
-        .unwrap();
-    outbox.0.lock().unwrap().fail_rebase_finish = true;
-    assert!(sync
-        .keep_local_product_conflict(&review, &mut outbox)
-        .await
-        .is_err());
+    interrupt_keep_local(&sync, &mut outbox).await;
     sync.with_v1_local_edit(|_| outbox.stage("acme.one", 2, false))
         .unwrap();
     let review = sync
