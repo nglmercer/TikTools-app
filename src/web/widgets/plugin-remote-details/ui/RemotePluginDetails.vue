@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BaseBackButton from '@/shared/ui/button/BaseBackButton.vue';
 import { computed, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
@@ -7,7 +8,6 @@ import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import DialogRefreshBar from '@/shared/ui/dialog/DialogRefreshBar.vue';
-import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
 import IconDownload from '@/shared/ui/icon/icons/IconDownload.vue';
 import BaseMarkdown from '@/shared/ui/markdown/BaseMarkdown.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
@@ -51,13 +51,9 @@ watch(key, load);
     flush
   >
     <template #leading>
-      <BaseIconButton
-        :label="t('common.back')"
-        size="sm"
-        @click="emit('back')"
-      >
-        <IconChevronLeft />
-      </BaseIconButton>
+      <BaseBackButton
+        @back="emit('back')"
+      />
     </template>
     <template
       v-if="latest"

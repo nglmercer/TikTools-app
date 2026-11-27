@@ -1,14 +1,12 @@
 <script setup lang="ts">
+import BaseBackButton from '@/shared/ui/button/BaseBackButton.vue';
 import { computed } from 'vue';
 import type { BehaviorSnapshot, LiveEvent, LiveAction } from '../../../../automation/behavior/types.ts';
 import type { AutomationEdit } from '@/features/edit-automation-record/model/automation-editor.ts';
 import type { AutomationControls } from '@/features/manage-automations/model/use-automation-controls.ts';
 import { eventCaptures } from '@/entities/automation/lib/conditions.ts';
-import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
 import ActionEditor from '@/features/edit-automation-action/ui/ActionEditor.vue';
 import EventEditor from '@/features/edit-automation-event/ui/EventEditor.vue';
-import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
-import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
 import type { SearchOption } from '@/shared/ui/search-select/search-option.ts';
 import type { EditingRecord } from '../model/editing-record.ts';
 
@@ -24,7 +22,6 @@ const props = defineProps<{
   automation: Pick<AutomationControls, 'testRuns' | 'hotkeyStatus' | 'error' | 'testEvent' | 'fireEvent' | 'globals' | 'actionOptions' | 'actionOptionErrors' | 'openMediaPicker' | 'testAction' | 'loadOptions'>;
 }>();
 const emit = defineEmits<{ saveEvent: [event: LiveEvent]; saveAction: [action: LiveAction]; change: [record: LiveEvent | LiveAction]; remove: [kind: 'events' | 'actions', id: string]; compare: []; close: [] }>();
-const { t } = useAutomationText();
 const eventBaseline = computed(() => props.state?.kind === 'event' ? props.state.base as LiveEvent | null : null);
 const actionBaseline = computed(() => props.state?.kind === 'action' ? props.state.base as LiveAction | null : null);
 /** Captures exposed by the events that reference the action being edited. */
@@ -66,15 +63,10 @@ const actionCaptures = computed(() => {
     @fire="automation.fireEvent"
   >
     <template #leading>
-      <BaseIconButton
-        :label="t('common.back')"
-        variant="default"
-        size="sm"
+      <BaseBackButton
         data-guide="automation-editor-close"
-        @click="emit('close')"
-      >
-        <IconChevronLeft />
-      </BaseIconButton>
+        @back="emit('close')"
+      />
     </template>
   </EventEditor>
   <ActionEditor
@@ -102,15 +94,10 @@ const actionCaptures = computed(() => {
     @load-options="automation.loadOptions"
   >
     <template #leading>
-      <BaseIconButton
-        :label="t('common.back')"
-        variant="default"
-        size="sm"
+      <BaseBackButton
         data-guide="automation-editor-close"
-        @click="emit('close')"
-      >
-        <IconChevronLeft />
-      </BaseIconButton>
+        @back="emit('close')"
+      />
     </template>
   </ActionEditor>
 </template>

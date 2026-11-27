@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BaseBackButton from '@/shared/ui/button/BaseBackButton.vue';
 import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -8,8 +9,6 @@ import { processorMetricRows, processorPreviewEvent, processorStatusTone } from 
 import { useProcessorsStore } from '@/entities/processor/model/processors-store.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
-import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
-import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
 import IconFlask from '@/shared/ui/icon/icons/IconFlask.vue';
 import BaseJsonView from '@/shared/ui/json/BaseJsonView.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
@@ -75,13 +74,9 @@ function runTest(entry: ProcessorStatusEntry): void {
     flush
   >
     <template #leading>
-      <BaseIconButton
-        :label="t('common.back')"
-        size="sm"
-        @click="emit('back')"
-      >
-        <IconChevronLeft />
-      </BaseIconButton>
+      <BaseBackButton
+        @back="emit('back')"
+      />
     </template>
     <template #status>
       <BaseStatus

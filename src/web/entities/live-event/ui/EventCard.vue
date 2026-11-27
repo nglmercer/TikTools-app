@@ -1,38 +1,20 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import type { FeedMotion } from '../lib/feed-motion.ts';
-import { useI18n } from 'vue-i18n';
-import ViewerAvatar from '@/entities/viewer/ui/ViewerAvatar.vue';
 import type { ViewerIdentity } from '@/entities/viewer/lib/viewer-profile.ts';
 import type { DisplayEvent } from '@/types.ts';
-import { cleanHandle, displayName, eventText, formatEventTime, hasRichText } from '../lib/event-text.ts';
+import { eventViewDefaults, useEventDisplay, type EventViewProps } from '../model/use-event-display.ts';
+import ViewerAvatar from '@/entities/viewer/ui/ViewerAvatar.vue';
 import ChatRichText from './ChatRichText.vue';
 
-const props = withDefaults(
-  defineProps<{ event: DisplayEvent; images?: boolean; selected?: boolean; motion?: FeedMotion }>(),
-  { images: true, selected: false, motion: () => ({}) },
-);
+const props = withDefaults(defineProps<EventViewProps>(), eventViewDefaults);
 const emit = defineEmits<{
   select: [event: DisplayEvent];
   'open-viewer': [viewer: ViewerIdentity];
 }>();
 
-const { t, locale } = useI18n();
-const giftImageFailed = ref(false);
-watch(() => props.event.giftDetails?.imageUrl, () => { giftImageFailed.value = false; });
-
-const handle = computed(() => cleanHandle(props.event.author));
-const name = computed(() => displayName(handle.value, props.event.nickname));
-const text = computed(() => eventText(props.event, t));
-const rich = computed(() => hasRichText(props.event, text.value));
-const time = computed(() => formatEventTime(props.event.receivedAt, locale.value));
-const giftImage = computed(() =>
-  props.event.kind === 'gift' && props.images && !giftImageFailed.value ? props.event.giftDetails?.imageUrl : undefined,
+const { t, handle, name, text, rich, time, giftImage, markGiftImageFailed, openViewer } = useEventDisplay(
+  props,
+  (viewer) => emit('open-viewer', viewer),
 );
-
-function openViewer(): void {
-  emit('open-viewer', { uniqueId: handle.value, nickname: props.event.nickname, avatarUrl: props.event.avatarUrl });
-}
 </script>
 
 <template>
@@ -88,7 +70,7 @@ function openViewer(): void {
         :alt="event.giftDetails?.name"
         decoding="async"
         referrerpolicy="no-referrer"
-        @error="giftImageFailed = true"
+        @error="markGiftImageFailed"
       >
       <span
         v-else-if="event.kind === 'gift'"

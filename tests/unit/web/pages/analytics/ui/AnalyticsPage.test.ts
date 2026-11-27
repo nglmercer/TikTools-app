@@ -8,6 +8,7 @@ import { systemDay } from '@/entities/analytics/lib/analytics-range.ts';
 import type { RpcParams } from '@/shared/api/control-client.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
+import AnalyticsWeekdayChart from '@/entities/analytics/ui/AnalyticsWeekdayChart.vue';
 import AnalyticsPage from '../../../../../../src/web/pages/analytics/ui/AnalyticsPage.vue';
 import { defined } from '../../../../../shared/index.ts';
 
@@ -215,7 +216,7 @@ describe('AnalyticsPage', () => {
     const { wrapper } = await mountPage();
     expect(wrapper.text()).toContain(t('analytics.activity.weekdayPattern'));
     expect(wrapper.text()).toContain(t('analytics.activity.weekdayPatternHint'));
-    expect(wrapper.find('.weekday-chart svg').exists()).toBe(true);
+    expect(wrapper.findComponent(AnalyticsWeekdayChart).find('svg').exists()).toBe(true);
   });
 
   it('hides the hour-of-day pattern when no hourly data exists', async () => {

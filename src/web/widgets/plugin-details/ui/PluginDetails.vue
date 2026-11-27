@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BaseBackButton from '@/shared/ui/button/BaseBackButton.vue';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ActionTypeDefinition, LiveAction, PluginStatus } from '../../../../automation/behavior/types.ts';
@@ -11,7 +12,6 @@ import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
-import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
 import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import IconHistory from '@/shared/ui/icon/icons/IconHistory.vue';
 import IconInfo from '@/shared/ui/icon/icons/IconInfo.vue';
@@ -161,13 +161,9 @@ function uninstall(): void {
     flush
   >
     <template #leading>
-      <BaseIconButton
-        :label="t('common.back')"
-        size="sm"
-        @click="emit('back')"
-      >
-        <IconChevronLeft />
-      </BaseIconButton>
+      <BaseBackButton
+        @back="emit('back')"
+      />
     </template>
     <template #status>
       <span

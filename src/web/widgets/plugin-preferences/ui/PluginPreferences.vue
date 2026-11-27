@@ -1,8 +1,7 @@
 <script setup lang="ts">
+import BaseBackButton from '@/shared/ui/button/BaseBackButton.vue';
 import { useI18n } from 'vue-i18n';
 import PluginUpdatePolicyEditor from '@/features/manage-plugin-update-policy/ui/PluginUpdatePolicyEditor.vue';
-import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
-import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 
 const emit = defineEmits<{ back: [] }>();
@@ -16,13 +15,9 @@ const { t } = useI18n();
     :title="t('plugins.catalog.preferences')"
   >
     <template #leading>
-      <BaseIconButton
-        :label="t('common.back')"
-        size="sm"
-        @click="emit('back')"
-      >
-        <IconChevronLeft />
-      </BaseIconButton>
+      <BaseBackButton
+        @back="emit('back')"
+      />
     </template>
     <PluginUpdatePolicyEditor />
   </BasePanel>
