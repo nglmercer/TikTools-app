@@ -8,6 +8,7 @@ import {
 } from '../../../src/automation/event-emulation.ts';
 import { sampleEventForType } from '../../../src/automation/event-registry.ts';
 import { EVENT_KIND } from '../../shared/index.ts';
+import { dataOf } from '../support/automation-event.ts';
 
 describe('matchingLastEvent', () => {
   test('accepts only the trigger being emulated', () => {
@@ -23,11 +24,11 @@ describe('emulateEventForType', () => {
   test('replays matching live data with a fresh timestamp', () => {
     const live = sampleEventForType(EVENT_KIND.tiktokGift);
     live.timestamp = 1;
-    (live.data as Record<string, unknown>)['giftName'] = 'Galaxy';
+    dataOf(live)['giftName'] = 'Galaxy';
     const before = Date.now();
     const { event, source } = emulateEventForType(EVENT_KIND.tiktokGift, live);
     expect(source).toBe('live');
-    expect((event.data as Record<string, unknown>)['giftName']).toBe('Galaxy');
+    expect(dataOf(event)['giftName']).toBe('Galaxy');
     expect(event.timestamp).toBeGreaterThanOrEqual(before);
     // The stored live envelope is untouched.
     expect(live.timestamp).toBe(1);
@@ -38,7 +39,7 @@ describe('emulateEventForType', () => {
     const { event, source } = emulateEventForType(EVENT_KIND.tiktokGift, chat);
     expect(source).toBe('sample');
     expect(event.type).toBe(EVENT_KIND.tiktokGift);
-    expect((event.data as Record<string, unknown>)['giftName']).toBe('Rose');
+    expect(dataOf(event)['giftName']).toBe('Rose');
   });
 });
 
@@ -59,11 +60,11 @@ describe('makeGiftComboEvents', () => {
   test('builds an x1..xn streak sharing one group id', () => {
     const combo = makeGiftComboEvents(3, { giftName: 'Rose', diamondCount: 1 });
     expect(combo).toHaveLength(3);
-    const groups = new Set(combo.map((event) => (event.data as Record<string, unknown>)['groupId']));
+    const groups = new Set(combo.map((event) => dataOf(event)['groupId']));
     expect(groups.size).toBe(1);
-    expect(combo.map((event) => (event.data as Record<string, unknown>)['repeatCount'])).toEqual([1, 2, 3]);
-    expect(combo.map((event) => (event.data as Record<string, unknown>)['streakable'])).toEqual([true, true, true]);
-    expect(combo.map((event) => (event.data as Record<string, unknown>)['repeatEnd'])).toEqual([false, false, true]);
+    expect(combo.map((event) => dataOf(event)['repeatCount'])).toEqual([1, 2, 3]);
+    expect(combo.map((event) => dataOf(event)['streakable'])).toEqual([true, true, true]);
+    expect(combo.map((event) => dataOf(event)['repeatEnd'])).toEqual([false, false, true]);
     // Distinct ids so replays never look like duplicates.
     expect(new Set(combo.map((event) => event.id)).size).toBe(3);
   });

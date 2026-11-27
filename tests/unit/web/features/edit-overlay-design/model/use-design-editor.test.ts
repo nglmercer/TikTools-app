@@ -8,7 +8,15 @@ import { useDesignEditor } from '../../../../../../src/web/features/edit-overlay
 
 const t = (key: string): string => testMessage('en', key);
 
-const labels = new Proxy({}, { get: (_, key) => String(key) }) as ControlLabels;
+// Each label is its own control id, so assertions can tell controls apart without a translation catalog.
+const labels: ControlLabels = {
+  textColor: 'textColor', background: 'background', accent: 'accent', radius: 'radius', borderColor: 'borderColor', borderWidth: 'borderWidth',
+  shadow: 'shadow', opacity: 'opacity', align: 'align', autoWidth: 'autoWidth', width: 'width', padding: 'padding', gap: 'gap',
+  avatarVisible: 'avatarVisible', avatarSize: 'avatarSize', avatarRadius: 'avatarRadius', avatarBorderColor: 'avatarBorderColor',
+  avatarBorderWidth: 'avatarBorderWidth', headingVisible: 'headingVisible', headingColor: 'headingColor', headingFontSize: 'headingFontSize',
+  headingWeight: 'headingWeight', headingSpacing: 'headingSpacing', motionPreset: 'motionPreset', motionEnterMs: 'motionEnterMs',
+  motionExitMs: 'motionExitMs', motionEasing: 'motionEasing', motionStaggerMs: 'motionStaggerMs',
+};
 const controls = scalarControls(labels);
 
 function setup(kind: WidgetKind = 'follow', design: WidgetStyle = {}) {

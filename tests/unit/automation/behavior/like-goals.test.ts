@@ -6,9 +6,10 @@ import { liveGoalTemplates } from '../../../../src/automation/behavior/live-goal
 import { normalizeEvent } from '../../../../src/automation/behavior/schema.ts';
 import { parseRuleTemplate } from '../../../../src/web/entities/rule-template/lib/rule-templates.ts';
 import { ACTION_TYPE, EVENT_KIND } from '../../../shared/index.ts';
+import { automationEvent } from '../../support/automation-event.ts';
 
 function likeBatch(previous: number, total: number, count = total - previous): AutomationEvent {
-  return {
+  return automationEvent({
     id: `simulated-like-${total}`,
     type: EVENT_KIND.tiktokLike,
     timestamp: total,
@@ -18,7 +19,7 @@ function likeBatch(previous: number, total: number, count = total - previous): A
       total: 50_000 + total,
       aggregation: { global: { previous, total }, user: { previous, total } },
     },
-  } as unknown as AutomationEvent;
+  });
 }
 
 describe('legacy like goal template compatibility', () => {

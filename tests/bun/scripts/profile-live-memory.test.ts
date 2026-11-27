@@ -8,6 +8,7 @@ import {
   hostActivityDefault,
   runSampling,
   windowsSnapshot,
+  type ProcessSample,
   type ProcInfo,
   type SampleOptions,
 } from '../../../scripts/profile-live-memory.ts';
@@ -21,7 +22,7 @@ function splitCsv(line: string): string[] {
   let current = '';
   let quoted = false;
   for (let index = 0; index < line.length; index += 1) {
-    const char = line[index] as string;
+    const char = line.charAt(index);
     if (quoted) {
       if (char === '"') {
         if (line[index + 1] === '"') {
@@ -66,18 +67,21 @@ describe('profile-live-memory', () => {
   });
 
   test('linux traversal deduplicates shared children', () => {
-    const samples = {
-      1: { rss: 10, name: 'host', children: [2, 3] },
-      2: { rss: 20, name: 'webkit', children: [3] },
-      3: { rss: 30, name: 'plugin', children: [] as number[] },
-    };
-    const sample = (pid: number) => samples[pid as keyof typeof samples] ?? null;
+    const samples = new Map<number, ProcessSample>([
+      [1, { rss: 10, name: 'host', children: [2, 3] }],
+      [2, { rss: 20, name: 'webkit', children: [3] }],
+      [3, { rss: 30, name: 'plugin', children: [] }],
+    ]);
+    const sample = (pid: number) => samples.get(pid) ?? null;
     expect(descendants(1, sample, () => true)).toEqual([10, 30, 20, 0, false]);
   });
 
   test('reused linux child is not attributed', () => {
-    const samples = { 1: { rss: 10, name: 'host', children: [2] }, 2: { rss: 20, name: 'webkit', children: [] as number[] } };
-    const sample = (pid: number) => samples[pid as keyof typeof samples] ?? null;
+    const samples = new Map<number, ProcessSample>([
+      [1, { rss: 10, name: 'host', children: [2] }],
+      [2, { rss: 20, name: 'webkit', children: [] }],
+    ]);
+    const sample = (pid: number) => samples.get(pid) ?? null;
     expect(descendants(1, sample, () => false)).toEqual([10, 0, 0, 0, false]);
   });
 
@@ -102,7 +106,7 @@ describe('profile-live-memory', () => {
       write: (line: string) => lines.push(line),
     });
     expect(lines).toHaveLength(2);
-    const [header, row] = lines as [string, string];
+    const [header = '', row = ''] = lines;
     expect(splitCsv(header)).toHaveLength(splitCsv(row).length);
     expect(header).toContain('process_tree_rss_sum_kib');
   });

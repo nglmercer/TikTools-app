@@ -1,5 +1,6 @@
 import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { toElement } from '../../../../support/dom.ts';
 import BaseComboBox from '../../../../../../src/web/shared/ui/combo-box/BaseComboBox.vue';
 
 const options = [
@@ -105,7 +106,7 @@ describe('BaseComboBox', () => {
   const wrapper = mount(BaseComboBox, { props: { options, modelValue: 'fade' }, attachTo: dialog });
   await wrapper.get('[role="combobox"]').trigger('click');
   expect(dialog.querySelector('[role="listbox"]')).not.toBeNull();
-  (dialog.querySelectorAll('[role="option"]')[1] as HTMLElement).click();
+  toElement(dialog.querySelectorAll('[role="option"]')[1], HTMLElement).click();
   expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['cut']);
   wrapper.unmount();
   dialog.remove();

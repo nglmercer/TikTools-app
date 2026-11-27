@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
-import { resolveWidgetDesign, styleVariables } from '../../../../src/widgets/sdk/template.ts';
+import { resolveWidgetDesign, styleVariables, type WidgetStyle } from '../../../../src/widgets/sdk/template.ts';
 import { widgetTemplates } from '../../../../src/widgets/sdk/templates.ts';
-import { textDefaults, type TextField } from '../../../../src/widgets/sdk/text.ts';
+import { textDefaults, textFields } from '../../../../src/widgets/sdk/text.ts';
 
 test('editor styling rejects CSS injection and bounds geometry', () => {
   expect(styleVariables({ background: '#112233', textColor: '#ffffffff', accent: 'url(https://example.com)', radius: 100 })).toEqual({
@@ -39,8 +39,10 @@ test('style variables expose card, avatar, and badge tokens', () => {
 });
 
 test('style variables omit unset optionals and invalid values', () => {
+  // Saved designs are user-writable JSON, so an out-of-range alignment must be ignored at runtime.
+  const untrustedStyle: WidgetStyle = { ...JSON.parse('{"align":"diagonal"}'), shadow: true, width: NaN };
   expect(styleVariables({})).toEqual({});
-  expect(styleVariables({ shadow: true, align: 'diagonal' as never, width: NaN })).toEqual({});
+  expect(styleVariables(untrustedStyle)).toEqual({});
   expect(styleVariables({ avatar: { visible: true }, badge: {} })).toEqual({});
 });
 
@@ -64,9 +66,11 @@ test('style variables expose bounded portable motion tokens', () => {
   });
 });
 
+const defaultsByKind: Record<string, Record<string, string>> = textDefaults;
+
 test('every template exposes one schema for editor and preview defaults', () => {
   for (const [kind, template] of Object.entries(widgetTemplates)) {
-    const defaults = Object.keys(textDefaults[kind as keyof typeof textDefaults]) as TextField[];
+    const defaults = Object.keys(defaultsByKind[kind] ?? {}).flatMap((key) => textFields.filter((field) => field === key));
     // Rankings expose only the title line their widget renders (see rankingSchema).
     expect(template.schema.textFields).toEqual(kind === 'ranking' ? ['title'] : defaults);
     expect(template.schema.defaultDesign.background).toBeTruthy();

@@ -5,6 +5,7 @@ import type { AccountPlan } from '@/entities/cloud-account/api/account-types.ts'
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
+import { FakeMediaQuery } from '../../../../support/media.ts';
 import CloudPlanUsage from '../../../../../../src/web/features/cloud-account/ui/CloudPlanUsage.vue';
 import { RPC } from '../../../../../shared/index.ts';
 
@@ -58,10 +59,7 @@ describe('CloudPlanUsage', () => {
 
   it('folds to its tightest area on a phone and opens on demand', async () => {
     const original = window.matchMedia;
-    window.matchMedia = ((query: string) => ({
-      matches: query.includes('600px'), media: query, addEventListener: () => {}, removeEventListener: () => {},
-      addListener: () => {}, removeListener: () => {}, onchange: null, dispatchEvent: () => false,
-    })) as unknown as typeof window.matchMedia;
+    window.matchMedia = (query: string) => new FakeMediaQuery(query, query.includes('600px'));
     try {
       const { wrapper } = mountWith(() => ({ ...freePlan, usage: { ...freePlan.usage, backups: 2, backupBytes: 100 } }));
       await flushPromises();

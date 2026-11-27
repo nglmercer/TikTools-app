@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 // Vitest does not inject SFC styles into happy-dom, so assert the responsive
 // style contract directly on the component source instead of measuring layout.
 const [menuListSource] = Object.values(
-  import.meta.glob('../../../../../../src/web/shared/ui/menu/MenuList.vue', { query: '?raw', import: 'default', eager: true }),
-) as string[];
+  import.meta.glob<string>('../../../../../../src/web/shared/ui/menu/MenuList.vue', { query: '?raw', import: 'default', eager: true }),
+);
 
 describe('MenuList responsive styles', () => {
   it('caps the popup to the viewport and scrolls overflowing entries', () => {

@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { LiveEvent } from '../../../../../../src/automation/behavior/types.ts';
 import type { SectionSnapshot } from '@/entities/cloud-sync/lib/snapshot-store.ts';
+import { liveEvent } from '../../../../support/automation.ts';
+import { propertyOf } from '../../../../support/json.ts';
 import { createAutomationSyncAdapter } from '../../../../../../src/web/features/manage-automations/model/automation-sync-adapter.ts';
 
-const event = (id: string, name: string, enabled = true): LiveEvent => ({
-  schemaVersion: 1, id, name, enabled, trigger: 'chat', filters: [], actionIds: [],
-}) as unknown as LiveEvent;
+const event = (id: string, name: string, enabled = true): LiveEvent => liveEvent({ id, name, enabled, trigger: 'chat' });
 
 function setup(initial: LiveEvent[], loaded = true) {
   let records = initial;
@@ -56,8 +56,8 @@ describe('automation sync adapter', () => {
       ['b', 'deleted', 'local'],
     ]);
     const modified = changes[0]!;
-    expect((modified.before as { name: string }).name).toBe('A');
-    expect((modified.after as { name: string }).name).toBe('A renamed');
+    expect(propertyOf(modified.before, 'name')).toBe('A');
+    expect(propertyOf(modified.after, 'name')).toBe('A renamed');
   });
 
   it('resets a modified or deleted record by saving the snapshot version', async () => {
@@ -96,7 +96,7 @@ describe('automation sync adapter', () => {
     await adapter.markReviewed!();
     expect(await adapter.list()).toEqual([]);
     expect(Object.keys(stored.get('automation-events')!).sort()).toEqual(['a', 'c']);
-    expect((stored.get('automation-events')!.a as { name: string }).name).toBe('A renamed');
+    expect(propertyOf(stored.get('automation-events')!.a, 'name')).toBe('A renamed');
   });
 
   it('uses the advance hook when the store has one, so readers compare again', async () => {
@@ -113,10 +113,15 @@ describe('automation sync adapter', () => {
     const { deps } = setup([event('a', 'A')]);
     // The default store is shared and reactive; the count badge watches this source.
     const adapter = createAutomationSyncAdapter({ ...deps, snapshots: undefined });
-    const before = JSON.stringify((adapter.watchSource!() as unknown[]).slice(1));
+    const referenceOf = (): string => {
+      const source = adapter.watchSource!();
+      if (!Array.isArray(source)) throw new Error('Expected the watch source to be a list');
+      return JSON.stringify(source.slice(1));
+    };
+    const before = referenceOf();
     await adapter.list();
     await adapter.markReviewed!();
-    expect(JSON.stringify((adapter.watchSource!() as unknown[]).slice(1))).not.toBe(before);
+    expect(referenceOf()).not.toBe(before);
     localStorage.removeItem('tiktools.sync.snapshot.automation-events');
   });
 

@@ -98,13 +98,13 @@ describe('PointsPage', () => {
     const { wrapper, store } = await mountPage('connected');
     store.pointsConfig = { ...store.pointsConfig, currencyName: t('feed.profile.stats.coins') };
     await nextTick();
-    expect((wrapper.get('#points-currency').element as HTMLInputElement).value).toBe(t('feed.profile.stats.coins'));
+    expect(wrapper.get<HTMLInputElement>('#points-currency').element.value).toBe(t('feed.profile.stats.coins'));
     await wrapper.get('#points-currency').setValue('Draft Gems');
     store.pointsConfig = { ...store.pointsConfig, currencyName: 'Stars' };
     await nextTick();
-    expect((wrapper.get('#points-currency').element as HTMLInputElement).value).toBe('Draft Gems');
+    expect(wrapper.get<HTMLInputElement>('#points-currency').element.value).toBe('Draft Gems');
     await button(wrapper, t('points.rules.discard')).trigger('click');
-    expect((wrapper.get('#points-currency').element as HTMLInputElement).value).toBe('Stars');
+    expect(wrapper.get<HTMLInputElement>('#points-currency').element.value).toBe('Stars');
   });
 
   it('deducts points for a viewer from the row menu', async () => {

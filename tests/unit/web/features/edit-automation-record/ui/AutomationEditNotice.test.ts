@@ -1,18 +1,12 @@
 import { expect, it } from 'vitest';
 import type { AutomationEdit } from '../../../../../../src/web/features/edit-automation-record/model/automation-editor.ts';
+import { automationEdit } from '../../../../support/automation.ts';
 import { i18n } from '@/shared/i18n/i18n.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import AutomationEditNotice from '../../../../../../src/web/features/edit-automation-record/ui/AutomationEditNotice.vue';
 
 const t = (key: string) => i18n.global.t(key);
-const edit = (autoResolved: boolean) => ({
-  autoResolved,
-  busy: false,
-  reviewRequired: false,
-  revision: '1',
-  failure: null,
-  message: '',
-}) as AutomationEdit;
+const edit = (autoResolved: boolean): AutomationEdit => automationEdit({ autoResolved });
 
 it('stays collapsed when there is nothing to report', () => {
   const wrapper = mountWithPlugins(AutomationEditNotice, {

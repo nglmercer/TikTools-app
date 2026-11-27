@@ -16,7 +16,7 @@ const schema = {
 function setup(values: PluginSettingValues = {}) {
   const scope = effectScope();
   const pluginId = ref('srv');
-  const settings = ref<PluginSettingsState | undefined>({ schema, values } as unknown as PluginSettingsState);
+  const settings = ref<PluginSettingsState | undefined>({ schema, values });
   const connection = ref<PluginConnectionState | undefined>(undefined);
   const saved: PluginSettingValues[] = [];
   const autosave = scope.run(() =>
@@ -86,7 +86,7 @@ describe('useConnectionAutosave', () => {
     const { autosave, connection } = setup();
     autosave.editing.value = true;
     autosave.testing.value = true;
-    connection.value = { ok: true, at: 1 } as PluginConnectionState;
+    connection.value = { ok: true, latencyMs: 0, at: 1 };
     await nextTick();
     expect(autosave.testing.value).toBe(false);
     expect(autosave.editing.value).toBe(false);

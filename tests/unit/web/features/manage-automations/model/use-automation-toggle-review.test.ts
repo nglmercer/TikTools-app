@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { ControlCallError } from '@/shared/api/control-client.ts';
-import type { AutomationHost } from '@/entities/automation/model/record-versions.ts';
+import type { AutomationHost, AutomationRecordVersion } from '@/entities/automation/model/record-versions.ts';
+import { liveEvent } from '../../../../support/automation.ts';
 import { useAutomationToggleReview } from '../../../../../../src/web/features/manage-automations/model/use-automation-toggle-review.ts';
 import { ERROR_CODE, FIXTURE_ID } from '../../../../../shared/index.ts';
+
+type ToggleControls = Parameters<typeof useAutomationToggleReview>[0]['controls'];
 
 const hostA: AutomationHost = { hostId: FIXTURE_ID.hostA, hostInstanceId: FIXTURE_ID.instanceA };
 const hostB: AutomationHost = { hostId: FIXTURE_ID.hostA, hostInstanceId: 'instance-b' };
@@ -17,29 +20,31 @@ function fixture(
   overrides: {
     revision?: string | undefined;
     write?: () => Promise<unknown>;
-    read?: () => Promise<unknown>;
+    read?: () => Promise<AutomationRecordVersion>;
   } = {},
 ) {
   const writes: unknown[][] = [];
   const reads: unknown[][] = [];
-  const controls = {
-    sourceHost: ref<AutomationHost | null>(hostA),
+  const host = ref<AutomationHost | null>(hostA);
+  const controls: ToggleControls = {
+    sourceHost: computed(() => host.value),
     revisionFor: vi.fn(() => 'revision' in overrides ? overrides.revision : '3'),
     setRecordEnabled: vi.fn(async (...args: unknown[]) => {
       writes.push(args);
-      return overrides.write?.();
+      await overrides.write?.();
     }),
     readRecord: vi.fn(async (...args: unknown[]) => {
       reads.push(args);
-      return overrides.read?.();
+      if (!overrides.read) throw new Error('unexpected read');
+      return overrides.read();
     }),
   };
   const review = useAutomationToggleReview({
-    controls: controls as never,
+    controls,
     findRecord: (_kind, id) => id === 'present' ? { name: 'Present' } : undefined,
     t: (key) => messages[key] ?? key,
   });
-  return { review, controls, writes, reads };
+  return { review, controls, host, writes, reads };
 }
 
 describe('automation toggle review', () => {
@@ -54,7 +59,7 @@ describe('automation toggle review', () => {
   it('writes once against the revision and host captured when it was requested', async () => {
     const f = fixture();
     f.review.request('action', 'present', false);
-    f.controls.sourceHost.value = hostB;
+    f.host.value = hostB;
     await f.review.confirm();
     expect(f.writes).toEqual([['action', 'present', false, '3', hostA]]);
     expect(f.review.open.value).toBe(false);
@@ -82,7 +87,7 @@ describe('automation toggle review', () => {
     let attempts = 0;
     const f = fixture({
       write: () => (attempts++ === 0 ? Promise.reject(new ControlCallError(ERROR_CODE.revisionConflict, 'Host changed')) : Promise.resolve()),
-      read: () => Promise.resolve({ record: { name: 'Renamed', enabled: false }, revision: '4', host: hostB }),
+      read: () => Promise.resolve({ record: liveEvent({ name: 'Renamed', enabled: false }), revision: '4', host: hostB }),
     });
     f.review.request('event', 'present', true);
     await f.review.confirm();
@@ -97,7 +102,7 @@ describe('automation toggle review', () => {
   it('reports an operation that was already applied and blocks the write', async () => {
     const f = fixture({
       write: () => Promise.reject(new ControlCallError(ERROR_CODE.revisionConflict, 'Host changed')),
-      read: () => Promise.resolve({ record: { name: 'Present', enabled: true }, revision: '4', host: hostA }),
+      read: () => Promise.resolve({ record: liveEvent({ name: 'Present', enabled: true }), revision: '4', host: hostA }),
     });
     f.review.request('event', 'present', true);
     await f.review.confirm();

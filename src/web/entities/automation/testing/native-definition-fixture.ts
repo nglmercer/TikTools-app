@@ -1,8 +1,12 @@
 import { ControlCallError, type ControlCallOptions, type ResourceVersion, type RpcParams } from '@/shared/api/control-client.ts';
-import type { DefinitionIntent, DefinitionState } from '../model/definition-contracts.ts';
+import { object, type DefinitionIntent, type DefinitionOperation, type DefinitionState } from '../model/definition-contracts.ts';
+import type { AutomationKind } from '../model/record-versions.ts';
 import { nativeLibraryHost } from '@/entities/rule-template/testing/native-library-fixture.ts';
 
 const copy = <T>(value: T): T => structuredClone(value);
+const definitionOperations: readonly DefinitionOperation[] = ['create', 'update', 'delete', 'enable', 'disable'];
+const isDefinitionOperation = (value: unknown): value is DefinitionOperation => definitionOperations.some((operation) => operation === value);
+const isAutomationKind = (value: unknown): value is AutomationKind => value === 'action' || value === 'event';
 /** Opt-in native protocol fixture around an existing in-memory business host. */
 export function nativeDefinitionHost(business: (method: string, params: RpcParams | undefined, options?: ControlCallOptions) => unknown) {
   let state: DefinitionState = { hostId: 'host-a', hostInstanceId: 'instance-a', pending: null, recent: [] };
@@ -27,10 +31,12 @@ export function nativeDefinitionHost(business: (method: string, params: RpcParam
     }
     if (method !== 'automation.definition.submit') return business(method, params, options);
     if (!params || state.pending || params.hostId !== state.hostId || params.hostInstanceId !== state.hostInstanceId) throw new ControlCallError('command_pending', 'native pending');
-    const operation = params.operation as DefinitionIntent['operation'];
-    const record = params.record as Record<string, unknown> | undefined;
+    const operation = params.operation;
+    if (!isDefinitionOperation(operation)) throw new ControlCallError('invalid_params', 'native operation');
+    const record = object(params.record) ? params.record : undefined;
     const id = operation === 'create' ? String(record?.id) : String(params.id);
-    const kind = params.kind as DefinitionIntent['kind'];
+    const kind = params.kind;
+    if (!isAutomationKind(kind)) throw new ControlCallError('invalid_params', 'native kind');
     const intent: DefinitionIntent = { commandId: `owner-definition-${(++serial).toString(16).padStart(32, '0')}`, operation, kind, id,
       expectedRevision: String(params.expectedRevision), hostInstanceId: state.hostInstanceId,
       recordDigest: operation === 'create' || operation === 'update' ? 'a'.repeat(64) : null, createdAt: 1 };
@@ -49,12 +55,13 @@ export function nativeDefinitionHost(business: (method: string, params: RpcParam
       state.recent.unshift({ intent, outcome: 'rejected', receipt: null, errorCode: code, recordedAt: 2 }); state.pending = null;
       return { state: copy(state), acknowledgement: null };
     }
-    const body = value as Record<string, unknown>;
+    if (!object(value)) throw new ControlCallError('protocol', 'native business reply');
+    const body = value;
     if (!versions.length) throw new ControlCallError('definition_journal_invalid', 'The original outcome could not be verified.');
     state.recent.unshift({ intent, outcome: 'succeeded', receipt: { revision: versions[0]!.revision,
       recordDigest: operation === 'delete' ? null : intent.recordDigest ?? 'b'.repeat(64),
       enabled: operation === 'delete' ? null : typeof body.enabled === 'boolean' ? body.enabled : null,
-      deleted: operation === 'delete' ? body.deleted as boolean : null, affectedResources: versions.length }, errorCode: null, recordedAt: 2 });
+      deleted: operation === 'delete' && typeof body.deleted === 'boolean' ? body.deleted : null, affectedResources: versions.length }, errorCode: null, recordedAt: 2 });
     state.recent = state.recent.slice(0, 16); state.pending = null;
     if (loseReply) { loseReply = false; throw new ControlCallError('timeout', 'reply lost after commit'); }
     return { state: copy(state), acknowledgement: { value, resourceVersions: versions, hostInstanceId: state.hostInstanceId,

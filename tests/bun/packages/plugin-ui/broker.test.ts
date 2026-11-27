@@ -10,15 +10,14 @@ type FakeWindow = {
   postToParent?: (message: unknown) => void;
 };
 
-const scope = globalThis as unknown as { window: unknown };
-const realWindow = scope.window;
+const realWindow: unknown = Reflect.get(globalThis, 'window');
 
 afterEach(() => {
-  scope.window = realWindow;
+  Reflect.set(globalThis, 'window', realWindow);
 });
 
 function installWindow(fake: FakeWindow): void {
-  scope.window = fake;
+  Reflect.set(globalThis, 'window', fake);
 }
 
 function listenersOf(fake: FakeWindow): Array<(event: { data: unknown }) => void> {
@@ -40,7 +39,7 @@ function nativeTikTools() {
         actionType: action,
         ok: true,
         summary: 'spoken',
-        logs: [] as string[],
+        logs: new Array<string>(),
         durationMs: 1,
         error: null,
       }),
@@ -98,7 +97,8 @@ test('embedded frame without native injection uses postMessage', async () => {
   const pending = broker.getSettings();
   expect(posted).toHaveLength(1);
   expect(posted[0]).toMatchObject({ apiVersion: 1, method: 'settings.get' });
-  const id = posted[0]?.id as string;
+  const id = posted[0]?.id;
+  if (typeof id !== 'string') throw new Error('broker request has no string id');
   expect(listeners).toHaveLength(1);
   listeners[0]?.({ data: { apiVersion: 1, id, ok: true, result: { voice: 'F2' } } });
   expect(await pending).toEqual({ voice: 'F2' });
@@ -107,17 +107,18 @@ test('embedded frame without native injection uses postMessage', async () => {
 
 test('top-level page with no native host fails explicitly and never self-posts', async () => {
   let posts = 0;
-  const fake = {
+  const fake: FakeWindow & { postMessage: () => void } = {
+    parent: undefined,
     tiktools: undefined,
     addEventListener: () => {
       throw new Error('must not listen when no host can answer');
     },
     removeEventListener: () => undefined,
-  } as unknown as FakeWindow & { parent: unknown };
-  fake.parent = fake;
-  (fake as unknown as Record<string, unknown>)['postMessage'] = () => {
-    posts += 1;
+    postMessage: () => {
+      posts += 1;
+    },
   };
+  fake.parent = fake;
   installWindow(fake);
 
   const broker = new PluginBroker();
@@ -134,11 +135,12 @@ test('top-level page with no native host fails explicitly and never self-posts',
 });
 
 test('partial native injection is rejected and stays explicit at top level', async () => {
-  const fake = {
+  const fake: FakeWindow = {
+    parent: undefined,
     tiktools: { settings: {}, actions: {}, options: {} },
     addEventListener: () => undefined,
     removeEventListener: () => undefined,
-  } as unknown as FakeWindow & { parent: unknown };
+  };
   fake.parent = fake;
   installWindow(fake);
 

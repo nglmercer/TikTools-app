@@ -6,6 +6,8 @@ import { createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts'
 import type { JobSnapshot } from '../../../../../../src/web/entities/plugin-package/api/package-types.ts';
 import { usePackagesStore } from '../../../../../../src/web/entities/plugin-package/model/packages-store.ts';
 import { PLUGIN_ID, RPC } from '../../../../../shared/index.ts';
+import { answer } from '../../../../support/answer.ts';
+import { propertyOf } from '../../../../support/json.ts';
 
 function harness(handler: (method: string, params: RpcParams | undefined) => unknown) {
   const calls: {
@@ -16,14 +18,14 @@ function harness(handler: (method: string, params: RpcParams | undefined) => unk
   const client: ControlClient = {
     attach: () => {},
     detach: () => {},
-    call: (async (method: string, params?: RpcParams) => {
+    call: async <T>(method: string, params?: RpcParams): Promise<T> => {
       calls.push({ method, params });
-      return handler(method, params);
-    }) as ControlClient['call'],
-    onTopic: ((topic: string, listener: (data: unknown) => void) => {
-      topics.set(topic, listener);
+      return answer<T>(await handler(method, params));
+    },
+    onTopic: <T>(topic: string, listener: (data: T) => void) => {
+      topics.set(topic, (data) => Reflect.apply(listener, undefined, [data]));
       return () => topics.delete(topic);
-    }) as ControlClient['onTopic'],
+    },
     onPush: () => () => {},
     onTransportError: () => () => {},
     onGap: () => () => {},
@@ -219,8 +221,7 @@ describe('packages store', () => {
     let resolveFirst!: (value: unknown) => void;
     const { store } = harness((method, params) => {
       if (method !== RPC.pluginsPackagesInspect) return {};
-      const spec = (params as { spec: { path: string } }).spec;
-      if (spec.path === 'first') return new Promise((resolve) => (resolveFirst = resolve));
+      if (propertyOf(propertyOf(params, 'spec'), 'path') === 'first') return new Promise((resolve) => (resolveFirst = resolve));
       return { ...preview, name: 'Second' };
     });
     void store.reviewSpec({ kind: 'file', path: 'first' });

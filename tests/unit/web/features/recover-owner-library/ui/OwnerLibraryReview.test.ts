@@ -1,6 +1,7 @@
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import type { BehaviorSnapshot, LiveAction, LiveEvent } from '../../../../../../src/automation/behavior/types.ts';
+import type { App } from 'vue';
+import type { BehaviorSnapshot, LiveAction } from '../../../../../../src/automation/behavior/types.ts';
 import { nativeDefinitionHost } from '@/entities/automation/testing/native-definition-fixture.ts';
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import type { LibraryMutation } from '@/entities/rule-template/model/library-contracts.ts';
@@ -8,6 +9,7 @@ import { createFakeControlClient } from '@/shared/lib/testing/fake-control-clien
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { controlClientKey } from '@/shared/api/use-control-client.ts';
 import { activateLocale } from '@/shared/i18n/i18n.ts';
+import { createRequest, isLiveAction } from '../../../../support/automation.ts';
 import OwnerLibraryReview from '../../../../../../src/web/features/recover-owner-library/ui/OwnerLibraryReview.vue';
 import { ACTION_TYPE, EVENT_KIND, FIXTURE_ID, LIBRARY_OPERATION, RPC } from '../../../../../shared/index.ts';
 
@@ -28,17 +30,18 @@ function fixture() {
       return structuredClone(source);
     }
     if (method === RPC.automationCreate) {
-      const record = params?.record as LiveAction | LiveEvent;
-      if (params?.kind === 'action') source.actions.push(structuredClone(record as LiveAction));
-      else source.events.push(structuredClone(record as LiveEvent));
-      options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: record.id, revision: '1' }] });
+      const { kind, record } = createRequest(params);
+      if (isLiveAction(record)) source.actions.push(structuredClone(record));
+      else source.events.push(structuredClone(record));
+      options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: kind, id: record.id, revision: '1' }] });
       return record;
     }
     throw new Error(`Unexpected business operation ${method}`);
   });
   const fake = createFakeControlClient(native.handle);
   const journal = libraryJournal(fake.client);
-  const review = mountWithPlugins(OwnerLibraryReview, { attachTo: document.body, global: { provide: { [controlClientKey as symbol]: fake.client } } });
+  const provideClient = { install: (app: App) => void app.provide(controlClientKey, fake.client) };
+  const review = mountWithPlugins(OwnerLibraryReview, { attachTo: document.body, global: { plugins: [provideClient] } });
   return { ...fake, native, journal, review };
 }
 

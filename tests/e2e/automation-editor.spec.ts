@@ -4,6 +4,7 @@ import { emptyState } from './fixtures/states.ts';
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { ACTION_TYPE, EVENT_KIND, ROUTE, RPC, TOPIC } from '../shared/index.ts';
 import { SEL } from './support/selectors.ts';
+import { isRecord } from '../unit/support/json.ts';
 
 /**
  * The edit notices float over the editor's header actions;
@@ -40,7 +41,10 @@ for (const locale of ['en', 'es'] as const) {
     await test.step('type a draft, then change the same event on the host', async () => {
       await name.fill('My retained draft');
       const host = await readHostState(page);
-      (host.automationSnapshot['events'] as Array<Record<string, unknown>>)[0]!['name'] = 'Host changed name';
+      const events = host.automationSnapshot['events'];
+      const firstEvent = Array.isArray(events) ? events[0] : undefined;
+      if (!isRecord(firstEvent)) throw new Error('the host snapshot has no event to rename');
+      firstEvent['name'] = 'Host changed name';
       host.automationVersions = { 'action:same': '1', 'event:same': '2' };
       await writeHostState(page, host);
       await emitTopic(page, TOPIC.workflowChanged, { kind: 'event', id: 'same', change: 'updated' });

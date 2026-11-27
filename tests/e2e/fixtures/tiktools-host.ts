@@ -16,6 +16,18 @@ import type { Page } from '@playwright/test';
 import type { VariableComparison } from '../../../src/web/features/edit-runtime-globals/model/variable-sync-adapter.ts';
 import type { RuntimeVariable } from '../../../src/web/entities/runtime-global/lib/runtime-variable.ts';
 
+declare global {
+  interface Window {
+    /** The fake host's mutable state, installed by `installFakeHost` before the page loads. */
+    __TIKTOOLS_E2E_STATE__: E2EHostState;
+    /** Installed by the app runtime (benchmark/e2e builds); drives tab changes and image loading. */
+    __tiktools_benchmark_controls__: {
+      setTab(tab: string): void;
+      setImagesEnabled(enabled: boolean): void;
+    };
+  }
+}
+
 export interface E2EHostState {
   /** Methods announced through `rpc.discover`;
    * none by default, so optional Cloud areas stay hidden. */
@@ -682,7 +694,7 @@ export async function installFakeHost(
   });
   await page.addInitScript(
     ({ initial, locale, theme }) => {
-      (window as unknown as { __TIKTOOLS_E2E_STATE__: unknown }).__TIKTOOLS_E2E_STATE__ = initial;
+      window.__TIKTOOLS_E2E_STATE__ = initial;
       try {
         if (locale) localStorage.setItem('tiktok-live-locale', locale);
         if (theme) localStorage.setItem('tiktok-live-theme', theme);
@@ -711,10 +723,7 @@ export async function legacyMessagesOf(page: Page, type: string): Promise<Array<
 }
 
 export async function readHostState(page: Page): Promise<E2EHostState> {
-  return page.evaluate(() => {
-    const w = window as unknown as { __TIKTOOLS_E2E_STATE__: E2EHostState };
-    return w.__TIKTOOLS_E2E_STATE__;
-  });
+  return page.evaluate(() => window.__TIKTOOLS_E2E_STATE__);
 }
 
 /**
@@ -726,8 +735,7 @@ export async function readHostState(page: Page): Promise<E2EHostState> {
  */
 export async function writeHostState(page: Page, state: E2EHostState): Promise<void> {
   await page.evaluate((next) => {
-    const w = window as unknown as { __TIKTOOLS_E2E_STATE__: E2EHostState };
-    const current = w.__TIKTOOLS_E2E_STATE__;
+    const current = window.__TIKTOOLS_E2E_STATE__;
     const { calls, unhandled, ...rest } = next;
     Object.assign(current, rest);
     current.calls.length = 0;
@@ -770,8 +778,5 @@ export async function emitPush(page: Page, message: Record<string, unknown>): Pr
 
 /** Lazy route modules can finish mounting after the document load event. */
 export async function waitForFrontend(page: Page): Promise<void> {
-  await page.waitForFunction(() => {
-    const scope = window as unknown as { __TIKTOOLS_E2E_STATE__: E2EHostState };
-    return scope.__TIKTOOLS_E2E_STATE__.frontendReady;
-  });
+  await page.waitForFunction(() => window.__TIKTOOLS_E2E_STATE__.frontendReady);
 }

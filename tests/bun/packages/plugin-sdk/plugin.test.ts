@@ -87,24 +87,26 @@ const PARSER_KEYS = [
   'changelog',
 ];
 
+type ManifestSchema = {
+  properties: Record<string, unknown>;
+  required: string[];
+};
+
 test('the manifest schema covers every key the host parser reads', () => {
-  const schema = JSON.parse(readFileSync(join(import.meta.dir, '..', '..', '..', '..', 'packages', 'plugin-sdk', 'plugin.schema.json'), 'utf8')) as {
-    properties: Record<string, unknown>;
-    required: string[];
-  };
+  const schemaPath = join(import.meta.dir, '..', '..', '..', '..', 'packages', 'plugin-sdk', 'plugin.schema.json');
+  const schema: ManifestSchema = JSON.parse(readFileSync(schemaPath, 'utf8'));
   for (const key of PARSER_KEYS) expect(Object.keys(schema.properties)).toContain(key);
   expect(schema.required).toEqual(['schemaVersion', 'id', 'name', 'version', 'runtime']);
 });
 
 test('repository manifests only use keys the schema knows', () => {
-  const schema = JSON.parse(readFileSync(join(import.meta.dir, '..', '..', '..', '..', 'packages', 'plugin-sdk', 'plugin.schema.json'), 'utf8')) as {
-    properties: Record<string, unknown>;
-  };
+  const schemaPath = join(import.meta.dir, '..', '..', '..', '..', 'packages', 'plugin-sdk', 'plugin.schema.json');
+  const schema: Pick<ManifestSchema, 'properties'> = JSON.parse(readFileSync(schemaPath, 'utf8'));
   const fixtures = join(import.meta.dir, '..', '..', '..', '..', 'tests', 'fixtures', 'plugins');
   const manifests = readdirSync(fixtures).filter((name) => name.endsWith('.plugin.json'));
   expect(manifests.length).toBeGreaterThan(0);
   for (const manifest of manifests) {
-    const parsed = JSON.parse(readFileSync(join(fixtures, manifest), 'utf8')) as Record<string, unknown>;
+    const parsed: Record<string, unknown> = JSON.parse(readFileSync(join(fixtures, manifest), 'utf8'));
     for (const key of Object.keys(parsed)) {
       if (key === '$schema' || key === 'apiVersion') continue;
       expect(Object.keys(schema.properties)).toContain(key);

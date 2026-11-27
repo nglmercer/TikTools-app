@@ -3,17 +3,16 @@ import { defineComponent, nextTick, ref, type Ref } from 'vue';
 import { mount } from '@vue/test-utils';
 import type { DisplayEvent } from '@/types.ts';
 
-const motionState = vi.hoisted(() => ({ reduced: undefined as unknown as Ref<boolean> }));
-vi.mock('@vueuse/motion', async () => {
+const motionState = await vi.hoisted(async () => {
   const { ref: createRef } = await import('vue');
-  motionState.reduced = createRef(false);
-  return { useReducedMotion: () => motionState.reduced };
+  return { reduced: createRef(false) };
 });
+vi.mock('@vueuse/motion', () => ({ useReducedMotion: () => motionState.reduced }));
 
 import { useFeedMotion } from '../../../../../../src/web/entities/live-event/lib/feed-motion.ts';
 
 function event(id: number, receivedAt: number): DisplayEvent {
-  return { id, kind: 'chat', author: `user${id}`, text: 'hola', receivedAt } as DisplayEvent;
+  return { id, kind: 'chat', author: `user${id}`, text: 'hola', receivedAt };
 }
 
 function host(events: Ref<readonly DisplayEvent[]>) {

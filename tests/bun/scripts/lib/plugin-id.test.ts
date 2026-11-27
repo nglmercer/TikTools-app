@@ -16,10 +16,8 @@ type Corpus = {
 
 const sdkRoot = resolve(import.meta.dir, '..', '..', '..', '..', 'packages', 'plugin-sdk');
 // The same file is read by the Rust host test (`validation.rs`).
-const corpus = JSON.parse(readFileSync(resolve(sdkRoot, 'plugin-id-corpus.json'), 'utf8')) as Corpus;
-const schema = JSON.parse(readFileSync(resolve(sdkRoot, 'plugin.schema.json'), 'utf8')) as {
-  properties: { id: { pattern: string } };
-};
+const corpus: Corpus = JSON.parse(readFileSync(resolve(sdkRoot, 'plugin-id-corpus.json'), 'utf8'));
+const schema: { properties: { id: { pattern: string } } } = JSON.parse(readFileSync(resolve(sdkRoot, 'plugin.schema.json'), 'utf8'));
 const schemaPattern = new RegExp(schema.properties.id.pattern);
 
 describe('plugin id contract', () => {

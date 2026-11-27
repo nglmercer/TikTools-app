@@ -10,9 +10,9 @@ function stubMatchMedia(matches: boolean) {
     addEventListener: vi.fn((_type: string, listener: (event: { matches: boolean }) => void) => {
       listeners.add(listener);
     }),
-    removeEventListener: vi.fn(((_type: string, listener: (event: { matches: boolean }) => void) => {
+    removeEventListener: vi.fn((_type: string, listener: (event: { matches: boolean }) => void) => {
       listeners.delete(listener);
-    }) as (type: string, listener: (event: { matches: boolean }) => void) => void),
+    }),
     addListener: vi.fn(),
     removeListener: vi.fn(),
   };

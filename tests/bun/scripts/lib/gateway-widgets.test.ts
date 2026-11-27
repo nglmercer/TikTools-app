@@ -32,7 +32,7 @@ describe('assertWidgetBundle', () => {
       await writeFile(join(dir, 'follow', 'index.html'), '<html></html>');
       const failure = await assertWidgetBundle(dir).then(
         () => null,
-        (error: unknown) => error as Error,
+        (error: unknown) => (error instanceof Error ? error : new Error(String(error))),
       );
       expect(failure).not.toBeNull();
       for (const kind of GATEWAY_WIDGET_KINDS) {

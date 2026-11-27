@@ -29,11 +29,11 @@ test('focuses a nonmodal panel, moves with keyboard and returns focus on close',
   const mover = wrapper.get('.base-floating-panel__move');
   expect(document.activeElement).toBe(mover.element);
   expect(wrapper.get('aside').attributes('aria-modal')).toBeUndefined();
-  const before = (wrapper.get('aside').element as HTMLElement).style.left;
+  const before = wrapper.get<HTMLElement>('aside').element.style.left;
   await mover.trigger('keydown', { key: 'ArrowRight' });
-  expect(parseInt((wrapper.get('aside').element as HTMLElement).style.left)).toBe(parseInt(before) + 20);
+  expect(parseInt(wrapper.get<HTMLElement>('aside').element.style.left)).toBe(parseInt(before) + 20);
   await mover.trigger('keydown', { key: 'ArrowLeft', shiftKey: true });
-  expect(parseInt((wrapper.get('aside').element as HTMLElement).style.left)).toBe(parseInt(before) + 16);
+  expect(parseInt(wrapper.get<HTMLElement>('aside').element.style.left)).toBe(parseInt(before) + 16);
   await wrapper.get('button[aria-label="Close activity"]').trigger('click');
   expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false]);
   await wrapper.setProps({ open: false });
@@ -52,7 +52,7 @@ test('minimizes, restores on new activation and clamps on viewport resize', asyn
   vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(120);
   window.dispatchEvent(new Event('resize'));
   await flushPromises();
-  expect((wrapper.get('aside').element as HTMLElement).style.left).toBe('0px');
-  expect(parseInt((wrapper.get('aside').element as HTMLElement).style.top)).toBeLessThanOrEqual(60);
+  expect(wrapper.get<HTMLElement>('aside').element.style.left).toBe('0px');
+  expect(parseInt(wrapper.get<HTMLElement>('aside').element.style.top)).toBeLessThanOrEqual(60);
   expect(wrapper.emitted('viewportChange')?.at(-1)).toEqual([320]);
 });

@@ -3,6 +3,7 @@ import { expect, test } from 'vitest';
 import { usePlugins } from '../../../../../../src/web/entities/plugin/model/plugins-state.ts';
 import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
 import { PLUGIN_ID, RPC } from '../../../../../shared/index.ts';
+import { answer } from '../../../../support/answer.ts';
 
 function harness(result: Promise<unknown>) {
   const calls: Array<{
@@ -13,10 +14,10 @@ function harness(result: Promise<unknown>) {
     attach() {}, detach() {},
     call<T>(method: string, params?: RpcParams) {
       calls.push({ method, params });
-      if (method === RPC.pluginsTokenImport) return result as Promise<T>;
-      return Promise.resolve(method === RPC.pluginsSettingsGet
+      if (method === RPC.pluginsTokenImport) return result.then((value) => answer<T>(value));
+      return Promise.resolve(answer<T>(method === RPC.pluginsSettingsGet
         ? { pluginId: PLUGIN_ID.repoGame, schema: {}, values: { apiToken: '••••••••' } }
-        : { pluginId: PLUGIN_ID.repoGame, ok: true, latencyMs: 1 }) as Promise<T>;
+        : { pluginId: PLUGIN_ID.repoGame, ok: true, latencyMs: 1 }));
     },
     onTopic: () => () => {}, onPush: () => () => {},
     onTransportError: () => () => {}, onGap: () => () => {},

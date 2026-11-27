@@ -6,6 +6,7 @@ import { libraryJournal } from '@/entities/rule-template/model/library-journal.t
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { createJournal, parseJournal, serializeJournal, setEntry } from '../../../../../../src/web/entities/cloud-bundles/model/apply-journal.ts';
 import { JOURNAL_KEY, useBundlesStore } from '../../../../../../src/web/entities/cloud-bundles/model/bundles-store.ts';
+import { propertyOf } from '../../../../support/json.ts';
 import { ACCOUNT_STATE, ACTION_TYPE, EVENT_KIND, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 const id = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
@@ -19,12 +20,10 @@ function host(preflight: unknown, stored: Record<string, string> = {}) {
     if (method === RPC.rpcDiscover) return { methods: [{ name: RPC.bundlesPackagesPreflight }] };
     if (method === RPC.bundlesPackagesPreflight) return preflight;
     if (method === RPC.appStateSet) {
-      const write = params as {
-        key: string;
-        value: string
-      };
-      writes.push(write);
-      stored[write.key] = write.value;
+      const key = String(propertyOf(params, 'key'));
+      const value = String(propertyOf(params, 'value'));
+      writes.push({ key, value });
+      stored[key] = value;
       return { state: {} };
     }
     if (method === RPC.appStateGet) return { state: stored };
@@ -101,7 +100,7 @@ describe('package apply with Cloud templates and profiles', () => {
       if (method === 'cloudLibrary.read') return { meta: { id: documentId, revision: '4', sha256: 'a'.repeat(64) }, document: template };
       if (method === RPC.automationCreate) {
         options?.onMetadata?.({
-          resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }],
+          resourceVersions: [{ kind: 'automation', scope: String(params?.kind), id: String(propertyOf(params?.record, 'id')), revision: '1' }],
         });
         return params?.record;
       }

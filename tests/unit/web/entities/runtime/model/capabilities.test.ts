@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createCapabilityLedger } from '../../../../../../src/web/entities/runtime/model/capabilities.ts';
+import { createCapabilityLedger, type DiscoverResult } from '../../../../../../src/web/entities/runtime/model/capabilities.ts';
 import { FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 const methods = (...names: string[]) => ({ methods: names.map((name) => ({ name })) });
@@ -46,7 +46,10 @@ describe('capability ledger', () => {
   it('ignores malformed entries instead of trusting them', () => {
     const ledger = createCapabilityLedger();
     const ticket = ledger.begin(FIXTURE_ID.hostA);
-    const malformed = { methods: [{ name: RPC.cloudStatus }, { name: '' }, null, { description: 'no name' }] } as unknown as { methods: { name: string }[] };
+    // A reply as it arrives off the wire: JSON.parse yields untyped data, so no assertion is needed to hold entries the type forbids
+    const malformed: DiscoverResult = JSON.parse(
+      JSON.stringify({ methods: [{ name: RPC.cloudStatus }, { name: '' }, null, { description: 'no name' }] }),
+    );
     ledger.accept(ticket, FIXTURE_ID.hostA, malformed);
     expect([...ledger.snapshot()!.methods]).toEqual([RPC.cloudStatus]);
   });

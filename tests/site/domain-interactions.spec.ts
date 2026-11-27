@@ -30,7 +30,7 @@ const test = base.extend<{ publicDemoOnly: void }>({
 async function openDemo(page: Page, scenario: string, instance: string): Promise<void> {
   await page.goto(demoUrl({ scenario, instance: instanceId('domain', instance) }));
   await expect(page.getByTestId(demoTestId.play)).toBeVisible();
-  expect(await page.evaluate(() => typeof (window as Window & { ipc?: unknown }).ipc)).toBe('undefined');
+  expect(await page.evaluate(() => typeof window.ipc)).toBe('undefined');
   await expectSettled(page);
 }
 

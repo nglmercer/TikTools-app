@@ -46,7 +46,7 @@ function mountPanel(selected: string | null = null, announced: string[] = []) {
   });
   const stores = createStoreHarness(client);
   const wrapper = mountWithPlugins(PluginServersPanel, {
-    props: { selected, 'onUpdate:selected': (value: string | null) => void wrapper.setProps({ selected: value }) } as never,
+    props: { selected, 'onUpdate:selected': (value: string | null) => void wrapper.setProps({ selected: value }) },
     global: { plugins: [router, ...stores.plugins], stubs: { PluginConnectionEditor: editorStub } },
   });
   return { wrapper, stores };

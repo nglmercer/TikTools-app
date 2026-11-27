@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { createControlClient } from '@/shared/api/control-client.ts';
 import { createDemoHost } from '../../../../src/web/demo/runtime/host.ts';
 import { createDemoFixture } from '../support/host.ts';
-import { parseDemoOptions, scenarios } from '../../../../src/web/demo/scenarios.ts';
+import { toUiEvent } from '../support/ui-event.ts';
+import { isScenario, parseDemoOptions, scenarios } from '../../../../src/web/demo/scenarios.ts';
 import { createLiveFeedState } from '@/entities/live-event/model/live-feed-state.ts';
 import { flushPromises } from '@vue/test-utils';
-import type { AnalyticsTotals, GiftCatalogEntry, UiEvent } from '../../../../src/shared/messages.ts';
+import type { AnalyticsTotals, GiftCatalogEntry } from '../../../../src/shared/messages.ts';
 import { DEMO_ACTIVITY_LENGTH } from '../../../../src/web/demo/fixtures/audience.ts';
 import { ERROR_CODE, RPC, TOPIC } from '../../../shared/index.ts';
 
@@ -20,7 +21,7 @@ describe('public demo host', () => {
       host.step();
       await Promise.resolve();
     }
-    const events = host.state.feedJournal!.map((row) => row.event as unknown as UiEvent);
+    const events = host.state.feedJournal!.map((row) => toUiEvent(row.event));
     // Assert: the opening events come from six viewers, and the feed covers every kind of activity
     expect(new Set(events.slice(0, 9).map((event) => event.author)).size).toBe(6);
     expect(new Set(events.map((event) => event.kind))).toEqual(new Set(['chat', 'like', 'gift', 'member', 'social']));
@@ -153,7 +154,7 @@ describe('public demo host', () => {
     dispose();
   });
   it('has deterministic initial state and bounded explicit startup replies for every scenario', async () => {
-    for (const id of Object.keys(scenarios) as Array<keyof typeof scenarios>) {
+    for (const id of Object.keys(scenarios).filter(isScenario)) {
       const a = createDemoHost(id);
       const b = createDemoHost(id);
       expect(a.state).toEqual(b.state);

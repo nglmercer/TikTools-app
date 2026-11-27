@@ -41,7 +41,7 @@ type Handler = (method: string, params: Record<string, unknown>) => unknown;
 async function mountList(handler: Handler, installed: string[] = [], announce: string[] | null = [RPC.catalogItems]) {
   const { client, calls } = createFakeControlClient((method, params) => {
     if (method === RPC.rpcDiscover) return { methods: (announce ?? []).map((name) => ({ name })) };
-    return handler(method, (params ?? {}) as Record<string, unknown>);
+    return handler(method, params ?? {});
   });
   const stores = createStoreHarness(client);
   if (announce) await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.testHost);

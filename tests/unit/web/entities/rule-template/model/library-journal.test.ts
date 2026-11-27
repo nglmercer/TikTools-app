@@ -17,6 +17,32 @@ import { useRuleProfiles } from '../../../../../../src/web/entities/rule-templat
 import { useRuleTemplates } from '../../../../../../src/web/entities/rule-template/model/rule-templates-state.ts';
 import { applyRuleTemplate, parseRuleTemplate } from '../../../../../../src/web/entities/rule-template/lib/rule-templates.ts';
 import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, FIXTURE_ID, LIBRARY_OPERATION, RPC } from '../../../../../shared/index.ts';
+import { isRecord } from '../../../../support/json.ts';
+
+interface EnablementChange {
+  kind: 'action' | 'event';
+  id: string;
+  enabled: boolean;
+}
+const isEnablementChange = (value: unknown): value is EnablementChange =>
+  isRecord(value) && (value['kind'] === 'action' || value['kind'] === 'event') && typeof value['id'] === 'string' && typeof value['enabled'] === 'boolean';
+const isLiveActionRecord = (value: unknown): value is LiveAction => isRecord(value) && typeof value['id'] === 'string' && typeof value['typeId'] === 'string';
+const isLiveEventRecord = (value: unknown): value is LiveEvent =>
+  isRecord(value) && typeof value['id'] === 'string' && typeof value['trigger'] === 'string' && Array.isArray(value['actionIds']);
+/** The record a create/update call carries, checked against the shape of its kind. */
+function submittedRecord(kind: 'action' | 'event', value: unknown): LiveAction | LiveEvent | undefined {
+  if (value === undefined) return undefined;
+  if (kind === 'action' && isLiveActionRecord(value)) return value;
+  if (kind === 'event' && isLiveEventRecord(value)) return value;
+  throw new Error(`expected a ${kind} record, got ${JSON.stringify(value)}`);
+}
+
+interface RawSubmission {
+  state: unknown;
+  acknowledgement: { resourceVersions: ResourceVersion[] };
+}
+const isRawSubmission = (value: unknown): value is RawSubmission =>
+  isRecord(value) && isRecord(value['acknowledgement']) && Array.isArray(value['acknowledgement']['resourceVersions']);
 
 const action = (id = 'old-action'): LiveAction => ({
   schemaVersion: 2,
@@ -55,11 +81,9 @@ function fixture() {
     if (method === RPC.appStateGet) return { state: {} };
     writes.push(method);
     if (method === 'automation.set_enablement') {
-      const changes = params?.updates as Array<{
-        kind: 'action' | 'event';
-        id: string;
-        enabled: boolean;
-      }>;
+      const updates = params?.updates;
+      if (!Array.isArray(updates) || !updates.every(isEnablementChange)) throw new Error('expected a list of enablement changes');
+      const changes: EnablementChange[] = updates;
       for (const change of changes) {
         const row = (change.kind === 'action' ? source.actions : source.events).find((row) => row.id === change.id)!;
         row.enabled = change.enabled;
@@ -67,11 +91,13 @@ function fixture() {
       }
       return { updated: changes.length, missing: [] };
     }
-    const kind = params?.kind as 'action' | 'event';
-    const record = params?.record as LiveAction | LiveEvent | undefined;
-    const id = (record?.id ?? params?.id) as string;
+    const kind = params?.kind;
+    if (kind !== 'action' && kind !== 'event') throw new Error(`expected an action or event kind, got ${String(kind)}`);
+    const record = submittedRecord(kind, params?.record);
+    const id = record?.id ?? params?.id;
+    if (typeof id !== 'string') throw new Error('expected a record id');
     const key = `${kind}:${id}`;
-    const list = (kind === 'action' ? source.actions : source.events) as Array<LiveAction | LiveEvent>;
+    const list: Array<LiveAction | LiveEvent> = kind === 'action' ? source.actions : source.events;
     const index = list.findIndex((row) => row.id === id);
     if (method === RPC.automationCreate && index >= 0) throw new ControlCallError(ERROR_CODE.revisionConflict, 'Already created');
     if (method === RPC.automationDelete) { if (index >= 0) list.splice(index, 1); }
@@ -354,10 +380,8 @@ test('library metadata is closed, precise and bound to the fresh original receip
     definitionDigest: context.definitionDigest,
     hostId: context.hostId,
     hostInstanceId: context.hostInstanceId,
-  }) as {
-    state: unknown;
-    acknowledgement: { resourceVersions: ResourceVersion[] };
-  };
+  });
+  if (!isRawSubmission(raw)) throw new Error('expected a library submission reply');
   expect(parseLibrarySubmission(raw, mutation, context).acknowledgement).not.toBeNull();
   expect(() => parseLibraryState({ ...f.native.library.state(), source: 'private' })).toThrow();
   expect(() => parseLibrarySubmission(raw, { ...mutation, id: 'other' }, context)).toThrow();
@@ -401,10 +425,8 @@ test('same-target membership acknowledgements bind kind and profile and reject a
     definitionDigest: context.definitionDigest,
     hostId: context.hostId,
     hostInstanceId: context.hostInstanceId,
-  }) as {
-    state: unknown;
-    acknowledgement: { resourceVersions: ResourceVersion[] };
-  };
+  });
+  if (!isRawSubmission(raw)) throw new Error('expected a library submission reply');
   expect(parseLibrarySubmission(raw, mutation, context).acknowledgement).not.toBeNull();
   expect(() => parseLibrarySubmission(raw, { ...mutation, kind: 'event' }, context)).toThrow();
   expect(() => parseLibrarySubmission(raw, { ...mutation, profileId: 'a' }, context)).toThrow();

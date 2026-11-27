@@ -2,6 +2,7 @@ import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import type { PluginUiNode as PluginUiNodeContract } from '../../../../../src/plugin-ui/index.ts';
+import type { JsonObject } from '../../../../../src/shared/json.ts';
 import type { PluginUiContext } from '@/entities/plugin/model/plugin-ui-context.ts';
 import type { PluginActionOutcome } from '@/entities/plugin/model/plugins-state.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
@@ -28,7 +29,7 @@ function outcome(actionType: string): PluginActionOutcome {
 }
 
 function context(execute: (actionType: string) => Promise<ReturnType<typeof outcome>> = (actionType) => Promise.resolve(outcome(actionType))): PluginUiContext {
-  const drafts = new Map<string, Record<string, never>>();
+  const drafts = new Map<string, JsonObject>();
   return {
     pluginId: 'tiktools.twitch',
     pluginName: 'Twitch Live',
@@ -60,7 +61,7 @@ function context(execute: (actionType: string) => Promise<ReturnType<typeof outc
     formDrafts: {
       get: (key) => drafts.get(key),
       set: (key, value) => {
-        drafts.set(key, value as Record<string, never>);
+        drafts.set(key, value);
       },
       keys: () => [...drafts.keys()],
       clear: () => drafts.clear(),

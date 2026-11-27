@@ -35,7 +35,7 @@ it('requires fresh consent for a changed preview and prevents confirming incompa
   packages.review.preview = { ...preview, version: '2.1.0', consentToken: 'second', permissions: [] };
   await wrapper.vm.$nextTick();
   expect(wrapper.get('.install-dialog__name').text()).toContain('2.1.0');
-  expect((wrapper.get('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(false);
+  expect(wrapper.get<HTMLInputElement>('input[type="checkbox"]').element.checked).toBe(false);
   expect(confirm().attributes('disabled')).toBeDefined();
   await wrapper.get('input[type="checkbox"]').setValue(true);
   packages.review.preview = { ...packages.review.preview, incompatibility: { kind: 'runtime', runtime: 'unsupported' } };

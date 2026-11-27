@@ -22,7 +22,7 @@ Object.defineProperty(globalThis, 'localStorage', {
   },
 });
 
-import { debounce, loadViewState, saveViewState, type FeedViewState } from '../../../../../src/web/shared/lib/view-state.ts';
+import { debounce, loadViewState, saveViewState } from '../../../../../src/web/shared/lib/view-state.ts';
 import { STORAGE_KEY } from '../../../../shared/index.ts';
 
 const KEY = STORAGE_KEY.viewState;
@@ -30,7 +30,8 @@ const KEY = STORAGE_KEY.viewState;
 function readStored(): Record<string, unknown> | null {
   const raw = localStorage.getItem(KEY);
   if (!raw) return null;
-  return JSON.parse(raw) as Record<string, unknown>;
+  const parsed: Record<string, unknown> = JSON.parse(raw);
+  return parsed;
 }
 
 test('save and load round-trips every section', () => {
@@ -130,12 +131,13 @@ test('invalid values fall back per field, valid siblings survive', () => {
   localStorage.clear();
   // Deliberately ill-typed: the blob is user-writable storage, so
   // the loader must reject each bad field on its own.
-  saveViewState('feed', {
-    filter: 'nope',
-    searchQuery: 42,
-    autoScroll: 'yes',
-    scrollTop: -50,
-  } as unknown as FeedViewState);
+  localStorage.setItem(
+    KEY,
+    JSON.stringify({
+      version: 1,
+      feed: { filter: 'nope', searchQuery: 42, autoScroll: 'yes', scrollTop: -50 },
+    }),
+  );
   expect(loadViewState().feed).toBeUndefined();
 
   saveViewState('feed', { filter: 'chat', scrollTop: 100 });
@@ -177,7 +179,7 @@ test('openServers keeps only boolean entries within the cap', () => {
   const openServers: Record<string, unknown> = {};
   for (let index = 0; index < 80; index += 1) openServers[`srv${index}`] = index % 2 === 0;
   openServers['bad'] = 'yes';
-  saveViewState('connections', { showCookie: false, openServers: openServers as Record<string, boolean> });
+  localStorage.setItem(KEY, JSON.stringify({ version: 1, connections: { showCookie: false, openServers } }));
   const restored = loadViewState().connections?.openServers ?? {};
   expect(Object.keys(restored)).toHaveLength(64);
   expect(restored['bad']).toBeUndefined();

@@ -8,26 +8,43 @@ import { registerGuideActions } from '../../../../../../src/web/features/guided-
 import { readTourProgress, writeTourProgress } from '../../../../../../src/web/features/guided-help/model/progress.ts';
 import { tourRegistry } from '../../../../../../src/web/features/guided-help/model/registry.ts';
 import { tourCatalogs } from '../../../../../../src/web/features/guided-help/catalogs';
+import { rectList } from '../../../../support/dom.ts';
 import { mountGuideTargets, removeGuideFixtures } from '../support/dom.ts';
 import { RPC } from '../../../../../shared/index.ts';
+
+interface StepCopy {
+  title: string;
+  description: string;
+}
 
 function driverFixture() {
   let config: Config = {};
   let steps: DriveStep[] = [];
   let index = 0;
+  // Driver steps may name their element by selector or factory; the fixtures always pass the element itself.
+  const elementOf = (step: DriveStep | undefined): Element | undefined => (step?.element instanceof Element ? step.element : undefined);
   const invoke = (hook: Config['onHighlighted']) =>
-    hook?.(steps[index]?.element as Element | undefined, steps[index] ?? {}, { driver: engine, config, state: {}, index });
-  const engine = {
+    hook?.(elementOf(steps[index]), steps[index] ?? {}, { driver: engine, config, state: {}, index });
+  const drive = vi.fn((next = 0) => {
+    index = next;
+    invoke(config.onHighlighted);
+  });
+  const engine: Driver = {
+    isActive: () => false,
+    refresh: () => {},
+    drive,
+    setConfig: vi.fn((next: Config) => { config = next; }),
     setSteps: vi.fn((next: DriveStep[]) => { steps = next; }),
     getConfig: () => config,
-    setConfig: vi.fn((next: Config) => { config = next; }),
-    drive: vi.fn((next = 0) => {
-      index = next;
-      invoke(config.onHighlighted);
-    }),
-    destroy: vi.fn(() => invoke(config.onDestroyed)),
+    getState: () => undefined,
+    getActiveIndex: () => index,
+    isFirstStep: () => index === 0,
     isLastStep: () => index === steps.length - 1,
-    getActiveElement: () => steps[index]?.element,
+    getActiveStep: () => steps[index],
+    getActiveElement: () => elementOf(steps[index]),
+    getPreviousElement: () => undefined,
+    getPreviousStep: () => steps[index - 1],
+    getNextStep: () => steps[index + 1],
     moveNext: vi.fn(() => {
       index++;
       invoke(config.onHighlighted);
@@ -36,7 +53,15 @@ function driverFixture() {
       index--;
       invoke(config.onHighlighted);
     }),
-  } as unknown as Driver;
+    moveTo: () => {},
+    hasNextStep: () => index < steps.length - 1,
+    hasPreviousStep: () => index > 0,
+    highlight: () => {},
+    updatePopover: () => {},
+    advance: () => {},
+    nudge: () => {},
+    destroy: vi.fn(() => invoke(config.onDestroyed)),
+  };
   const driver = vi.fn((next: Config) => {
     config = next;
     return engine;
@@ -44,6 +69,7 @@ function driverFixture() {
   const loadDriver = vi.fn(async () => ({ driver }));
   return {
     driver,
+    drive,
     engine,
     loadDriver,
     config: () => config,
@@ -65,7 +91,7 @@ beforeEach(() => {
   sessionStorage.clear();
   // Happy DOM has no layout engine; production visibility always uses real browser geometry.
   vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function (this: HTMLElement) {
-    return (this.isConnected ? [new DOMRect(0, 0, 120, 30)] : []) as unknown as DOMRectList;
+    return this.isConnected ? rectList(new DOMRect(0, 0, 120, 30)) : rectList();
   });
 });
 afterEach(() => {
@@ -303,7 +329,7 @@ it('keeps targets in its workspace and explicitly skips hidden/denied later step
   await session.ready;
   expect(test.steps()[0]!.element).toBe(root.querySelector('[data-guide="plugin-catalog"]'));
   expect(test.config().allowedElements).toEqual([root]);
-  expect(test.steps().some((step) => foreign.contains(step.element as Element))).toBe(false);
+  expect(test.steps().some((step) => step.element instanceof Node && foreign.contains(step.element))).toBe(false);
   test.next();
   await vi.advanceTimersByTimeAsync(10);
   expect(await session.done).toBe('dismissed');
@@ -353,7 +379,7 @@ it('does not highlight zero-opacity ancestors or zero-area targets', async () =>
   expect(test.driver).not.toHaveBeenCalled();
   root.style.opacity = '1';
   const rules = root.querySelector<HTMLElement>('[data-guide="points-rules"]')!;
-  vi.spyOn(rules, 'getClientRects').mockReturnValue([new DOMRect(0, 0, 0, 30)] as unknown as DOMRectList);
+  vi.spyOn(rules, 'getClientRects').mockReturnValue(rectList(new DOMRect(0, 0, 0, 30)));
   const unlaidOut = test.coordinator.startTour('points', { waitMs: 10 });
   await vi.advanceTimersByTimeAsync(10);
   expect(await unlaidOut.done).toBe('unavailable');
@@ -366,7 +392,7 @@ it('detects layout becoming visible without a DOM mutation and clears polling on
   const root = mountGuideTargets('points', ['points-rules']);
   const rules = root.querySelector<HTMLElement>('[data-guide="points-rules"]')!;
   let laidOut = false;
-  vi.spyOn(rules, 'getClientRects').mockImplementation(() => (laidOut ? [new DOMRect(0, 0, 120, 30)] : []) as unknown as DOMRectList);
+  vi.spyOn(rules, 'getClientRects').mockImplementation(() => (laidOut ? rectList(new DOMRect(0, 0, 120, 30)) : rectList()));
   const session = test.coordinator.startTour('points', { waitMs: 200 });
   await vi.advanceTimersByTimeAsync(10);
   expect(test.driver).not.toHaveBeenCalled();
@@ -472,16 +498,8 @@ describe('versioned registry and localized copy', () => {
       expect(tour.version).toBeGreaterThan(0);
       expect(tour.route.startsWith('/')).toBe(true);
       for (const [locale, catalog] of Object.entries(tourCatalogs)) {
-        const copy = (catalog as unknown as Record<
-          string,
-          Record<
-            string,
-            {
-              title: string;
-              description: string;
-            }
-          >
-        >)[tour.id]!;
+        // The catalogs are keyed by tour id at runtime; the typed catalog has no string index.
+        const copy: Record<string, StepCopy> = Reflect.get(catalog, tour.id);
         expect(Object.keys(copy)).toEqual(tour.steps.map((step) => step.id));
         for (const step of tour.steps) {
           expect(step.version).toBeGreaterThan(0);
@@ -525,8 +543,10 @@ describe('account and backup tour', () => {
   it('has text in every locale and steps through plan, create, tools and list', async () => {
     for (const catalog of Object.values(tourCatalogs)) {
       for (const step of tourRegistry.backup.steps) {
-        const [group, key] = step.titleKey.split('.') as ['backup', 'plan' | 'create' | 'tools' | 'list'];
-        expect(catalog[group][key].title, step.id).not.toBe('');
+        const [group, key] = step.titleKey.split('.');
+        const entry: StepCopy | undefined = Reflect.get(Reflect.get(catalog, group ?? ''), key ?? '');
+        expect(entry, step.id).toBeDefined();
+        expect(entry?.title, step.id).not.toBe('');
       }
     }
     const test = setup();
@@ -606,7 +626,7 @@ it('presses the prepare trigger when an interaction-gated target is missing, ins
     await vi.advanceTimersByTimeAsync(700);
   }
   expect(openEditor).toHaveBeenCalledTimes(1);
-  const driveCalls = (test.engine.drive as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0]);
+  const driveCalls = test.drive.mock.calls.map((call) => call[0]);
   expect(driveCalls.at(-1)).toBe(3);
   expect(test.steps()[3]?.element).toBe(root.querySelector('[data-guide="automation-editor"]'));
   session.stop();

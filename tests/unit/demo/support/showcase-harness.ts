@@ -21,11 +21,15 @@ export function createShowcaseHarness(
     release(): void;
     signal: AbortSignal
   }> = [];
-  const element = (name: string) => ({ name }) as unknown as HTMLElement;
+  const element = (name: string) => {
+    const node = document.createElement('div');
+    node.dataset['target'] = name;
+    return node;
+  };
   const env: ShowcaseEnv = {
     stage: {
-      focus: async (el, step) => { log.push(`focus:${step.id}:${(el as unknown as { name: string }).name}`); },
-      pointAt: async (el) => { log.push(`point:${(el as unknown as { name: string }).name}`); },
+      focus: async (el, step) => { log.push(`focus:${step.id}:${el.dataset['target']}`); },
+      pointAt: async (el) => { log.push(`point:${el.dataset['target']}`); },
       click: async () => { log.push('click'); },
       release: () => { log.push('release'); },
       clear: () => { log.push('clear'); },

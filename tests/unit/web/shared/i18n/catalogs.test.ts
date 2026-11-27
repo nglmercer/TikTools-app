@@ -5,12 +5,12 @@ import english from '../../../../../src/web/shared/i18n/locales/en.ts';
 type Tree = { [key: string]: string | Tree };
 
 const catalogs: Record<Locale, () => Promise<{ default: Tree }>> = {
-  en: () => import('../../../../../src/web/shared/i18n/locales/en.ts') as Promise<{ default: Tree }>,
-  es: () => import('../../../../../src/web/shared/i18n/locales/es.ts') as Promise<{ default: Tree }>,
-  pt: () => import('../../../../../src/web/shared/i18n/locales/pt.ts') as Promise<{ default: Tree }>,
-  fr: () => import('../../../../../src/web/shared/i18n/locales/fr.ts') as Promise<{ default: Tree }>,
-  zh: () => import('../../../../../src/web/shared/i18n/locales/zh.ts') as Promise<{ default: Tree }>,
-  ja: () => import('../../../../../src/web/shared/i18n/locales/ja.ts') as Promise<{ default: Tree }>,
+  en: () => import('../../../../../src/web/shared/i18n/locales/en.ts'),
+  es: () => import('../../../../../src/web/shared/i18n/locales/es.ts'),
+  pt: () => import('../../../../../src/web/shared/i18n/locales/pt.ts'),
+  fr: () => import('../../../../../src/web/shared/i18n/locales/fr.ts'),
+  zh: () => import('../../../../../src/web/shared/i18n/locales/zh.ts'),
+  ja: () => import('../../../../../src/web/shared/i18n/locales/ja.ts'),
 };
 
 function flatten(tree: Tree, prefix = ''): Map<string, string> {
@@ -31,7 +31,7 @@ afterEach(async () => {
 
 describe('message catalogs', () => {
   it.each(supportedLocales)('%s ships the English keys, placeholder occurrences and plural forms', async (locale) => {
-    const reference = flatten(english as Tree);
+    const reference = flatten(english);
     const catalog = flatten((await catalogs[locale]()).default);
     expect([...catalog.keys()].sort(), `${locale} catalog keys`).toEqual([...reference.keys()].sort());
     for (const [key, source] of reference) {
@@ -42,7 +42,7 @@ describe('message catalogs', () => {
   });
 
   it.each(supportedLocales)('%s compiles every message', async (locale) => {
-    const keys = [...flatten(english as Tree).keys()];
+    const keys = [...flatten(english).keys()];
     const errors: string[] = [];
     let current = '';
     // Vue-i18n can report a compiler error and return the raw message instead of

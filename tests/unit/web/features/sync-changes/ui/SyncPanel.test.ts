@@ -269,7 +269,7 @@ describe('SyncPanel mark as reviewed', () => {
     without.wrapper.unmount();
     // Declared but not implemented: still hidden, and nothing can be asked.
     const { adapter } = fakeAdapter({ ...allCapabilities, markReviewed: true });
-    delete (adapter as { markReviewed?: unknown }).markReviewed;
+    delete adapter.markReviewed;
     const missing = await openAdapter(adapter);
     expect(byLabel(missing.wrapper, REVIEW).exists()).toBe(false);
     missing.wrapper.unmount();

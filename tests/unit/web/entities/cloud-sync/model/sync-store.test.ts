@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
-import { createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
+import type { RpcParams } from '@/shared/api/control-client.ts';
+import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import type { SyncNowResult, SyncStatus } from '../../../../../../src/web/entities/cloud-sync/api/sync-types.ts';
 import { AUTO_SYNC_DEBOUNCE_MS, AUTO_SYNC_INTERVAL_MS, useSyncStore } from '../../../../../../src/web/entities/cloud-sync/model/sync-store.ts';
 import { RPC } from '../../../../../shared/index.ts';
@@ -19,22 +19,7 @@ function idle(overrides: Partial<SyncStatus> = {}): SyncStatus {
 }
 
 function harness(handler: (method: string, params: RpcParams | undefined) => unknown) {
-  const calls: {
-    method: string;
-    params: RpcParams | undefined;
-  }[] = [];
-  const client: ControlClient = {
-    attach: () => {},
-    detach: () => {},
-    call: (async (method: string, params?: RpcParams) => {
-      calls.push({ method, params });
-      return handler(method, params);
-    }) as ControlClient['call'],
-    onTopic: () => () => {},
-    onPush: () => () => {},
-    onTransportError: () => () => {},
-    onGap: () => () => {},
-  };
+  const { client, calls } = createFakeControlClient(handler);
   const stores = createStoreHarness(client);
   const store = stores.use(() => useSyncStore());
   return { store, calls };

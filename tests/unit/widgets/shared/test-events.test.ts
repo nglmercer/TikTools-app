@@ -24,6 +24,7 @@ import {
   TEST_EMULATABLE_TYPES,
 } from '../../../../src/widgets/shared/test-events.ts';
 import { EVENT_KIND } from '../../../shared/index.ts';
+import { propertyOf } from '../../support/json.ts';
 
 describe('extended test-event factories', () => {
   test('like envelopes validate as like events', () => {
@@ -35,17 +36,16 @@ describe('extended test-event factories', () => {
   test('social envelopes use the generic action, not follow/share', () => {
     const payload = parseLiveEvent(makeTestSocialEnvelope());
     expect(payload && isSocialEvent(payload.event)).toBe(true);
-    const data = (payload?.event.data ?? {}) as Record<string, unknown>;
-    expect(data['action']).toBe(0);
+    expect(propertyOf(payload?.event.data, 'action')).toBe(0);
   });
 
   test('plain joins and subscribes share the type but not the action', () => {
     const join = parseLiveEvent(makeTestJoinEnvelope());
     expect(join && isJoinEvent(join.event)).toBe(true);
-    expect(((join?.event.data ?? {}) as Record<string, unknown>)['action']).toBe(0);
+    expect(propertyOf(join?.event.data, 'action')).toBe(0);
     const subscribe = parseLiveEvent(makeTestSubscribeEnvelope());
     expect(subscribe && isJoinEvent(subscribe.event)).toBe(true);
-    expect(((subscribe?.event.data ?? {}) as Record<string, unknown>)['action']).toBe(3);
+    expect(propertyOf(subscribe?.event.data, 'action')).toBe(3);
   });
 
   test('room stats envelopes validate without a user', () => {
@@ -90,9 +90,9 @@ describe('makeTestEnvelopeFor', () => {
     expect(payload && isGiftEvent(payload.event)).toBe(true);
     expect(payload?.event.id).toBe('custom-1');
     expect(payload?.event.user?.uniqueId).toBe('luna_dev');
-    const data = (payload?.event.data ?? {}) as Record<string, unknown>;
-    expect(data['giftName']).toBe('Galaxy');
-    expect(data['diamondCount']).toBe(1000);
+    const data = payload?.event.data;
+    expect(propertyOf(data, 'giftName')).toBe('Galaxy');
+    expect(propertyOf(data, 'diamondCount')).toBe(1000);
   });
 
   test('unknown types degrade to a minimal envelope', () => {

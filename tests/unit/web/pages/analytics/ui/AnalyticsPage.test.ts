@@ -162,11 +162,9 @@ describe('AnalyticsPage', () => {
 
   it('shows a value tooltip when hovering the daily chart', async () => {
     const { wrapper } = await mountPage();
-    const svg = wrapper.get('svg[role="img"]');
+    const svg = wrapper.get<SVGSVGElement>('svg[role="img"]');
     // happy-dom reports zero-size boxes; pretend the svg renders at viewBox size.
-    const element = svg.element as SVGSVGElement;
-    element.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, width: 720, height: 220, right: 720, bottom: 220, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    svg.element.getBoundingClientRect = () => new DOMRect(0, 0, 720, 220);
     expect(wrapper.find('.chart-tooltip').exists()).toBe(false);
     await svg.trigger('pointermove', { clientX: 360, clientY: 100 });
     const tooltip = wrapper.get('.chart-tooltip');

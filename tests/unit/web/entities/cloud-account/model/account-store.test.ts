@@ -1,8 +1,8 @@
 import { flushPromises } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
-import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
+import type { RpcParams } from '@/shared/api/control-client.ts';
 import { ControlCallError } from '@/shared/api/control-client.ts';
-import { createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
+import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import type { AccountStatus } from '../../../../../../src/web/entities/cloud-account/api/account-types.ts';
 import { useAccountStore } from '../../../../../../src/web/entities/cloud-account/model/account-store.ts';
 import { ACCOUNT_STATE, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
@@ -22,23 +22,10 @@ function harness(
   handler: (method: string, params: RpcParams | undefined) => unknown,
   reserve: () => unknown = () => ({ operationId: '0123456789abcdef0123456789abcdef' }),
 ) {
-  const calls: {
-    method: string;
-    params: RpcParams | undefined
-  }[] = [];
-  const client: ControlClient = {
-    attach: () => {},
-    detach: () => {},
-    call: (async (method: string, params?: RpcParams) => {
-      calls.push({ method, params });
-      if (method === RPC.cloudLoginReserve) return reserve();
-      return handler(method, params);
-    }) as ControlClient['call'],
-    onTopic: () => () => {},
-    onPush: () => () => {},
-    onTransportError: () => () => {},
-    onGap: () => () => {},
-  };
+  const { client, calls } = createFakeControlClient((method, params) => {
+    if (method === RPC.cloudLoginReserve) return reserve();
+    return handler(method, params);
+  });
   const stores = createStoreHarness(client);
   const store = stores.use(() => useAccountStore());
   return { store, calls };

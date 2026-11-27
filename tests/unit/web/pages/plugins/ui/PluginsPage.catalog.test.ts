@@ -87,7 +87,7 @@ describe('PluginsPage catalog', () => {
       await openTab(wrapper, t(RPC.pluginsCatalogBrowse));
       expect(names(wrapper)).toEqual(['Acme TTS']);
       expect(wrapper.find('.explore-toolbar__filters').exists()).toBe(false);
-      expect(calls.filter(call => call.method === RPC.catalogItems).every(call => (call.params as { kind?: string })?.kind === 'plugin')).toBe(true);
+      expect(calls.filter(call => call.method === RPC.catalogItems).every(call => call.params?.kind === 'plugin')).toBe(true);
       expect(methods(calls)).toContain(RPC.catalogItems);
       expect(methods(calls)).not.toContain('registry.search');
       expect(methods(calls)).not.toContain('registry.list');
@@ -112,7 +112,7 @@ describe('PluginsPage catalog', () => {
       expect(methods(calls)).not.toContain('registry.search');
       expect(names(wrapper)).toEqual(['Acme TTS']);
       expect(wrapper.find('.explore-toolbar__filters').exists()).toBe(false);
-      expect(calls.filter(call => call.method === RPC.catalogItems).every(call => (call.params as { kind?: string })?.kind === 'plugin')).toBe(true);
+      expect(calls.filter(call => call.method === RPC.catalogItems).every(call => call.params?.kind === 'plugin')).toBe(true);
     });
 
     it('shows a neutral retry state when the Cloud is unreachable, never the marketplace wording', async () => {

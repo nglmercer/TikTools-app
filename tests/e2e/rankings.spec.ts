@@ -57,10 +57,20 @@ type Store = {
     params: Record<string, unknown>;
   }>;
 };
+
+declare global {
+  interface Window {
+    /** The in-page ranking store installed by `RANKINGS_HOST`. */
+    __RANKINGS_E2E__: Store;
+    /** Rankings a test seeds before the app lists them. */
+    __RANKINGS_SEED__: unknown[];
+  }
+}
+
 const calls = (page: Page, method: string) =>
   page.evaluate(
     (name) =>
-      (window as unknown as { __RANKINGS_E2E__: Store }).__RANKINGS_E2E__.calls
+      window.__RANKINGS_E2E__.calls
         .filter((call) => call.method === name)
         .map((call) => call.params),
     method,
@@ -100,7 +110,7 @@ test('creates a gift ranking prefilled from the live room and copies its OBS URL
 
 test('creates a leaderboard challenge without options', async ({ page }) => {
   await page.addInitScript(() => {
-    (window as unknown as { __RANKINGS_SEED__: unknown[] }).__RANKINGS_SEED__ = [{
+    window.__RANKINGS_SEED__ = [{
       schemaVersion: 1, id: 'top-gifts', creatorId: 'creator', roomId: 'room', groupBy: 'user', window: { type: 'session' },
       sources: [{ source: 'tiktok.gift', metric: 'gift.diamonds', weight: 1, enabled: true }], limit: 10, capacity: 100000,
     }];

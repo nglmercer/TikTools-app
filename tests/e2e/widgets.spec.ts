@@ -9,6 +9,14 @@ import { SEL } from './support/selectors.ts';
 import { RPC } from '../shared/index.ts';
 import { PAUSE_MS } from './support/timeouts.ts';
 
+declare global {
+  interface Window {
+    /** Problems the per-frame sampler found; read back once the monitor is stopped. */
+    widgetTransitionViolations: string[];
+    stopWidgetMonitor: () => void;
+  }
+}
+
 async function openOverlays(page: Page) {
   const capture = await installFakeHost(page, emptyState(), { theme: 'dark' });
   await page.goto('/');
@@ -113,11 +121,7 @@ test('rapid replay and tab changes never place alert cards side by side', async 
     // states that a final visibility assertion would miss.
     await page.evaluate(() => {
       const violations: string[] = [];
-      const target = window as unknown as {
-        widgetTransitionViolations: string[];
-        stopWidgetMonitor: () => void;
-      };
-      target.widgetTransitionViolations = violations;
+      window.widgetTransitionViolations = violations;
       let frame = 0;
       const sample = () => {
         const host = document.querySelector('.widget-host');
@@ -135,7 +139,7 @@ test('rapid replay and tab changes never place alert cards side by side', async 
         frame = requestAnimationFrame(sample);
       };
       sample();
-      target.stopWidgetMonitor = () => cancelAnimationFrame(frame);
+      window.stopWidgetMonitor = () => cancelAnimationFrame(frame);
     });
   });
   await test.step('replay each preview and switch kinds rapidly', async () => {
@@ -157,12 +161,8 @@ test('rapid replay and tab changes never place alert cards side by side', async 
   });
   await test.step('stop sampling and expect no overlapping or off-center cards', async () => {
     const violations = await page.evaluate(() => {
-      const target = window as unknown as {
-        widgetTransitionViolations: string[];
-        stopWidgetMonitor: () => void;
-      };
-      target.stopWidgetMonitor();
-      return target.widgetTransitionViolations;
+      window.stopWidgetMonitor();
+      return window.widgetTransitionViolations;
     });
     expect(violations).toEqual([]);
     await expect(page.locator(SEL.followCard)).toHaveCount(1);

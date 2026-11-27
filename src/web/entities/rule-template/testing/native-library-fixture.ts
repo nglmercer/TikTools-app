@@ -1,10 +1,19 @@
 import type { BehaviorSnapshot } from '../../../../automation/behavior/types.ts';
 import { ControlCallError, type ControlCallOptions, type ResourceVersion, type RpcParams } from '@/shared/api/control-client.ts';
 import type { LibraryCatalog, LibraryIntent, LibraryMutation, LibrarySnapshot, LibraryState } from '../model/library-contracts.ts';
-import { libraryTarget, libraryDigest, libraryDefinitionDigest, libraryCommandHash } from '../model/library-contracts.ts';
+import { object } from '@/entities/automation/model/definition-contracts.ts';
+import { libraryOperations, libraryTarget, libraryDigest, libraryDefinitionDigest, libraryCommandHash } from '../model/library-contracts.ts';
 import { scalarCompare } from '@/shared/lib/canonical-json.ts';
 
 const copy = <T>(value: T): T => structuredClone(value);
+const isBehaviorSnapshot = (value: unknown): value is BehaviorSnapshot => object(value) && Array.isArray(value.actions) && Array.isArray(value.events);
+const isLibraryMutation = (value: unknown): value is LibraryMutation =>
+  object(value) && libraryOperations.some((operation) => operation === value.operation);
+const stateText = (reply: unknown, key: string): string | undefined => {
+  const entries = object(reply) ? reply.state : undefined;
+  const value = object(entries) ? entries[key] : undefined;
+  return typeof value === 'string' ? value : undefined;
+};
 export const fixtureDigest = libraryDigest;
 export function nativeLibraryHost(business: (method: string, params?: RpcParams, options?: ControlCallOptions) => unknown,
   host: () => { hostId: string; hostInstanceId: string } = () => ({ hostId: 'host-a', hostInstanceId: 'instance-a' })) {
@@ -12,11 +21,13 @@ export function nativeLibraryHost(business: (method: string, params?: RpcParams,
   let catalog: LibraryCatalog | null = null; let revision = '0'; let serial = 0; let loseReply = false;
   async function readSnapshot(): Promise<LibrarySnapshot> {
     let resourceVersions: ResourceVersion[] = [];
-    const definitions = await business('automation.snapshot', {}, { onMetadata: (meta) => { resourceVersions = copy(meta?.resourceVersions ?? []); } }) as BehaviorSnapshot;
+    const reply = await business('automation.snapshot', {}, { onMetadata: (meta) => { resourceVersions = copy(meta?.resourceVersions ?? []); } });
+    if (!isBehaviorSnapshot(reply)) throw new Error('Library fixture expected an automation snapshot');
+    const definitions = reply;
     if (catalog === null) {
-      let result: { state?: Record<string, string> } | undefined;
-      try { result = await business('app.state.get', { keys: ['behavior.profiles.packs', 'behavior.profiles.active', 'behavior.templates.custom'] }) as typeof result; } catch { /* old opt-in business fixtures have no catalog */ }
-      catalog = { packs: JSON.parse(result?.state?.['behavior.profiles.packs'] ?? '[]'), activeId: result?.state?.['behavior.profiles.active'] ?? 'default', templates: JSON.parse(result?.state?.['behavior.templates.custom'] ?? '[]') };
+      let result: unknown;
+      try { result = await business('app.state.get', { keys: ['behavior.profiles.packs', 'behavior.profiles.active', 'behavior.templates.custom'] }); } catch { /* old opt-in business fixtures have no catalog */ }
+      catalog = { packs: JSON.parse(stateText(result, 'behavior.profiles.packs') ?? '[]'), activeId: stateText(result, 'behavior.profiles.active') ?? 'default', templates: JSON.parse(stateText(result, 'behavior.templates.custom') ?? '[]') };
     }
     resourceVersions.sort((a, b) => scalarCompare(a.scope, b.scope) || scalarCompare(a.id, b.id));
     return copy({ ...host(), revision, definitionDigest: libraryDefinitionDigest(definitions, resourceVersions), catalog, definitions, resourceVersions });
@@ -32,7 +43,9 @@ export function nativeLibraryHost(business: (method: string, params?: RpcParams,
       return copy(state);
     }
     if (method !== 'automation.library.submit') throw new Error(`Unexpected library fixture method ${method}`);
-    const before = await readSnapshot(); const mutation = copy(params?.mutation as LibraryMutation);
+    const submitted = params?.mutation;
+    if (!isLibraryMutation(submitted)) throw new Error('Library fixture expected a library mutation');
+    const before = await readSnapshot(); const mutation = copy(submitted);
     const intent: LibraryIntent = { commandId: `owner-library-${(++serial).toString(16).padStart(32, '0')}`, operation: mutation.operation,
       target: libraryTarget(mutation), expectedRevision: String(params?.expectedRevision), definitionDigest: String(params?.definitionDigest),
       commandHash: libraryCommandHash(mutation, { revision: String(params?.expectedRevision), definitionDigest: String(params?.definitionDigest) }), hostInstanceId: String(params?.hostInstanceId), createdAt: 1 };
@@ -83,7 +96,8 @@ export function nativeLibraryHost(business: (method: string, params?: RpcParams,
     }
     revision = String(BigInt(revision) + 1n);
     const after = await readSnapshot();
-    const versions = [{ kind: 'automation', scope: 'library', id: 'catalog', revision } as ResourceVersion,
+    const catalogVersion: ResourceVersion = { kind: 'automation', scope: 'library', id: 'catalog', revision };
+    const versions = [catalogVersion,
       ...[...new Map(changed.map((version) => [`${version.scope}:${version.id}`, version])).values()].sort((a, b) => scalarCompare(a.scope, b.scope) || scalarCompare(a.id, b.id))];
     const receipt = { revision, catalogDigest: fixtureDigest(catalog), definitionDigest: after.definitionDigest, versionsDigest: fixtureDigest(versions), affectedResources: versions.length };
     state.recent.unshift({ intent, outcome: 'succeeded', receipt, errorCode: null, recordedAt: 2 }); state.recent = state.recent.slice(0, 16); state.pending = null;

@@ -161,7 +161,7 @@ describe('gift controller', () => {
     fake.advance(5000);
     const firstKey = shown[0]?.key;
     expect(firstKey).toBeDefined();
-    expect(hidden).toEqual([firstKey as string]);
+    expect(hidden).toEqual([firstKey]);
     expect(shown).toHaveLength(2);
     expect(shown[1]).toMatchObject({ giftName: 'Galaxy', streaking: true });
   });

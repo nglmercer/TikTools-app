@@ -18,6 +18,8 @@ import {
   resetResolutionPreference,
 } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
 import { ERROR_CODE, RPC } from '../../../../../shared/index.ts';
+import { toElement } from '../../../../support/dom.ts';
+import { isRecord } from '../../../../support/json.ts';
 
 beforeEach(() => {
   localStorage.clear();
@@ -32,6 +34,12 @@ function documentIconButton(label: string): HTMLButtonElement {
 }
 
 
+/** The submitted record, completed with the fixture's fields so it is a whole LiveEvent without a cast. */
+function submittedEvent(record: unknown): LiveEvent {
+  if (!isRecord(record)) throw new Error('Expected the submitted record to be an object');
+  return { ...giftEvent, ...record };
+}
+
 it('pins the base across background refreshes, preserves a conflicting draft and rebases without resubmitting', async () => {
     const { wrapper, snapshot, versions, automation, requests, calls } = await mountPage();
     await selectRow(wrapper, 'Big gifts');
@@ -40,17 +48,17 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     versions.set('event:e1', '2');
     await automation.refresh();
     await flushPromises();
-    expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('My draft');
+    expect(wrapper.get<HTMLInputElement>('.event-editor input[type="text"]').element.value).toBe('My draft');
     expect(wrapper.text()).toContain('changed since you opened it');
     await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
     await flushPromises();
     expect(requests.find((call) => call.method === RPC.automationUpdate)?.meta).toEqual({ expectedRevision: '1' });
     expect(wrapper.text()).toContain('Your draft is retained');
-    expect((buttonByText(wrapper, t('automations.editor.save')).element as HTMLButtonElement).disabled).toBe(true);
+    expect(toElement(buttonByText(wrapper, t('automations.editor.save')).element, HTMLButtonElement).disabled).toBe(true);
     await buttonByText(wrapper, t('automations.conflict.compare')).trigger('click');
     await flushPromises();
     expect(document.body.textContent).toContain(t('jsonView.hostChanges'));
-    const chevrons = Array.from(document.querySelectorAll('.base-dialog .change-review__chevron')) as HTMLElement[];
+    const chevrons = Array.from(document.querySelectorAll<HTMLElement>('.base-dialog .change-review__chevron'));
     expect(chevrons).toHaveLength(2);
     chevrons[1]!.click();
     await flushPromises();
@@ -62,7 +70,7 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     documentIconButton(t('automations.conflict.useBase')).click();
     await flushPromises();
     expect(calls.filter((call) => call.method === RPC.automationUpdate)).toHaveLength(writes);
-    expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('My draft');
+    expect(wrapper.get<HTMLInputElement>('.event-editor input[type="text"]').element.value).toBe('My draft');
     await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
     await flushPromises();
     expect(requests.filter((call) => call.method === RPC.automationUpdate).at(-1)?.meta).toEqual({ expectedRevision: '2' });
@@ -77,7 +85,7 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     versions.set('event:e1', '2');
     await automation.refresh();
     await flushPromises();
-    expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Big gifts');
+    expect(wrapper.get<HTMLInputElement>('.event-editor input[type="text"]').element.value).toBe('Big gifts');
     await wrapper.get('.event-editor input[type="text"]').setValue('Edited from old base');
     await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
     await flushPromises();
@@ -122,7 +130,7 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     expect(calls.filter((r) => r.method === RPC.automationDefinitionSubmit && r.params?.operation === 'update')).toHaveLength(1);
     await goBack(wrapper);
     expect(document.body.textContent).toContain(t('automations.editor.discardTitle'));
-    expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Unconfirmed draft');
+    expect(wrapper.get<HTMLInputElement>('.event-editor input[type="text"]').element.value).toBe('Unconfirmed draft');
   });
 
   it('preserves newer form edits when a delayed save is acknowledged', async () => {
@@ -131,7 +139,7 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     const pending = new Promise<LiveEvent>((resolve) => { finish = resolve; });
     const { wrapper, snapshot, versions } = await mountPage((method, params, options) => {
       if (method !== RPC.automationUpdate) return undefined;
-      submitted = params?.record as LiveEvent;
+      submitted = submittedEvent(params?.record);
       options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: 'event', id: 'e1', revision: '2' }] });
       return pending;
     });
@@ -143,9 +151,9 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     versions.set('event:e1', '2');
     finish(submitted);
     await flushPromises();
-    expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Newer text');
+    expect(wrapper.get<HTMLInputElement>('.event-editor input[type="text"]').element.value).toBe('Newer text');
     expect(wrapper.text()).toContain(t('automations.editor.unsaved'));
-    expect((buttonByText(wrapper, t('automations.editor.save')).element as HTMLButtonElement).disabled).toBe(false);
+    expect(toElement(buttonByText(wrapper, t('automations.editor.save')).element, HTMLButtonElement).disabled).toBe(false);
   });
 
   it('a delayed acknowledgement cannot select or clear another editor after explicit navigation', async () => {
@@ -154,7 +162,7 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     const pending = new Promise<LiveEvent>((resolve) => { finish = resolve; });
     const { wrapper, snapshot, versions } = await mountPage((method, params, options) => {
       if (method !== RPC.automationUpdate) return undefined;
-      submitted = params?.record as LiveEvent;
+      submitted = submittedEvent(params?.record);
       options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: 'event', id: 'e1', revision: '2' }] });
       return pending;
     });
@@ -170,7 +178,7 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     versions.set('event:e1', '2');
     finish(submitted);
     await flushPromises();
-    expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Second draft');
+    expect(wrapper.get<HTMLInputElement>('.event-editor input[type="text"]').element.value).toBe('Second draft');
     expect(wrapper.text()).toContain(t('automations.editor.unsaved'));
   });
 
@@ -184,7 +192,7 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     documentButton(t('automations.editor.deleteConfirm')).click();
     await flushPromises();
     expect(wrapper.find('.event-editor').exists()).toBe(true);
-    expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Keep after delete failed');
+    expect(wrapper.get<HTMLInputElement>('.event-editor input[type="text"]').element.value).toBe('Keep after delete failed');
     expect(wrapper.text()).toContain(ERROR_CODE.revisionConflict);
   });
 
@@ -194,7 +202,7 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     await nextTick();
     documentButton(t('common.cancel')).click();
     await flushPromises();
-    expect((wrapper.findAll('.automation-library tbody tr')[1]!.get('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true);
+    expect(wrapper.findAll('.automation-library tbody tr')[1]!.get<HTMLInputElement>('input[type="checkbox"]').element.checked).toBe(true);
     expect(calls.some((r) => r.method === RPC.automationDisable)).toBe(false);
   });
 

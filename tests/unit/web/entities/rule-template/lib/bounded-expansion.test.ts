@@ -9,6 +9,7 @@ import {
 import { instantiateProfile, type RuleProfile } from '../../../../../../src/web/entities/rule-template/model/rule-profiles-state.ts';
 import { TEMPLATE_AGGREGATE_BYTES, TEMPLATE_RECORD_BYTES } from '../../../../../../src/web/entities/rule-template/lib/bounded-expansion.ts';
 import { ACTION_TYPE, ERROR_CODE, EVENT_KIND } from '../../../../../shared/index.ts';
+import { isRecord } from '../../../../support/json.ts';
 
 function template(value: JsonValue, actions = 1): RuleTemplate {
   const parsed = parseRuleTemplate({ templateVersion: 1, id: 'bounded-template', title: 'Bounded',
@@ -76,7 +77,7 @@ test('sole objects are measured before cloning and raw params are not recursivel
   const result = substituteRuleParams('{{ params.raw }}', params);
   expect(result).toEqual(params.raw);
   expect(result).not.toBe(params.raw);
-  expect(Object.hasOwn(result as object, '__proto__')).toBe(true);
+  expect(isRecord(result) && Object.hasOwn(result, '__proto__')).toBe(true);
 });
 test('profile aggregate is checked before any expanded tree is materialized, even when every individual record fits', () => {
   const source = profile('x'.repeat(70_000));

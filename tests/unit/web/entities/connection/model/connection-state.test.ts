@@ -6,31 +6,43 @@ import { useConnection } from '../../../../../../src/web/entities/connection/mod
 import { getSavedUsername } from '../../../../../../src/web/entities/connection/lib/creator-preferences.ts';
 import { FIXTURE_ID, RPC, TOPIC } from '../../../../../shared/index.ts';
 
-function stubControl(overrides?: Partial<ControlClient>): ControlClient & {
+type Answer = (method: string, params?: RpcParams) => unknown;
+type TopicSink = (data: never) => void;
+
+const notStubbed: Answer = () => Promise.reject(new ControlCallError('unavailable', 'not stubbed'));
+
+function stubControl(answer: Answer = notStubbed, hooks: { unsubscribed?: () => void } = {}): ControlClient & {
   calls: Array<{
     method: string;
     params?: RpcParams;
   }>;
+  emit: (topic: string, data: unknown) => void;
 } {
   const calls: Array<{
     method: string;
     params?: RpcParams;
   }> = [];
+  const topics = new Map<string, TopicSink>();
+  const untyped: Function = answer;
   return {
     calls,
+    emit: (topic, data) => {
+      const sink = topics.get(topic);
+      if (sink) Reflect.apply(sink, undefined, [data]);
+    },
     attach: () => {},
     detach: () => {},
-    call: <T,>(method: string, params?: RpcParams): Promise<T> => {
+    call: async <T,>(method: string, params?: RpcParams): Promise<T> => {
       calls.push({ method, params });
-      return Promise.reject(
-        new ControlCallError('unavailable', 'not stubbed'),
-      ) as Promise<T>;
+      return Reflect.apply(untyped, undefined, [method, params]);
     },
-    onTopic: () => () => {},
+    onTopic: (topic, handler) => {
+      topics.set(topic, handler);
+      return () => hooks.unsubscribed?.();
+    },
     onPush: () => () => {},
     onTransportError: () => () => {},
     onGap: () => () => {},
-    ...overrides,
   };
 }
 
@@ -90,10 +102,7 @@ describe('useConnection pick-live', () => {
   });
 
   test('a failed pick restores the previous creator pill', async () => {
-    const control = stubControl({
-      call: <T,>(): Promise<T> =>
-        Promise.reject(new ControlCallError('unavailable', 'no rooms')) as Promise<T>,
-    });
+    const control = stubControl(() => Promise.reject(new ControlCallError('unavailable', 'no rooms')));
     const connection = useConnection(control, callbacks);
     const previous = connection.activeCreator.value;
 
@@ -108,12 +117,7 @@ describe('useConnection pick-live', () => {
   });
 
   test('an empty cookie is sent through for guest mode', async () => {
-    const control = stubControl({
-      call: <T,>(method: string, params?: RpcParams): Promise<T> => {
-        control.calls.push({ method, params });
-        return Promise.resolve({ connected: false } as T);
-      },
-    });
+    const control = stubControl(() => Promise.resolve({ connected: false }));
     const connection = useConnection(control, callbacks);
 
     connection.handlePickLive();
@@ -127,16 +131,14 @@ describe('useConnection pick-live', () => {
   });
 
   test('a successful pick surfaces the creator in the input', async () => {
-    const control = stubControl({
-      call: <T,>(): Promise<T> =>
-        Promise.resolve({
-          connected: true,
-          uniqueId: '@picked_creator',
-          roomId: '123',
-          connectionId: FIXTURE_ID.connection1,
-          native: true,
-        } as T),
-    });
+    const control = stubControl(() =>
+      Promise.resolve({
+        connected: true,
+        uniqueId: '@picked_creator',
+        roomId: '123',
+        connectionId: FIXTURE_ID.connection1,
+        native: true,
+      }));
     const connection = useConnection(control, callbacks);
     expect(connection.uniqueId.value).toBe('');
 
@@ -148,12 +150,7 @@ describe('useConnection pick-live', () => {
   });
 
   test('a provided cookie is passed through trimmed', async () => {
-    const control = stubControl({
-      call: <T,>(method: string, params?: RpcParams): Promise<T> => {
-        control.calls.push({ method, params });
-        return Promise.resolve({ connected: false } as T);
-      },
-    });
+    const control = stubControl(() => Promise.resolve({ connected: false }));
     const connection = useConnection(control, callbacks);
     connection.setCookie('  sessionid=abc  ');
 
@@ -166,16 +163,13 @@ describe('useConnection pick-live', () => {
 
 describe('useConnection creator/input sync', () => {
   test('connect writes the normalized handle back to the input', async () => {
-    const control = stubControl({
-      call: <T,>(): Promise<T> =>
-        Promise.resolve({
+    const control = stubControl(() => Promise.resolve({
           connected: true,
           uniqueId: 'alice',
           roomId: '123',
           connectionId: FIXTURE_ID.connection1,
           native: true,
-        } as T),
-    });
+        }));
     const connection = useConnection(control, callbacks);
     connection.setUniqueId('  @alice  ');
 
@@ -187,17 +181,11 @@ describe('useConnection creator/input sync', () => {
   });
 
   test('a live.connected event syncs the pill and the input', () => {
-    const topics = new Map<string, (data: never) => void>();
-    const control = stubControl({
-      onTopic: (<T,>(topic: string, handler: (data: T) => void): (() => void) => {
-        topics.set(topic, handler as (data: never) => void);
-        return () => {};
-      }) as ControlClient['onTopic'],
-    });
+    const control = stubControl();
     const connection = useConnection(control, callbacks);
     connection.setUniqueId('stale_typing');
 
-    topics.get(TOPIC.liveConnected)?.({ uniqueId: '@Canonical_Name' } as never);
+    control.emit(TOPIC.liveConnected, { uniqueId: '@Canonical_Name' });
 
     expect(connection.status.value).toBe('connected');
     expect(connection.activeCreator.value).toBe('Canonical_Name');
@@ -205,16 +193,13 @@ describe('useConnection creator/input sync', () => {
   });
 
   test('a resync read syncs the input with the authoritative creator', async () => {
-    const control = stubControl({
-      call: <T,>(): Promise<T> =>
-        Promise.resolve({
+    const control = stubControl(() => Promise.resolve({
           connected: true,
           uniqueId: '@resync_creator',
           roomId: '123',
           connectionId: FIXTURE_ID.connection1,
           native: true,
-        } as T),
-    });
+        }));
     const connection = useConnection(control, callbacks);
     connection.setUniqueId('something_else');
 
@@ -227,17 +212,15 @@ describe('useConnection creator/input sync', () => {
 
 describe('useConnection refreshStatus', () => {
   test('a connected read rebuilds the pill from the authoritative state', async () => {
-    const control = stubControl({
-      call: <T,>(method: string): Promise<T> => {
-        expect(method).toBe('live.status');
-        return Promise.resolve({
-          connected: true,
-          uniqueId: '@resync_creator',
-          roomId: '123',
-          connectionId: FIXTURE_ID.connection1,
-          native: true,
-        } as T);
-      },
+    const control = stubControl((method) => {
+      expect(method).toBe('live.status');
+      return Promise.resolve({
+        connected: true,
+        uniqueId: '@resync_creator',
+        roomId: '123',
+        connectionId: FIXTURE_ID.connection1,
+        native: true,
+      });
     });
     const connection = useConnection(control, callbacks);
 
@@ -248,16 +231,13 @@ describe('useConnection refreshStatus', () => {
   });
 
   test('a disconnected read clears a stale pill after a gap', async () => {
-    const control = stubControl({
-      call: <T,>(): Promise<T> =>
-        Promise.resolve({
+    const control = stubControl(() => Promise.resolve({
           connected: false,
           uniqueId: null,
           roomId: null,
           connectionId: null,
           native: false,
-        } as T),
-    });
+        }));
     const connection = useConnection(control, callbacks);
 
     await connection.refreshStatus();
@@ -266,10 +246,7 @@ describe('useConnection refreshStatus', () => {
   });
 
   test('a failed refresh keeps local state instead of guessing', async () => {
-    const control = stubControl({
-      call: <T,>(): Promise<T> =>
-        Promise.reject(new ControlCallError('unavailable', 'host away')) as Promise<T>,
-    });
+    const control = stubControl(() => Promise.reject(new ControlCallError('unavailable', 'host away')));
     const connection = useConnection(control, callbacks);
 
     await connection.refreshStatus();
@@ -281,11 +258,9 @@ describe('useConnection refreshStatus', () => {
 
 test('a stale failed connect cannot overwrite a later disconnect', async () => {
   let failConnect: ((error: Error) => void) | undefined;
-  const control = stubControl({
-    call: <T,>(method: string): Promise<T> => method === RPC.liveConnect
-      ? new Promise<T>((_resolve, reject) => { failConnect = reject; })
-      : Promise.resolve({ connected: false } as T),
-  });
+  const control = stubControl((method) => method === RPC.liveConnect
+    ? new Promise<never>((_resolve, reject) => { failConnect = reject; })
+    : Promise.resolve({ connected: false }));
   const connection = useConnection(control, callbacks);
   connection.handleConnect('first');
   connection.handleDisconnect();
@@ -299,10 +274,10 @@ test('a stale failed connect cannot overwrite a later disconnect', async () => {
 test('dispose fences pending status refresh and releases topic subscriptions', async () => {
   let resolveStatus: ((result: unknown) => void) | undefined;
   let removed = 0;
-  const control = stubControl({
-    call: <T,>(): Promise<T> => new Promise<T>((resolve) => { resolveStatus = (result) => resolve(result as T); }),
-    onTopic: () => () => { removed += 1; },
-  });
+  const control = stubControl(
+    () => new Promise<unknown>((resolve) => { resolveStatus = resolve; }),
+    { unsubscribed: () => { removed += 1; } },
+  );
   const connection = useConnection(control, callbacks);
   const refresh = connection.refreshStatus();
   connection.dispose();
@@ -315,9 +290,7 @@ test('dispose fences pending status refresh and releases topic subscriptions', a
 
 test('older status refresh cannot overwrite a newer refresh', async () => {
   const answers: Array<(result: unknown) => void> = [];
-  const control = stubControl({
-    call: <T,>(): Promise<T> => new Promise<T>((resolve) => { answers.push((result) => resolve(result as T)); }),
-  });
+  const control = stubControl(() => new Promise<unknown>((resolve) => { answers.push(resolve); }));
   const connection = useConnection(control, callbacks);
   const old = connection.refreshStatus();
   const latest = connection.refreshStatus();
@@ -331,37 +304,25 @@ test('older status refresh cannot overwrite a newer refresh', async () => {
 
 describe('useConnection reconnect reporting', () => {
   test('live.reconnecting surfaces the attempt and delay, and connected clears them', () => {
-    const topics = new Map<string, (data: never) => void>();
-    const control = stubControl({
-      onTopic: (<T,>(topic: string, handler: (data: T) => void): (() => void) => {
-        topics.set(topic, handler as (data: never) => void);
-        return () => {};
-      }) as ControlClient['onTopic'],
-    });
+    const control = stubControl();
     const connection = useConnection(control, callbacks);
 
-    topics.get('live.reconnecting')?.({ attempt: 2, delayMs: 4000 } as never);
+    control.emit('live.reconnecting', { attempt: 2, delayMs: 4000 });
     expect(connection.status.value).toBe('retrying');
     expect(connection.reconnectAttempt.value).toBe(2);
     expect(connection.reconnectDelayMs.value).toBe(4000);
 
-    topics.get(TOPIC.liveConnected)?.({ uniqueId: 'alice' } as never);
+    control.emit(TOPIC.liveConnected, { uniqueId: 'alice' });
     expect(connection.status.value).toBe('connected');
     expect(connection.reconnectAttempt.value).toBeNull();
     expect(connection.reconnectDelayMs.value).toBeNull();
   });
 
   test('a payload without numbers reports an unknown attempt, never NaN', () => {
-    const topics = new Map<string, (data: never) => void>();
-    const control = stubControl({
-      onTopic: (<T,>(topic: string, handler: (data: T) => void): (() => void) => {
-        topics.set(topic, handler as (data: never) => void);
-        return () => {};
-      }) as ControlClient['onTopic'],
-    });
+    const control = stubControl();
     const connection = useConnection(control, callbacks);
 
-    topics.get('live.reconnecting')?.({} as never);
+    control.emit('live.reconnecting', {});
     expect(connection.status.value).toBe('retrying');
     expect(connection.reconnectAttempt.value).toBeNull();
     expect(connection.reconnectDelayMs.value).toBeNull();
@@ -371,9 +332,7 @@ describe('useConnection reconnect reporting', () => {
 describe('useConnection reconnect vs creator switch', () => {
   test('a reconnect to the same creator does not reset the feed', () => {
     let resets = 0;
-    const control = stubControl({
-      call: <T,>(): Promise<T> => Promise.resolve({ connected: false } as T),
-    });
+    const control = stubControl(() => Promise.resolve({ connected: false }));
     const connection = useConnection(control, {
       ...callbacks,
       resetFeed: () => { resets += 1; },
@@ -388,9 +347,7 @@ describe('useConnection reconnect vs creator switch', () => {
 
   test('switching to another creator resets the feed, a repeat does not', () => {
     let resets = 0;
-    const control = stubControl({
-      call: <T,>(): Promise<T> => Promise.resolve({ connected: false } as T),
-    });
+    const control = stubControl(() => Promise.resolve({ connected: false }));
     const connection = useConnection(control, {
       ...callbacks,
       resetFeed: () => { resets += 1; },
@@ -413,14 +370,9 @@ describe('useConnection reconnect vs creator switch', () => {
 describe('useConnection cancellation', () => {
   test.each([RPC.liveConnect, RPC.livePick])('ignores a late result from a cancelled %s', async (method) => {
     let finish: ((value: unknown) => void) | undefined;
-    const control = stubControl({
-      call: <T,>(requested: string): Promise<T> => {
-        control.calls.push({ method: requested });
-        return requested === method
-          ? new Promise<T>((resolve) => { finish = (value) => resolve(value as T); })
-          : Promise.resolve({ connected: false } as T);
-      },
-    });
+    const control = stubControl((requested) => requested === method
+      ? new Promise<unknown>((resolve) => { finish = resolve; })
+      : Promise.resolve({ connected: false }));
     const connection = useConnection(control, callbacks);
     connection.noteCreatorSeen('alice', false);
     if (method === RPC.livePick) connection.handlePickLive();
@@ -441,22 +393,16 @@ describe('useConnection cancellation', () => {
 
 describe('useConnection terminal transport failures', () => {
   test('a disconnected notification preserves the final error until recovery', () => {
-    const topics = new Map<string, (data: never) => void>();
-    const control = stubControl({
-      onTopic: (<T,>(topic: string, handler: (data: T) => void): (() => void) => {
-        topics.set(topic, handler as (data: never) => void);
-        return () => {};
-      }) as ControlClient['onTopic'],
-    });
+    const control = stubControl();
     const connection = useConnection(control, callbacks);
-    topics.get('live.error')?.({ phase: 'live', message: 'TikTok rate limit (HTTP 429)' } as never);
-    topics.get('live.disconnected')?.({} as never);
+    control.emit('live.error', { phase: 'live', message: 'TikTok rate limit (HTTP 429)' });
+    control.emit('live.disconnected', {});
     expect(connection.status.value).toBe('error');
     expect(connection.error.value).toContain('429');
-    topics.get('live.reconnecting')?.({ attempt: 1, delayMs: 30000 } as never);
+    control.emit('live.reconnecting', { attempt: 1, delayMs: 30000 });
     expect(connection.status.value).toBe('retrying');
     expect(connection.error.value).toBe('');
-    topics.get(TOPIC.liveConnected)?.({ uniqueId: 'alice' } as never);
+    control.emit(TOPIC.liveConnected, { uniqueId: 'alice' });
     expect(connection.status.value).toBe('connected');
     expect(connection.reconnectDelayMs.value).toBeNull();
   });

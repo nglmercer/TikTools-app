@@ -7,6 +7,7 @@ import {
   uiHintsForActionType,
 } from '../../../../src/automation/behavior/action-config.ts';
 import type { ActionTypeDefinition } from '../../../../src/automation/behavior/types.ts';
+import { propertyOf } from '../../support/json.ts';
 
 function rangeAction(): ActionTypeDefinition {
   return {
@@ -32,13 +33,13 @@ function rangeAction(): ActionTypeDefinition {
 
 describe('range action fields', () => {
   test('schema carries the number type with bounds', () => {
-    const schema = schemaForActionType(rangeAction()).properties as Record<string, Record<string, unknown>>;
-    expect(schema['volume']).toMatchObject({ type: 'number', minimum: 0, maximum: 1, multipleOf: 0.05 });
+    const schema = propertyOf(schemaForActionType(rangeAction()), 'properties');
+    expect(propertyOf(schema, 'volume')).toMatchObject({ type: 'number', minimum: 0, maximum: 1, multipleOf: 0.05 });
   });
 
   test('ui hints keep the range kind for the renderer', () => {
-    const hints = uiHintsForActionType(rangeAction()).fields as Record<string, Record<string, unknown>>;
-    expect(hints['volume']?.['kind']).toBe('range');
+    const hints = propertyOf(uiHintsForActionType(rangeAction()), 'fields');
+    expect(propertyOf(propertyOf(hints, 'volume'), 'kind')).toBe('range');
   });
 
   test('defaults and normalization stay numeric', () => {

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { supportedLocales } from '../../../src/web/shared/i18n/supported-locales.ts';
 import { translatorFor, type MessageKey } from '../../../src/pairing/messages.ts';
 import { mountPairing, resolveLocale, type PairingEnvironment } from '../../../src/pairing/pairing.ts';
+import { expectElement } from '../support/dom.ts';
 
 const template = readFileSync(resolve(process.cwd(), 'src/pairing/pairing.html'), 'utf8');
 const bodyMarkup = template
@@ -45,10 +46,10 @@ function mount(
     fetch,
     clearFragment,
     goHome,
-    renew: document.getElementById('renew') as HTMLButtonElement,
-    input: document.getElementById('code') as HTMLInputElement,
+    renew: expectElement(document, '#renew', HTMLButtonElement),
+    input: expectElement(document, '#code', HTMLInputElement),
     result: document.getElementById('result')!,
-    form: document.getElementById('pair') as HTMLFormElement,
+    form: expectElement(document, '#pair', HTMLFormElement),
   };
 }
 

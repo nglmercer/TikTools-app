@@ -1,6 +1,7 @@
 import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { defineComponent, h, nextTick, ref } from 'vue';
+import { toElement } from '../../../../support/dom.ts';
 import BaseContextMenu from '../../../../../../src/web/shared/ui/menu/BaseContextMenu.vue';
 import BaseMenu from '../../../../../../src/web/shared/ui/menu/BaseMenu.vue';
 import type { MenuAction, MenuEntry } from '../../../../../../src/web/shared/ui/menu/menu-types.ts';
@@ -124,7 +125,7 @@ describe('BaseMenu', () => {
     await nextTick();
     const rendered = menus()[0]!.querySelectorAll('[role="menuitem"]');
     expect(rendered).toHaveLength(many.length);
-    (rendered[rendered.length - 1] as HTMLElement).click();
+    toElement(rendered[rendered.length - 1], HTMLElement).click();
     expect(selected.map((action) => action.id)).toEqual(['item-39']);
   });
 

@@ -12,9 +12,14 @@ type HostWindow = Pick<
   'ipc' | '__webview_on_message__' | '__tiktools_receive_batch__' | '__tiktools_host_message_queue__'
 >;
 
+let stubbedWindow: HostWindow | undefined;
+let activeIpc: MockIpc | undefined;
+
 function stubWindow(properties: Partial<HostWindow> = {}): HostWindow {
   const target: HostWindow = { ...properties };
   vi.stubGlobal('window', target);
+  stubbedWindow = target;
+  activeIpc = undefined;
   return target;
 }
 
@@ -26,16 +31,19 @@ function installMockIpc(): MockIpc {
     },
   };
   stubWindow({ ipc });
+  activeIpc = ipc;
   return ipc;
 }
 
 function hostWindow(): HostWindow {
-  return window as HostWindow;
+  if (!stubbedWindow) throw new Error('stubWindow() has not been called');
+  return stubbedWindow;
 }
 
 function sentId(): string {
-  const ipc = hostWindow().ipc as MockIpc;
-  return (JSON.parse(ipc.sent.at(-1)!) as { id: string }).id;
+  if (!activeIpc) throw new Error('installMockIpc() has not been called');
+  const request: { id: string } = JSON.parse(activeIpc.sent.at(-1)!);
+  return request.id;
 }
 
 function hostMessage(): (raw: string) => void {
@@ -366,14 +374,14 @@ describe('createControlClient', () => {
       const seen: unknown[] = [];
       control.onTopic(TOPIC.liveUiEvent, (data) => seen.push(data));
       const configuring = control.setPresentation?.(view);
-      const first = JSON.parse(ipc.sent.at(-1)!) as {
+      const first: {
         id: string;
         params: { revision: number };
-      };
+      } = JSON.parse(ipc.sent.at(-1)!);
       respond(first.id, { result: { version: 1, revision: 1 } });
       await configuring;
       const hidden = control.setPresentation?.({ ...view, feed: false, points: false });
-      const second = JSON.parse(ipc.sent.at(-1)!) as { id: string };
+      const second: { id: string } = JSON.parse(ipc.sent.at(-1)!);
       hostMessage()(
         JSON.stringify({
           method: 'event',
@@ -467,7 +475,8 @@ it('uses the browser transport without native globals and resynchronizes after r
   control.attach();
   expect(control.setPresentation).toBeUndefined();
   const pending = control.call(RPC.systemInfo);
-  const id = (JSON.parse(sent[0]!) as { id: string }).id;
+  const request: { id: string } = JSON.parse(sent[0]!);
+  const { id } = request;
   receive(JSON.stringify({ type: MESSAGE_TYPE.rpcResponse, response: { id, result: { platform: 'AndroidTermux' } } }));
   await expect(pending).resolves.toEqual({ platform: 'AndroidTermux' });
   const mutation = control.call(RPC.globalsSet, { key: 'test', value: 'value' });

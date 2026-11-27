@@ -18,7 +18,7 @@ describe('BaseCheckbox', () => {
 
   it('reflects the indeterminate state on the native input', () => {
     const wrapper = mount(BaseCheckbox, { props: { indeterminate: true } });
-    expect((wrapper.get('input').element as HTMLInputElement).indeterminate).toBe(true);
+    expect(wrapper.get<HTMLInputElement>('input').element.indeterminate).toBe(true);
   });
 });
 
@@ -31,8 +31,8 @@ describe('BaseRadio', () => {
         'onUpdate:modelValue': (value: string | undefined) => wrapper.setProps({ modelValue: value }),
       },
     });
-    const input = wrapper.get('input');
-    expect((input.element as HTMLInputElement).checked).toBe(false);
+    const input = wrapper.get<HTMLInputElement>('input');
+    expect(input.element.checked).toBe(false);
     await input.setValue(true);
     expect(wrapper.props('modelValue')).toBe('auto');
   });

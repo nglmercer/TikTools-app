@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { defineComponent, h, nextTick } from 'vue';
 import { enableAutoUnmount } from '@vue/test-utils';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
+import type { AccountStatus } from '@/entities/cloud-account/api/account-types.ts';
 import { useCatalogStore } from '@/entities/catalog/model/catalog-store.ts';
 import { diagnosticLog } from '@/shared/diagnostics/log.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
@@ -39,7 +40,7 @@ describe('useDiagnostics', () => {
   it('records the Cloud diagnostics as a structured entry in the log', async () => {
     const stores = await mountDiagnostics();
     const account = stores.use(() => useAccountStore());
-    account.status = { origin: 'http://127.0.0.1:3000', state: ACCOUNT_STATE.signedIn, accountId: 'acc-1', persistence: ACCOUNT_STATE.memoryOnly } as never;
+    account.status = { origin: 'http://127.0.0.1:3000', state: ACCOUNT_STATE.signedIn, accountId: 'acc-1', persistence: ACCOUNT_STATE.memoryOnly };
     await nextTick();
     const entry = diagnosticLog.entries.value.filter(item => item.code === 'account.status').at(-1);
     expect(entry).toBeTruthy();
@@ -51,9 +52,9 @@ describe('useDiagnostics', () => {
   it('drops the history of an account when another one signs in', async () => {
     const stores = await mountDiagnostics();
     const account = stores.use(() => useAccountStore());
-    const status = (accountId: string | null) => ({
-      origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId, persistence: 'memory',
-    }) as never;
+    const status = (accountId: string | null): AccountStatus => ({
+      origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId, persistence: ACCOUNT_STATE.memoryOnly,
+    });
     account.status = status('account-a');
     stores.use(() => useCatalogStore()).error = 'private detail of account a';
     await nextTick();

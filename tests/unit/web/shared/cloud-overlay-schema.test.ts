@@ -2,7 +2,16 @@ import { testMessage } from '@/shared/i18n/test-message.ts';
 
 const t = (key: string): string => testMessage('en', key);
 import { describe, expect, it } from 'vitest';
-import { addElement, emptyOverlay, needsLiveRead, readOverlayDocument, toWire, updateElement, validateOverlay } from '../../../../src/shared/cloud-overlay-schema.ts';
+import {
+  addElement,
+  emptyOverlay,
+  needsLiveRead,
+  readOverlayDocument,
+  toWire,
+  updateElement,
+  validateOverlay,
+  type OverlayDocument,
+} from '../../../../src/shared/cloud-overlay-schema.ts';
 
 const asset = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
 
@@ -26,11 +35,13 @@ describe('overlay schema', () => {
 
   it('accepts only allow-listed fields and refuses avatar as a text field', () => {
     const doc = addElement(emptyOverlay('follow', 'Follow'), 'text');
-    const text = doc.elements[0] as { source: unknown };
-    text.source = { kind: 'field', field: 'viewer.avatar' };
-    expect(validateOverlay(doc)).toContain('invalidSource');
-    text.source = { kind: 'field', field: 'viewer.name' };
-    expect(validateOverlay(doc)).toEqual([]);
+    // A field outside the allow-list cannot be written in the type, so it arrives through JSON as it does from the Cloud.
+    const withField = (field: string): OverlayDocument => {
+      const elements = doc.elements.map((element) => ({ ...element, source: { kind: 'field', field } }));
+      return JSON.parse(JSON.stringify({ ...doc, elements }));
+    };
+    expect(validateOverlay(withField('viewer.avatar'))).toContain('invalidSource');
+    expect(validateOverlay(withField('viewer.name'))).toEqual([]);
   });
 
   it('requires a real asset id for art elements', () => {

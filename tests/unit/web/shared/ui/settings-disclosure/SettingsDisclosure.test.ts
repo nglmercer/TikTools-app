@@ -17,12 +17,12 @@ describe('SettingsDisclosure', () => {
     expect(region.attributes('aria-labelledby')).toBe(button.attributes('id'));
     expect(button.attributes('aria-expanded')).toBe('false');
     await button.trigger('click');
-    const input = wrapper.get('input');
+    const input = wrapper.get<HTMLInputElement>('input');
     await input.setValue('16');
     await button.trigger('click');
     expect(input.isVisible()).toBe(false);
     await button.trigger('click');
-    expect((input.element as HTMLInputElement).value).toBe('16');
+    expect(input.element.value).toBe('16');
     expect(button.attributes('aria-expanded')).toBe('true');
   });
   it('starts expanded when permission review must be visible', () => {

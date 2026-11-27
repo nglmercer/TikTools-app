@@ -45,7 +45,7 @@ describe('SettingsPage', () => {
     const { wrapper } = await mountPage();
     expect(selectedTab(wrapper)).toBe(t('settingsLayout.labels.general'));
     expect(wrapper.get('legend').text()).toBe('Language');
-    expect((wrapper.get('#settings-language').element as HTMLInputElement).value).toBe(t('menu.languages.en'));
+    expect(wrapper.get<HTMLInputElement>('#settings-language').element.value).toBe(t('menu.languages.en'));
     expect(wrapper.find('#app-update-automatic[role=switch]').exists()).toBe(true);
     expect(wrapper.get('#app-update-automatic').attributes('aria-label')).toBeTruthy();
   });

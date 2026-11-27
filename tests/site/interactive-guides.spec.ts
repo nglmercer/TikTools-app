@@ -128,7 +128,7 @@ for (const locale of docLocales) {
     const rose = frame.locator('img.event-card__gift').first();
     await rose.scrollIntoViewIfNeeded();
     await expect(rose).toHaveAttribute('alt', 'Rose');
-    await expect.poll(() => rose.evaluate(node => (node as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+    await expect.poll(() => rose.evaluate(node => (node instanceof HTMLImageElement ? node.naturalWidth : 0))).toBeGreaterThan(0);
     expect(new URL((await rose.getAttribute('src'))!,page.url()).origin).toBe(new URL(baseURL!).origin);
     await expect(page.locator(selector.stageGuideLink)).toHaveAttribute('href', guideLink('feed', `/${locale}`));
     await page.getByTestId(stageTestId.step('overlays')).click();
@@ -214,7 +214,7 @@ for (const locale of docLocales) {
       await page.getByRole('button', { name: system, exact: true }).click();
       const links = page.locator('.release-card__assets a');
       expect(await links.count()).toBeGreaterThan(0);
-      for (const href of await links.evaluateAll((nodes) => nodes.map((node) => (node as HTMLAnchorElement).href))) {
+      for (const href of await links.evaluateAll((nodes) => nodes.map((node) => (node instanceof HTMLAnchorElement ? node.href : '')))) {
         expect(href.toLowerCase()).toContain(system.toLowerCase());
         expect(snapshot.releases.flatMap((release) => release.assets).some((asset) => asset.url === href)).toBe(true);
       }

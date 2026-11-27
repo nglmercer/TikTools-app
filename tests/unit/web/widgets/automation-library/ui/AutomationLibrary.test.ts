@@ -38,7 +38,7 @@ it.each(['events', 'actions'] as const)('a %s switch requests a toggle without s
   await wrapper.get('input[role="switch"]').setValue(true);
   expect(wrapper.emitted('setEnabled')).toEqual([[tab, tab === 'events' ? event.id : action.id, true]]);
   expect(wrapper.emitted('update:selected')).toBeUndefined();
-  expect((wrapper.get('input[role="switch"]').element as HTMLInputElement).checked).toBe(false);
+  expect(wrapper.get<HTMLInputElement>('input[role="switch"]').element.checked).toBe(false);
 
   await wrapper.get('.automation-library__name').trigger('pointerdown');
   expect(wrapper.emitted('update:selected')).toEqual([[tab === 'events' ? event.id : action.id]]);

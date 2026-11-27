@@ -304,16 +304,13 @@ describe('failure propagation', () => {
 
 describe('cancellation through the shared runner', () => {
   test('cancelling during the first suite never starts the next suite', async () => {
-    const started: string[][] = [];
-    let finishFirst: (code: number) => void = () => {};
-    const runner = createProcessRunner({
-      cwd: '/repo',
-      log: () => {},
-      spawn: ((cmd: string[]) => {
-        started.push(cmd);
-        return { exited: new Promise<number>((resolve) => (finishFirst = resolve)), kill: () => finishFirst(143) };
-      }) as never,
-    });
+    const started: unknown[] = [];
+    // A real child that stays alive until the runner signals it, so the runner sees a genuine Subprocess.
+    const spawn: typeof Bun.spawn = (...args: unknown[]) => {
+      started.push(args[0]);
+      return Reflect.apply(Bun.spawn, Bun, [[process.execPath, '-e', 'setTimeout(() => {}, 60000)'], { stdout: 'ignore', stderr: 'ignore' }]);
+    };
+    const runner = createProcessRunner({ cwd: '/repo', log: () => {}, spawn });
     const outcome = runTargetedTests([], { root: '/repo', runner }).then(
       () => null,
       (error: unknown) => error,
@@ -323,7 +320,7 @@ describe('cancellation through the shared runner', () => {
     runner.cancel('SIGTERM');
     const error = await outcome;
     expect(error).toBeInstanceOf(ProcessCancelled);
-    expect((error as ProcessCancelled).exitCode).toBe(143);
+    expect(error).toMatchObject({ exitCode: 143 });
     expect(started).toHaveLength(1);
   });
 });

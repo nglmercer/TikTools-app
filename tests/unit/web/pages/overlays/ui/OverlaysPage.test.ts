@@ -45,7 +45,7 @@ describe('OverlaysPage', () => {
   it('shows the gateway status and the redacted source url', async () => {
     const { wrapper } = await mountPage();
     expect(wrapper.get('.overlays-page__gateway').text()).toContain('Ready on port 19999');
-    expect((wrapper.get('#overlay-source-url').element as HTMLInputElement).value).toBe(
+    expect(wrapper.get<HTMLInputElement>('#overlay-source-url').element.value).toBe(
       'http://127.0.0.1:19999/widgets/follow/#token=••••••••',
     );
   });
@@ -65,14 +65,14 @@ describe('OverlaysPage', () => {
 
   it('opens the overlay library in a modal and returns to the retained design', async () => {
     const { wrapper } = await mountPage([RPC.bundlesOverlaysCreate, RPC.bundlesPackagesPreflight]);
-    const source = (wrapper.get('#overlay-source-url').element as HTMLInputElement).value;
+    const source = wrapper.get<HTMLInputElement>('#overlay-source-url').element.value;
     await wrapper.get('button[aria-label="Cloud"]').trigger('click');
     expect(wrapper.get('dialog.overlay-library').attributes('open')).toBeDefined();
     expect(wrapper.findAll('.overlay-library__card')).toHaveLength(7);
     expect(wrapper.get('.overlays-page__workspace').isVisible()).toBe(true);
     await wrapper.get('.overlay-library button[aria-label="Close"]').trigger('click');
     expect(wrapper.find('.overlay-library__card').exists()).toBe(false);
-    expect((wrapper.get('#overlay-source-url').element as HTMLInputElement).value).toBe(source);
+    expect(wrapper.get<HTMLInputElement>('#overlay-source-url').element.value).toBe(source);
   });
 
   it('shows only the Cloud feature the host announced', async () => {
@@ -93,7 +93,7 @@ describe('OverlaysPage', () => {
     expect(buttonByText(wrapper, t('overlayLibrary.open')).attributes('disabled')).toBeUndefined();
     await buttonByText(wrapper, t('overlayLibrary.open')).trigger('click');
     expect(wrapper.find('.overlay-library__card').exists()).toBe(false);
-    expect((wrapper.get('#overlay-source-url').element as HTMLInputElement).value).toContain('/widgets/gift/');
+    expect(wrapper.get<HTMLInputElement>('#overlay-source-url').element.value).toContain('/widgets/gift/');
   });
 
   it('clears selection when search hides the selected overlay', async () => {
@@ -136,13 +136,13 @@ describe('OverlaysPage', () => {
     expect(document.body.textContent).toContain(t('overlays.editor.discardTitle'));
     Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Discard')!.click();
     await nextTick();
-    expect((wrapper.get('#overlay-source-url').element as HTMLInputElement).value).toContain('/widgets/gift/');
+    expect(wrapper.get<HTMLInputElement>('#overlay-source-url').element.value).toContain('/widgets/gift/');
   });
 
   it('switches directly when nothing changed and remembers the choice', async () => {
     const { wrapper } = await mountPage();
     await selectKind(wrapper, t('overlays.kinds.chat.name'));
-    expect((wrapper.get('#overlay-source-url').element as HTMLInputElement).value).toContain('/widgets/chat/');
+    expect(wrapper.get<HTMLInputElement>('#overlay-source-url').element.value).toContain('/widgets/chat/');
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY.viewState) ?? '{}').widgets).toEqual({ selectedKind: 'chat' });
   });
 });

@@ -18,6 +18,7 @@ import {
   makeTestUser,
 } from '../../../../src/widgets/shared/test-events.ts';
 import { TOPIC } from '../../../shared/index.ts';
+import { isRecord, propertyOf } from '../../support/json.ts';
 
 describe('event parser', () => {
   test('accepts well-formed envelopes and rejects malformed frames', () => {
@@ -68,7 +69,8 @@ describe('event parser', () => {
     expect(payload && isGiftEvent(payload.event)).toBe(false);
 
     const follow = makeTestFollowEnvelope();
-    const followEvent = (follow.data as Record<string, unknown>)['event'] as Record<string, unknown>;
+    const followEvent = propertyOf(follow.data, 'event');
+    if (!isRecord(followEvent)) throw new Error('The follow envelope carries no event object');
     const tampered = {
       topic: TOPIC.liveEvent,
       data: { eventType: FOLLOW_EVENT_TYPE, event: { ...followEvent, data: { action: 'one' } } },

@@ -19,6 +19,7 @@ import { BUILTIN_EVENT_TYPES } from '../../../src/automation/contracts/events.ts
 import { normalizeEvent } from '../../../src/automation/behavior/schema.ts';
 import type { PluginEventType } from '../../../src/automation/behavior/types.ts';
 import { EVENT_KIND } from '../../shared/index.ts';
+import { dataOf } from '../support/automation-event.ts';
 
 const ALL_TYPES: AutomationEventType[] = [...BUILTIN_EVENT_TYPES];
 
@@ -33,7 +34,7 @@ function readPath(root: JsonValue, path: string): JsonValue | undefined {
       if (!Number.isInteger(index)) return undefined;
       current = current[index];
     } else {
-      current = (current as Record<string, JsonValue | undefined>)[part];
+      current = current[part];
     }
   }
   return current;
@@ -78,8 +79,8 @@ describe('event registry', () => {
   });
 
   test('data payloads are keyed by field name, not hardcoded lists', () => {
-    expect(Object.keys(sampleEventForType(EVENT_KIND.tiktokGift).data as object)).toContain('giftName');
-    expect(Object.keys(sampleEventForType(EVENT_KIND.tiktokChat).data as object)).toContain('comment');
+    expect(Object.keys(dataOf(sampleEventForType(EVENT_KIND.tiktokGift)))).toContain('giftName');
+    expect(Object.keys(dataOf(sampleEventForType(EVENT_KIND.tiktokChat)))).toContain('comment');
     expect(allRegistryFields().some((field) => field.path === 'event.user.uniqueId')).toBe(true);
   });
 
@@ -255,7 +256,7 @@ describe('plugin event-type overlay', () => {
 
 test('blankEventForType keeps the contract shape without sample sentinels', () => {
   const blank = blankEventForType(EVENT_KIND.tiktokChat);
-  const data = blank.data as Record<string, unknown>;
+  const data = dataOf(blank);
   expect(data).toHaveProperty('comment');
   expect(data).not.toHaveProperty('method');
   expect(data).not.toHaveProperty('msgId');

@@ -7,7 +7,16 @@ import ja from '../../../../../../src/web/shared/i18n/host-messages/ja.ts';
 
 afterEach(async () => { await activateLocale('en'); });
 
-for (const [locale, messages] of Object.entries({ zh, ja }) as Array<['zh' | 'ja', Record<string, string>]>) {
+interface HostCatalog {
+  locale: 'zh' | 'ja';
+  messages: Record<string, string>;
+}
+const catalogs: HostCatalog[] = [
+  { locale: 'zh', messages: zh },
+  { locale: 'ja', messages: ja },
+];
+
+for (const { locale, messages } of catalogs) {
   it(`${locale} covers the actual native action descriptors and generated event fields`, async () => {
     const source = hostMessageContract();
     expect(source['automation.action.core.log.title']).toBe('Write to the log');

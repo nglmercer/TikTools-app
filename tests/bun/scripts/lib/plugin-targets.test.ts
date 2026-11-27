@@ -49,7 +49,7 @@ describe('host target detection', () => {
   });
 
   test('rejects unsupported host combinations', () => {
-    expect(() => detectHostTarget('freebsd' as never, 'x64')).toThrow(
+    expect(() => detectHostTarget('freebsd', 'x64')).toThrow(
       /Unsupported host combination/,
     );
     expect(() => detectHostTarget('darwin', 'arm64')).toThrow(/Unsupported host combination/);

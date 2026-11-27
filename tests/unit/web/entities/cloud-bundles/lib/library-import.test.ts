@@ -3,13 +3,14 @@ import { describe, expect, it } from 'vitest';
 import type { BehaviorSnapshot } from '../../../../../../src/automation/behavior/types.ts';
 import { nativeDefinitionHost } from '@/entities/automation/testing/native-definition-fixture.ts';
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
-import { ControlCallError, type ControlClient } from '@/shared/api/control-client.ts';
+import { ControlCallError } from '@/shared/api/control-client.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import {
   importLibraryDocument,
   readLibraryDocument,
   type LibraryImportEnvironment,
 } from '../../../../../../src/web/entities/cloud-bundles/lib/library-import.ts';
+import { propertyOf } from '../../../../support/json.ts';
 import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, FIXTURE_ID, LIBRARY_OPERATION, RPC } from '../../../../../shared/index.ts';
 
 const id = '00000000-0000-4000-8000-000000000001';
@@ -42,22 +43,25 @@ function fixture(read: (params: Record<string, unknown> | undefined) => unknown)
     if (method === RPC.appStateGet) return { state: {} };
     if (method === RPC.automationCreate) {
       options?.onMetadata?.({
-        resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }],
+        resourceVersions: [{ kind: 'automation', scope: String(params?.kind), id: String(propertyOf(params?.record, 'id')), revision: '1' }],
       });
       return params?.record;
     }
     throw new Error(`unexpected ${method}`);
   });
   const fake = createFakeControlClient((method, params, options) => method === 'cloudLibrary.read' ? read(params) : native.handle(method, params, options));
-  const state = {
-    identity: { origin: 'https://cloud.example', accountId: 'alice' } as {
+  const state: {
+    identity: {
       origin: string;
       accountId: string;
-    } | null,
+    } | null;
+    stamp: number;
+  } = {
+    identity: { origin: 'https://cloud.example', accountId: 'alice' },
     stamp: 0,
   };
   const environment: LibraryImportEnvironment = {
-    client: fake.client as ControlClient,
+    client: fake.client,
     identity: () => state.identity,
     stamp: () => state.stamp,
     isCurrent: (stamp) => stamp === state.stamp,

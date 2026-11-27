@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDemoPlayback, type PlaybackState } from '../../../src/web/demo/playback.ts';
-import { demoTourScenarios, demoTourUrl } from '../../../src/web/demo/tours.ts';
+import { demoTourScenarios, demoTourUrl, isDemoTour } from '../../../src/web/demo/tours.ts';
 import { demoParam } from '../../../src/web/demo/contract.ts';
 import { createDemoFixture } from './support/host.ts';
 import { RPC } from '../../shared/index.ts';
@@ -82,7 +82,7 @@ describe('demo playback controls', () => {
 });
 
 it('each selectable walkthrough prepares the matching fixtures and preserves locale/instance/base', () => {
-  for (const id of Object.keys(demoTourScenarios) as Array<keyof typeof demoTourScenarios>) {
+  for (const id of Object.keys(demoTourScenarios).filter(isDemoTour)) {
     const url = new URL(
       demoTourUrl('https://example.test/sub/demo/?locale=fr&instance=own&scenario=connection&route=/feed#/feed', id),
     );

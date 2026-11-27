@@ -10,13 +10,15 @@ export interface RecordedCall {
 
 export function createFakeControlClient(handler: (method: string, params: RpcParams | undefined, options?: ControlCallOptions) => unknown) {
   const calls: RecordedCall[] = [];
+  const untyped: Function = handler;
   const client: ControlClient = {
     attach: () => {},
     detach: () => {},
-    call: (async (method: string, params?: RpcParams, options?: ControlCallOptions) => {
+    call: async <T = unknown>(method: string, params?: RpcParams, options?: ControlCallOptions): Promise<T> => {
       calls.push({ method, params });
-      return handler(method, params, options);
-    }) as ControlClient['call'],
+      // The untyped Reflect.apply overload returns any, so the handler's result flows into the caller's chosen T.
+      return Reflect.apply(untyped, undefined, [method, params, options]);
+    },
     onTopic: () => () => {},
     onPush: () => () => {},
     onTransportError: () => () => {},

@@ -12,9 +12,10 @@ test('core text fields are a per-kind subset with username and message first', (
   expect(coreTextFields.follow).toEqual(['handle', 'message']);
   expect(coreTextFields.gift).toEqual(['name', 'message', 'count']);
   expect(coreTextFields.chat).toEqual(['name', 'message']);
-  for (const kind of Object.keys(textDefaults) as Array<keyof typeof textDefaults>) {
-    for (const field of coreTextFields[kind]) {
-      expect(field in textDefaults[kind]).toBe(true);
+  const defaultsByKind: Record<string, Record<string, string>> = textDefaults;
+  for (const [kind, fields] of Object.entries(coreTextFields)) {
+    for (const field of fields) {
+      expect(field in (defaultsByKind[kind] ?? {})).toBe(true);
     }
   }
 });

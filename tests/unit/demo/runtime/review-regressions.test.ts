@@ -3,6 +3,7 @@ import type { BehaviorSnapshot, LiveAction } from '../../../../src/automation/be
 import { callWithMeta } from '@/shared/api/control-client.ts';
 import { createDemoTransport, demoMethod, objectParams } from '../../../../src/web/demo/runtime/transport.ts';
 import { createDemoFixture } from '../support/host.ts';
+import { propertyOf } from '../../support/json.ts';
 import { ACTION_TYPE, ERROR_CODE, RPC } from '../../../shared/index.ts';
 
 const MiB = 1024 * 1024;
@@ -49,7 +50,7 @@ describe('review regressions: demo runtime contract and isolation', () => {
         else Reflect.deleteProperty(Object.prototype, 'values');
       }
       expect(failure).toBeDefined();
-      expect([ERROR_CODE.notFound, 'invalid_params']).toContain((failure as { code?: string } | undefined)?.code);
+      expect([ERROR_CODE.notFound, 'invalid_params']).toContain(propertyOf(failure, 'code'));
       expect(observedValues).toEqual(originalValues);
       expect(observedPrototypeValues).toEqual(originalPrototypeValues);
       expect(host.wasSuccessful(method)).toBe(false);
@@ -103,7 +104,7 @@ describe('review regressions: demo runtime contract and isolation', () => {
     const delivered: WireResponse[] = [];
     peer.transport.attach((raw) => {
       expect(new TextEncoder().encode(raw).byteLength).toBeLessThanOrEqual(2 * MiB);
-      delivered.push(JSON.parse(raw) as WireResponse);
+      delivered.push(JSON.parse(raw));
     }, () => {}, () => {});
     expect(peer.diagnostics()).toMatchObject({ maxMessageBytes: 2 * MiB, maxQueueBytes: 4 * MiB });
     peer.transport.send(request(1, 'fixture.large'));
@@ -141,7 +142,7 @@ describe('review regressions: demo runtime contract and isolation', () => {
     expect(peer.diagnostics().queuedBytes).toBeLessThanOrEqual(4 * MiB);
 
     const delivered: WireResponse[] = [];
-    peer.transport.attach((raw) => delivered.push(JSON.parse(raw) as WireResponse), () => {}, () => {});
+    peer.transport.attach((raw) => delivered.push(JSON.parse(raw)), () => {}, () => {});
     await Promise.resolve();
     // Either a synchronous send rejection or a correlated overload reply is a valid transport boundary.
     if (admissionFailure) expect(admissionFailure).toMatchObject({ code: 'overloaded' });

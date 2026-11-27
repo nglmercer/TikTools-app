@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, test } from 'vitest';
 
-import type { AutomationEvent } from '../../../../src/automation/types.ts';
 import {
   applyConditionTemplate,
   clearConditionTemplates,
@@ -10,6 +9,7 @@ import {
 import { matchesFilter } from '../../../../src/automation/behavior/testing/filter-matcher.ts';
 import { moderationConditionTemplates, registerModerationTemplates } from '../../../../src/automation/behavior/moderation-templates.ts';
 import { EVENT_KIND } from '../../../shared/index.ts';
+import { automationEvent, commentIntel } from '../../support/automation-event.ts';
 
 afterEach(() => {
   clearConditionTemplates();
@@ -44,11 +44,11 @@ describe('moderation condition templates', () => {
   });
 
   test('applied templates match through the real filter engine', () => {
-    const event = {
+    const event = automationEvent({
       type: EVENT_KIND.tiktokChat,
       data: {},
-      intel: { comment: { composition: { repetitionScore: 0.8 }, spam: { detected: false } } },
-    } as unknown as AutomationEvent;
+      intel: commentIntel({ composition: { repetitionScore: 0.8 }, spam: { detected: false } }),
+    });
     const mustFind = (id: string): ConditionTemplate => {
       const found = moderationConditionTemplates().find((template) => template.id === id);
       if (!found) throw new Error(`missing template ${id}`);

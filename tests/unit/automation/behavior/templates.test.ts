@@ -1,14 +1,16 @@
 import { describe, expect, test } from 'vitest';
 
 import type { AutomationEvent } from '../../../../src/automation/types.ts';
+import { EVENT_KIND } from '../../../shared/index.ts';
+import { automationEvent } from '../../support/automation-event.ts';
 import { readEventPath, renderJsonTemplate, renderTemplate } from '../../../../src/automation/behavior/templates.ts';
 
 function chat(comment: string): AutomationEvent {
-  return {
-    type: 'chat',
+  return automationEvent({
+    type: EVENT_KIND.tiktokChat,
     data: { comment, count: 3 },
-    user: { uniqueId: 'viewer' },
-  } as unknown as AutomationEvent;
+    user: { uniqueId: 'viewer', nickname: 'Viewer', secUid: 'sec-viewer', userId: null, avatarUrl: null },
+  });
 }
 
 describe('renderTemplate', () => {

@@ -45,7 +45,7 @@ describe('process runner', () => {
       runner.cancel(signal);
       const error = await outcome;
       expect(error).toBeInstanceOf(ProcessCancelled);
-      expect((error as ProcessCancelled).exitCode).toBe(exitCodeForSignal(signal));
+      expect(error).toMatchObject({ exitCode: exitCodeForSignal(signal) });
       expect(runner.activeChildren).toBe(0);
 
       // A queued follow-up command must never start.
@@ -70,21 +70,15 @@ describe('process runner', () => {
 
 describe('signal forwarding', () => {
   test('importing the module registers nothing; forwarding registers and removes handlers', () => {
-    const before = [process.listenerCount('SIGINT'), process.listenerCount('SIGTERM')];
-    const registered: Array<[string, () => void]> = [];
-    const removed: string[] = [];
+    const before: [number, number] = [process.listenerCount('SIGINT'), process.listenerCount('SIGTERM')];
     const cancelled: string[] = [];
-    const stop = forwardTerminationSignals(
-      { cancel: (signal) => void cancelled.push(signal) },
-      {
-        on: (signal: string, handler: () => void) => void registered.push([signal, handler]),
-        off: (signal: string) => void removed.push(signal),
-      } as never,
-    );
-    expect([process.listenerCount('SIGINT'), process.listenerCount('SIGTERM')]).toEqual(before);
-    for (const [, handler] of registered) handler();
+    const stop = forwardTerminationSignals({ cancel: (signal) => void cancelled.push(signal) }, process);
+    expect([process.listenerCount('SIGINT'), process.listenerCount('SIGTERM')]).toEqual([before[0] + 1, before[1] + 1]);
+    // Emitting only reaches the JS listeners; no real signal is delivered to the test process.
+    process.emit('SIGINT');
+    process.emit('SIGTERM');
     expect(cancelled).toEqual(['SIGINT', 'SIGTERM']);
     stop();
-    expect(removed).toEqual(['SIGINT', 'SIGTERM']);
+    expect([process.listenerCount('SIGINT'), process.listenerCount('SIGTERM')]).toEqual(before);
   });
 });

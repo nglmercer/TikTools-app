@@ -130,7 +130,7 @@ describe('native Variables Changes adapter', () => {
 });
 
 it('shows distinct exact integer values even when JavaScript rounds both numeric fields alike', async () => {
-  const value = JSON.parse('9223372036854775807') as number;
+  const value: number = JSON.parse('9223372036854775807');
   const { adapter } = setup([row({
     local: { type: 'number', value, numberText: '9223372036854775807' },
     cloud: { type: 'number', value, numberText: '9223372036854775806' },

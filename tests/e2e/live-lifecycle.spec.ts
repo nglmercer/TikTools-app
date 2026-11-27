@@ -8,6 +8,28 @@ import { emptyState } from './fixtures/states.ts';
 import { SEL } from './support/selectors.ts';
 import { PAUSE_MS, TEST_BUDGET_MS } from './support/timeouts.ts';
 
+type FrontendDiagnostics = {
+  ownedTimers: number;
+  iframeCount: number;
+  domNodes: number;
+  live: {
+    presentationActive: boolean;
+    frames: number;
+  };
+  control: {
+    topicSubscriptions: number;
+    pushSubscriptions: number;
+    pending: number;
+  };
+};
+
+declare global {
+  interface Window {
+    /** Published by the app runtime while a root is mounted. */
+    __tiktools_frontend_diagnostics__(): FrontendDiagnostics;
+  }
+}
+
 test('100 actual Vue root remounts return listeners, timers and DOM to baseline', async ({ page }, testInfo) => {
   test.setTimeout(TEST_BUDGET_MS.lifecycle);
   const capture = await installFakeHost(page, emptyState());
@@ -24,8 +46,7 @@ test('100 actual Vue root remounts return listeners, timers and DOM to baseline'
     // history is deliberately removed from retained-heap measurements.
     await page.waitForTimeout(PAUSE_MS.heapSettle);
     await page.evaluate(() => {
-      const scope = window as unknown as { __TIKTOOLS_E2E_STATE__: { calls: unknown[] } };
-      scope.__TIKTOOLS_E2E_STATE__.calls = [];
+      window.__TIKTOOLS_E2E_STATE__.calls = [];
     });
     await cdp.send('HeapProfiler.collectGarbage');
     const path = testInfo.outputPath(`${name}.heapsnapshot`);
@@ -42,21 +63,8 @@ test('100 actual Vue root remounts return listeners, timers and DOM to baseline'
   };
   // A remount removes the old root's diagnostics before the new root publishes its own.
   const diagnostics = async () => {
-    await page.waitForFunction(() => typeof (window as unknown as Record<string, unknown>)['__tiktools_frontend_diagnostics__'] === 'function');
-    return page.evaluate(() => {
-    const scope = window as unknown as { __tiktools_frontend_diagnostics__(): {
-      domNodes: number;
-      ownedTimers: number;
-      iframeCount: number;
-      control: {
-        pending: number;
-        topicSubscriptions: number;
-        pushSubscriptions: number;
-      };
-      live: { frames: number };
-    } };
-    return scope.__tiktools_frontend_diagnostics__();
-    });
+    await page.waitForFunction(() => typeof window.__tiktools_frontend_diagnostics__ === 'function');
+    return page.evaluate(() => window.__tiktools_frontend_diagnostics__());
   };
   await test.step('wait for the first root to settle', async () => {
     await expect.poll(async () => (await diagnostics()).control.pending).toBe(0);
@@ -66,11 +74,9 @@ test('100 actual Vue root remounts return listeners, timers and DOM to baseline'
     await snapshot('warmup');
     for (let i = 0; i < 100; i += 1) {
       await page.evaluate(() => {
-        const scope = window as unknown as {
-          __tiktools_benchmark_controls__: { setTab(tab: string): void };
-          __tiktools_remount__(): void;
-        };
-        scope.__tiktools_remount__();
+        const remount = window.__tiktools_remount__;
+        if (!remount) throw new Error('the app root has not published __tiktools_remount__');
+        void remount();
       });
       await expect.poll(async () => (await diagnostics()).control.pending).toBe(0);
       if (i === 49) await snapshot('after-50-roots');
@@ -99,22 +105,7 @@ test('100 Feed to Plugins navigation cycles actually mount both views and releas
     await waitForFrontend(page);
     await expect(page.locator(SEL.feedStream)).toBeVisible();
   });
-  const read = () => page.evaluate(() => (window as unknown as {
-    __tiktools_frontend_diagnostics__(): {
-      ownedTimers: number;
-      iframeCount: number;
-      domNodes: number;
-      live: {
-        presentationActive: boolean;
-        frames: number;
-      };
-      control: {
-        topicSubscriptions: number;
-        pushSubscriptions: number;
-        pending: number;
-      };
-    };
-  }).__tiktools_frontend_diagnostics__());
+  const read = () => page.evaluate(() => window.__tiktools_frontend_diagnostics__());
   await test.step('warm up the lazy plugins route before measuring', async () => {
     await expect.poll(async () => (await read()).control.pending).toBe(0);
     // Warm the lazy route's development styles before measuring retained DOM.
@@ -127,16 +118,12 @@ test('100 Feed to Plugins navigation cycles actually mount both views and releas
   const baseline = await read();
   await test.step('switch between the feed and plugins 100 times', async () => {
     for (let i = 0; i < 100; i += 1) {
-      await page.evaluate(() => (window as unknown as {
-        __tiktools_benchmark_controls__: { setTab(tab: string): void };
-      }).__tiktools_benchmark_controls__.setTab('plugins'));
+      await page.evaluate(() => window.__tiktools_benchmark_controls__.setTab('plugins'));
       await expect(page.locator(SEL.pluginsPage)).toBeVisible();
       await expect(page.locator(SEL.feedStream)).toHaveCount(0);
       // Visibility gating is retired: streams stay active on every tab so no chat history is skipped.
       expect((await read()).live.presentationActive).toBe(true);
-      await page.evaluate(() => (window as unknown as {
-        __tiktools_benchmark_controls__: { setTab(tab: string): void };
-      }).__tiktools_benchmark_controls__.setTab('feed'));
+      await page.evaluate(() => window.__tiktools_benchmark_controls__.setTab('feed'));
       await expect(page.locator(SEL.feedStream)).toBeVisible();
       await expect(page.locator(SEL.pluginsPage)).toHaveCount(0);
     }

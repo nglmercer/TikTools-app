@@ -69,7 +69,7 @@ export const PLUGIN_FRAME_FIXTURE_HTML = `<!doctype html>
 
 export async function installPluginUiOverride(page: Page): Promise<void> {
   await page.addInitScript((base: string) => {
-    (window as unknown as Record<string, unknown>)['__TIKTOOLS_PLUGIN_UI_BASE__'] = base;
+    Reflect.set(window, '__TIKTOOLS_PLUGIN_UI_BASE__', base);
   }, PLUGIN_FIXTURE_BASE);
 }
 

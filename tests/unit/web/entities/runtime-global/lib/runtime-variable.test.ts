@@ -4,7 +4,7 @@ import { variableFromRow } from '@/features/edit-runtime-globals/model/globals-d
 
 describe('lossless native numeric variables', () => {
   it('uses the native exact text after JavaScript parses a large integer', () => {
-    const value = JSON.parse('{"type":"number","value":9223372036854775807,"numberText":"9223372036854775807"}') as RuntimeVariable;
+    const value: RuntimeVariable = JSON.parse('{"type":"number","value":9223372036854775807,"numberText":"9223372036854775807"}');
     expect(variableText(value)).toBe('9223372036854775807');
     expect(isRuntimeVariable(value)).toBe(true);
     expect(variableFromRow({ id: 1, key: 'counter', kind: 'number', value: variableText(value) }))

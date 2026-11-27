@@ -18,7 +18,7 @@ it('owns its state, seeds it from initiallyOpen and keeps the body in the DOM', 
   expect(wrapper.find('.body').exists()).toBe(true);
   await toggle.trigger('click');
   expect(toggle.attributes('aria-expanded')).toBe('false');
-  expect((wrapper.get('.base-disclosure__body').element as HTMLElement).style.display).toBe('none');
+  expect(wrapper.get<HTMLElement>('.base-disclosure__body').element.style.display).toBe('none');
 });
 
 it('honours a controlled open prop and emits update:open', async () => {

@@ -1,19 +1,50 @@
 import { expect, test } from 'vitest';
 
 import manifestJson from '../../../fixtures/plugins/minecraft-server.plugin.json';
-import type { ActionTypeDefinition } from '../../../../src/automation/behavior/types.ts';
+import type { ActionField, ActionFieldKind, ActionTypeDefinition, Localized } from '../../../../src/automation/behavior/types.ts';
 import { defaultActionConfig } from '../../../../src/automation/behavior/action-config.ts';
+import { propertyOf } from '../../support/json.ts';
 
-type MinecraftManifest = {
-  id: string;
-  runtime: string;
-  schemaVersion: number;
-  http: { baseUrl: string };
-  actionTypes: ActionTypeDefinition[];
-  settings: { schema: { properties: { serverUrl: { default: string } } } };
+const FIELD_KINDS: readonly ActionFieldKind[] = ['text', 'textarea', 'number', 'range', 'select', 'boolean', 'keyvalue', 'media', 'code'];
+
+const isFieldKind = (value: unknown): value is ActionFieldKind => FIELD_KINDS.some((kind) => kind === value);
+
+const stringAt = (raw: unknown, key: string): string => {
+  const value = propertyOf(raw, key);
+  if (typeof value !== 'string') throw new Error(`Expected "${key}" to be a string`);
+  return value;
 };
 
-const manifest = manifestJson as unknown as MinecraftManifest;
+const localizedAt = (raw: unknown, key: string): Localized => ({ default: stringAt(propertyOf(raw, key), 'default'), i18key: '' });
+
+function toField(raw: unknown): ActionField {
+  const kind = propertyOf(raw, 'kind');
+  if (!isFieldKind(kind)) throw new Error(`Unknown field kind ${String(kind)}`);
+  return { key: stringAt(raw, 'key'), label: localizedAt(raw, 'label'), kind, value: stringAt(raw, 'value') };
+}
+
+/** Reads a manifest `actionTypes` entry into the host's action-type contract, checking each field at runtime. */
+function toActionType(raw: unknown): ActionTypeDefinition {
+  const fields = propertyOf(raw, 'fields');
+  const capabilities = propertyOf(raw, 'requiredCapabilities');
+  if (!Array.isArray(fields) || !Array.isArray(capabilities)) throw new Error('Expected fields and requiredCapabilities arrays');
+  return {
+    id: stringAt(raw, 'id'),
+    title: localizedAt(raw, 'title'),
+    description: localizedAt(raw, 'description'),
+    tag: stringAt(raw, 'tag'),
+    icon: stringAt(raw, 'icon'),
+    category: stringAt(raw, 'category'),
+    source: { kind: 'plugin', pluginId: manifestJson.id },
+    requiredCapabilities: capabilities.map((capability) => String(capability)),
+    fields: fields.map(toField),
+  };
+}
+
+const manifest = {
+  ...manifestJson,
+  actionTypes: manifestJson.actionTypes.map(toActionType),
+};
 
 /** Renders one declarative body template the way the host does (single pass, unknown paths empty). */
 function renderBody(template: string, config: Record<string, unknown>): string {
@@ -73,6 +104,19 @@ test('minecraft action defaults match the form contracts', () => {
   });
 });
 
+/** The raw declarative `http` request of an action type, which the host contract does not model. */
+interface DeclarativeHttp {
+  method: string;
+  path: string;
+  body: string;
+}
+
+function httpOf(actionId: string): DeclarativeHttp {
+  const raw = manifestJson.actionTypes.find((action) => action.id === actionId);
+  if (!raw) throw new Error(`no manifest entry for ${actionId}`);
+  return raw.http;
+}
+
 test('minecraft commands render from structured fields', () => {
   const bodies: Record<string, string> = {
     'minecraft.server.give-item': '/give @p minecraft:apple 1',
@@ -83,17 +127,11 @@ test('minecraft commands render from structured fields', () => {
     'minecraft.server.run-command': '/say Hello from TikTok!',
   };
   for (const action of manifest.actionTypes) {
-    const http = (action as unknown as {
-      http: {
-        method: string;
-        path: string;
-        body: string;
-      };
-    }).http;
+    const http = httpOf(action.id);
     expect(http.method).toBe('POST');
     expect(http.path).toBe('/api/chat');
-    const rendered = renderBody(http.body, defaultActionConfig(action) as Record<string, unknown>);
-    const payload = JSON.parse(rendered) as { text: string };
+    const rendered = renderBody(http.body, defaultActionConfig(action));
+    const payload: { text: string } = JSON.parse(rendered);
     const expected = bodies[action.id];
     if (expected === undefined) throw new Error(`no command expectation for ${action.id}`);
     expect(payload.text).toBe(expected);

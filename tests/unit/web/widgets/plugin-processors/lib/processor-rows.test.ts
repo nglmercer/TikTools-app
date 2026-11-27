@@ -4,7 +4,24 @@ import { filterProcessors, processorKey } from '../../../../../../src/web/widget
 import { EVENT_KIND } from '../../../../../shared/index.ts';
 
 function entry(pluginId: string, processorId: string, eventTypes: string[], status: ProcessorStatusEntry['status'] = 'ready') {
-  return { pluginId, processorId, eventTypes, status } as ProcessorStatusEntry;
+  return {
+    pluginId,
+    processorId,
+    eventTypes,
+    timeoutMs: 1000,
+    priority: 0,
+    status,
+    metrics: {
+      calls: 0,
+      successes: 0,
+      failures: 0,
+      timeouts: 0,
+      skippedCircuitOpen: 0,
+      skippedOverloaded: 0,
+      averageLatencyMs: 0,
+      maxLatencyMs: 0,
+    },
+  } satisfies ProcessorStatusEntry;
 }
 
 const entries = [entry('textintel', 'sentiment', [EVENT_KIND.tiktokChat]), entry('deck', 'scene', [], 'circuit-open')];

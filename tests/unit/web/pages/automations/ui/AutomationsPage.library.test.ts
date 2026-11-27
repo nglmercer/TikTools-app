@@ -82,7 +82,7 @@ it('blocks profile and template changes until the initial coherent library is re
     expect(calls.some((call) => call.method === RPC.globalsList)).toBe(false);
     await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === t('automations.library.variables'))!.trigger('click');
     await flushPromises();
-    expect(wrapper.findAll('.globals-editor input').map((input) => (input.element as HTMLInputElement).value)).toEqual(['commandPort', '46665']);
+    expect(wrapper.findAll<HTMLInputElement>('.globals-editor input').map((input) => input.element.value)).toEqual(['commandPort', '46665']);
     expect(wrapper.find('.automation-library__table').exists()).toBe(false);
     expect(wrapper.get('.automations-page__runs').isVisible()).toBe(true);
   });
@@ -96,7 +96,7 @@ it('blocks profile and template changes until the initial coherent library is re
     await wrapper.findAll('.globals-editor input')[1]!.setValue('25575');
     await tab(t('automations.library.actions')).trigger('click');
     await tab(t('automations.library.variables')).trigger('click');
-    expect((wrapper.findAll('.globals-editor input')[1]!.element as HTMLInputElement).value).toBe('25575');
+    expect(wrapper.findAll<HTMLInputElement>('.globals-editor input')[1]!.element.value).toBe('25575');
     await buttonByLabel(wrapper, t('globals.save')).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === RPC.globalsSet)?.params).toEqual({ key: 'commandPort', value: '25575' });

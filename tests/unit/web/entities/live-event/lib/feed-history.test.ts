@@ -5,12 +5,12 @@ import { createFeedHistory } from '../../../../../../src/web/entities/live-event
 beforeEach(() => localStorage.clear());
 
 function event(id: number): DisplayEvent {
-  return { id, receivedAt: Date.now(), kind: 'chat', author: 'luna', text: `message ${id}` } as DisplayEvent;
+  return { id, receivedAt: Date.now(), kind: 'chat', author: 'luna', text: `message ${id}` };
 }
 
 it('saves and restores a scoped feed snapshot with its cursor and ids', () => {
   const history = createFeedHistory();
-  const events = [event(1), { ...event(2), feedCursor: 42 } as DisplayEvent];
+  const events = [event(1), { ...event(2), feedCursor: 42 }];
   history.save({ scope: '["luna","room-1"]', savedAt: Date.now(), events });
   const restored = history.load();
   expect(restored?.scope).toBe('["luna","room-1"]');

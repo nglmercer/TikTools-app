@@ -13,10 +13,29 @@ import {
 } from '../../../../../../src/web/entities/plugin/api/plugin-webview-host.ts';
 import { PLUGIN_ID, RPC, TOPIC } from '../../../../../shared/index.ts';
 
-function ok(entry: BrokerResponse | BrokerEvent): BrokerOkResponse {
-  const response = entry as BrokerOkResponse;
+type Posted = BrokerResponse | BrokerEvent | undefined;
+
+/** The reply to a frame request (as opposed to a pushed event); throws when the entry is missing or an event. */
+function reply(entry: Posted): BrokerResponse {
+  if (entry === undefined || !('ok' in entry)) throw new Error(`expected a reply, got ${JSON.stringify(entry)}`);
+  return entry;
+}
+
+function ok(entry: Posted): BrokerOkResponse {
+  const response = reply(entry);
   if (response.ok !== true) throw new Error(`expected ok response, got ${JSON.stringify(entry)}`);
   return response;
+}
+
+/** A distinct window-like object: `Object.create` is untyped, so it stands in for a frame window without a cast. */
+function newFrameWindow(): WindowProxy {
+  return Object.create(window);
+}
+
+/** Replace (or, with `undefined`, remove) the page `window` global the desktop-shell detection reads. */
+function setPageWindow(value: unknown): void {
+  if (value === undefined) Reflect.deleteProperty(globalThis, 'window');
+  else Reflect.set(globalThis, 'window', value);
 }
 
 function fakeBackend(): BrokerBackend & { calls: string[] } {
@@ -49,7 +68,7 @@ function fakeBackend(): BrokerBackend & { calls: string[] } {
 }
 
 function harness(pluginId = 'owner.plugin') {
-  const frameWindow = {} as WindowProxy;
+  const frameWindow = newFrameWindow();
   const posted: Array<BrokerResponse | BrokerEvent> = [];
   const backend = fakeBackend();
   const host = new PluginWebviewHost(frameWindow, {
@@ -74,9 +93,9 @@ test('routes known methods to the backend with correlated ids', async () => {
   await send('6', 'host.theme');
   expect(posted).toHaveLength(6);
   expect(posted.map((entry) => ok(entry).id)).toEqual(['1', '2', '3', '4', '5', '6']);
-  expect(ok(posted[0] as BrokerResponse).result).toEqual({ voice: 'M1' });
-  expect(ok(posted[4] as BrokerResponse).result).toBe('en');
-  expect(ok(posted[5] as BrokerResponse).result).toBe('dark');
+  expect(ok(posted[0]).result).toEqual({ voice: 'M1' });
+  expect(ok(posted[4]).result).toBe('en');
+  expect(ok(posted[5]).result).toBe('dark');
   expect(backend.calls).toContain(RPC.settingsGet);
   expect(backend.calls).toContain('actions.execute:owner.plugin.speak');
 });
@@ -84,7 +103,7 @@ test('routes known methods to the backend with correlated ids', async () => {
 test('drops foreign sources, versions, and malformed envelopes', async () => {
   const { host, posted, frameWindow } = harness();
   // Wrong source window: silent drop, no backend contact.
-  await host.handleFrameMessage({ apiVersion: 1, id: 'x', method: RPC.settingsGet, params: {} }, {} as WindowProxy);
+  await host.handleFrameMessage({ apiVersion: 1, id: 'x', method: RPC.settingsGet, params: {} }, newFrameWindow());
   // Wrong version: silent drop.
   await host.handleFrameMessage({ apiVersion: 999, id: 'y', method: RPC.settingsGet, params: {} }, frameWindow);
   // Missing id: silent drop (nothing to correlate).
@@ -97,8 +116,8 @@ test('drops foreign sources, versions, and malformed envelopes', async () => {
   await host.handleFrameMessage({ apiVersion: 1, id: 'b', method: 'settings.set', params: { values: 'nope' } }, frameWindow);
   await host.handleFrameMessage({ apiVersion: 1, id: 'c', method: RPC.settingsGet, params: [] }, frameWindow);
   expect(posted).toHaveLength(3);
-  expect(posted.map((entry) => (entry as BrokerResponse).id)).toEqual(['a', 'b', 'c']);
-  expect(posted.every((entry) => (entry as BrokerResponse).ok === false)).toBe(true);
+  expect(posted.map((entry) => reply(entry).id)).toEqual(['a', 'b', 'c']);
+  expect(posted.every((entry) => reply(entry).ok === false)).toBe(true);
 });
 
 test('rejects mismatched plugin identities', async () => {
@@ -108,19 +127,19 @@ test('rejects mismatched plugin identities', async () => {
     frameWindow,
   );
   expect(posted).toHaveLength(1);
-  expect((posted[0] as BrokerResponse).ok).toBe(false);
+  expect(reply(posted[0]).ok).toBe(false);
   // A matching identity is accepted (and ignored — the host injects its own).
   await host.handleFrameMessage(
     { apiVersion: 1, id: '2', method: 'host.locale', params: { pluginId: 'owner.plugin' } },
     frameWindow,
   );
-  expect((posted[1] as BrokerResponse).ok).toBe(true);
+  expect(reply(posted[1]).ok).toBe(true);
 });
 
 test('subscriptions gate event pushes by topic', async () => {
   // Arrange: a host whose subscribeTopic hook records which topics the bus is currently listening to
   const subscribed: string[] = [];
-  const frameWindow = {} as WindowProxy;
+  const frameWindow = newFrameWindow();
   const posted: Array<BrokerResponse | BrokerEvent> = [];
   const host = new PluginWebviewHost(frameWindow, {
     pluginId: 'owner.plugin',
@@ -153,7 +172,7 @@ test('subscriptions gate event pushes by topic', async () => {
     { apiVersion: 1, id: '2', method: RPC.eventsSubscribe, params: { topics: [TOPIC.liveEvent] } },
     frameWindow,
   );
-  expect((posted[2] as BrokerResponse).ok).toBe(false);
+  expect(reply(posted[2]).ok).toBe(false);
   expect(subscribed).toEqual([TOPIC.pluginEvent]);
   // Act: unsubscribing releases the topic, so the shared bus no longer delivers it to this frame
   await host.handleFrameMessage(
@@ -168,20 +187,18 @@ test('subscriptions gate event pushes by topic', async () => {
 });
 
 test('frame URLs stay on the plugin scheme with a test override', () => {
-  const scope = globalThis as Record<string, unknown>;
-  const previous = scope['window'];
+  const previous: unknown = Reflect.get(globalThis, 'window');
   try {
     // Plain browser without the desktop shell: no servable URL.
-    scope['window'] = {};
+    setPageWindow({});
     expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', 'tts')).toBe(null);
     // Desktop shell: custom scheme, entry file only, page in the hash.
-    scope['window'] = { ipc: { postMessage: () => undefined } };
+    setPageWindow({ ipc: { postMessage: () => undefined } });
     expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', 'tts')).toBe(
       'tiktools-plugin://app/sonicboom.server/index.html#page=tts',
     );
     // Test override wins over the desktop default.
-    (scope['window'] as Record<string, unknown>)['__TIKTOOLS_PLUGIN_UI_BASE__'] =
-      '/__plugin-fixture/';
+    setPageWindow({ ipc: { postMessage: () => undefined }, __TIKTOOLS_PLUGIN_UI_BASE__: '/__plugin-fixture/' });
     expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', 'tts')).toBe(
       '/__plugin-fixture/sonicboom.server/index.html#page=tts',
     );
@@ -190,32 +207,28 @@ test('frame URLs stay on the plugin scheme with a test override', () => {
     expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui\\dist\\index.html', 'tts')).toBe(null);
     expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', '  ')).toBe(null);
   } finally {
-    if (previous === undefined) delete scope['window'];
-    else scope['window'] = previous;
+    setPageWindow(previous);
   }
 });
 
 test('Windows WebView2 uses the rewritten plugin asset host', () => {
-  const scope = globalThis as Record<string, unknown>;
-  const previousWindow = scope['window'];
+  const previousWindow: unknown = Reflect.get(globalThis, 'window');
   const userAgent = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (Windows NT 10.0) Edg/140.0');
   try {
-    scope['window'] = { ipc: { postMessage: () => undefined } };
+    setPageWindow({ ipc: { postMessage: () => undefined } });
     expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', 'tts')).toBe(
       'http://tiktools-plugin.app/sonicboom.server/index.html#page=tts',
     );
   } finally {
     userAgent.mockRestore();
-    if (previousWindow === undefined) delete scope['window'];
-    else scope['window'] = previousWindow;
+    setPageWindow(previousWindow);
   }
 });
 
 test('frame URLs reject identifier and path injection', () => {
-  const scope = globalThis as Record<string, unknown>;
-  const previous = scope['window'];
+  const previous: unknown = Reflect.get(globalThis, 'window');
   // Arrange: run as the desktop shell, so every accepted URL uses the plugin scheme
-  scope['window'] = { ipc: { postMessage: () => undefined } };
+  setPageWindow({ ipc: { postMessage: () => undefined } });
   try {
     const ok = 'tiktools-plugin://app/sonicboom.server/index.html#page=tts';
     // Assert: a well-formed id and entry still resolve, so the nulls below come from the checks
@@ -255,8 +268,7 @@ test('frame URLs reject identifier and path injection', () => {
       'tiktools-plugin://app/plugin-a_b.c/index.html#page=page-1_x.y',
     );
   } finally {
-    if (previous === undefined) delete scope['window'];
-    else scope['window'] = previous;
+    setPageWindow(previous);
   }
 });
 
@@ -274,7 +286,7 @@ test('dispose during a pending backend call prevents responses to the old frame'
 });
 
 test('iframe admission stays bounded after deadlines and disposal clears timers', async () => {
-  const frame = {} as WindowProxy;
+  const frame = newFrameWindow();
   const posted: Array<BrokerResponse | BrokerEvent> = [];
   let complete!: (value: Record<string, unknown>) => void;
   const stalled = new Promise<Record<string, unknown>>((resolve) => { complete = resolve; });
@@ -285,7 +297,7 @@ test('iframe admission stays bounded after deadlines and disposal clears timers'
   const requests = Array.from({ length: 128 }, (_, id) => host.handleFrameMessage({ apiVersion: 1, id: String(id), method: RPC.settingsGet }, frame));
   await host.handleFrameMessage({ apiVersion: 1, id: 'overflow', method: RPC.settingsGet }, frame);
   expect(host.diagnostics().pending).toBe(128);
-  expect((posted[0] as BrokerResponse).id).toBe('overflow');
+  expect(reply(posted[0]).id).toBe('overflow');
   await new Promise((resolve) => setTimeout(resolve, 20));
   expect(host.diagnostics()).toEqual({ pending: 128, timers: 0, subscriptions: 0 });
   expect(posted).toHaveLength(129);
@@ -303,18 +315,18 @@ test('concurrent subscribe requests cannot exceed the aggregate topic capacity',
     send('second', RPC.eventsSubscribe, { topics: Array.from({ length: 32 }, (_, index) => `plugin.second.${index}`) }),
   ]);
   expect(host.diagnostics().subscriptions).toBe(32);
-  expect((posted[0] as BrokerResponse).ok).toBe(true);
-  expect((posted[1] as BrokerResponse).ok).toBe(false);
+  expect(reply(posted[0]).ok).toBe(true);
+  expect(reply(posted[1]).ok).toBe(false);
   host.dispose();
 });
 
 
 test('50 iframe owner disposals cancel client waits without detaching the shared control', async () => {
-  (globalThis as Record<string, unknown>)['window'] = { ipc: { postMessage() {} } };
+  setPageWindow({ ipc: { postMessage() {} } });
   const control = createControlClient();
   control.attach();
   for (let cycle = 0; cycle < 50; ++cycle) {
-    const frame = {} as WindowProxy;
+    const frame = newFrameWindow();
     const posted: Array<BrokerResponse | BrokerEvent> = [];
     const host = new PluginWebviewHost(frame, {
       pluginId: 'owner.plugin', backend: controlBackend('owner.plugin', control, () => 'en', () => 'dark'),
@@ -329,7 +341,7 @@ test('50 iframe owner disposals cancel client waits without detaching the shared
     expect(posted).toHaveLength(0);
   }
   control.detach();
-  delete (globalThis as Record<string, unknown>)['window'];
+  setPageWindow(undefined);
 });
 
 test('uses the local adapter asset prefix without requiring a desktop host', () => {

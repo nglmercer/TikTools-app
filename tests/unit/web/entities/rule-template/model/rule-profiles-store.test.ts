@@ -9,6 +9,8 @@ import { useAutomationEditor } from '@/features/edit-automation-record/model/aut
 import { libraryJournal } from '../../../../../../src/web/entities/rule-template/model/library-journal.ts';
 import { flushPromises } from '@vue/test-utils';
 import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, LIBRARY_OPERATION, RPC } from '../../../../../shared/index.ts';
+import { toLiveAction } from '../../../../support/automation.ts';
+import { propertyOf } from '../../../../support/json.ts';
 
 test('a delayed saved action adopts into the originating profile, independently of same-ID event membership', async () => {
   // Arrange: profile A lists an event with the action's ID, which must not decide the action's adoption
@@ -30,7 +32,10 @@ test('a delayed saved action adopts into the originating profile, independently 
     if (method === RPC.systemInfo) return { features: { persistence: true } };
     if (method === RPC.appStateGet) return { state: { ...state } };
     if (method === RPC.appStateSet) {
-      state[params!['key'] as string] = params!['value'] as string;
+      const key = propertyOf(params, 'key');
+      const value = propertyOf(params, 'value');
+      if (typeof key !== 'string' || typeof value !== 'string') throw new Error('expected an app state key and value');
+      state[key] = value;
       return { ok: true };
     }
     if (method === RPC.automationRuns) return { runs: [] };
@@ -43,7 +48,7 @@ test('a delayed saved action adopts into the originating profile, independently 
       return structuredClone(snapshot);
     }
     if (method === RPC.automationCreate) {
-      const record = params!['record'] as LiveAction;
+      const record = toLiveAction(params?.['record']);
       snapshot.actions = [record];
       options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: 'action', id: 'same', revision: '1' }] });
       return pending.then(() => record);
@@ -90,7 +95,7 @@ test('a profile assignment failure reports the saved definition separately and n
     }
     if (method === RPC.automationCreate) {
       ++writes;
-      stored = params?.record as LiveAction;
+      stored = toLiveAction(params?.record);
       options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: 'action', id: stored.id, revision: '1' }] });
       return stored;
     }
@@ -106,7 +111,7 @@ test('a profile assignment failure reports the saved definition separately and n
   await automation.refresh();
   await profiles.loadProfiles();
   const editor = useAutomationEditor({ read: automation.readRecord,
-    save: (_kind, record, base) => profiles.saveAction(record as LiveAction, base), remove: automation.deleteRecord });
+    save: (_kind, record, base) => profiles.saveAction(toLiveAction(record), base), remove: automation.deleteRecord });
   editor.open(
     'action',
     { schemaVersion: 2, id: 'saved', name: 'Saved definition', typeId: ACTION_TYPE.coreLog, enabled: false, config: {} },
@@ -154,7 +159,7 @@ test.each([false, true])(
         return { actions: stored ? [stored] : [], events: [], plugins: [], actionTypes: [], translations: {} };
       }
       if (method === RPC.automationCreate) {
-        stored = structuredClone(params?.record as LiveAction);
+        stored = structuredClone(toLiveAction(params?.record));
         options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: 'action', id: stored.id, revision: '1' }] });
         return stored;
       }

@@ -5,6 +5,7 @@ import type { AccountPlan, StoredBackup } from '@/entities/cloud-account/api/acc
 import { activateLocale } from '@/shared/i18n/i18n.ts';
 import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
+import { toElement } from '../../../../support/dom.ts';
 import CloudBackupSection from '../../../../../../src/web/features/cloud-account/ui/CloudBackupSection.vue';
 import { RPC } from '../../../../../shared/index.ts';
 
@@ -37,8 +38,8 @@ const plan = (backups: number): AccountPlan => ({
   usage: { records: 0, recordBytes: 0, assets: 0, assetBytes: 0, overlays: 0, overlayBytes: 0, backups, backupBytes: 2048 * backups },
 });
 
-function mountSection(handler: (method: string, params: unknown) => unknown) {
-  const { client, calls } = createFakeControlClient(handler as never);
+function mountSection(handler: (method: string) => unknown) {
+  const { client, calls } = createFakeControlClient(handler);
   const wrapper = mountWithPlugins(CloudBackupSection, {
     global: { plugins: storePlugins(client) },
     attachTo: document.body,
@@ -66,7 +67,7 @@ it('shows the cloud tab first with a suggested name, the local tab tools and the
   await flushPromises();
   expect(wrapper.text()).toContain(t('account.backup.saveCloud'));
   expect(wrapper.text()).toContain(t('account.backup.cloudHint'));
-  expect((wrapper.get('.backup-section__name input').element as HTMLInputElement).value).toMatch(/^Backup \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+  expect(wrapper.get<HTMLInputElement>('.backup-section__name input').element.value).toMatch(/^Backup \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
   expect(wrapper.text()).toContain(t('account.backup.emptyShort'));
   expect(wrapper.text()).not.toContain('1 of 3 backups');
   expect(wrapper.text()).not.toContain(t('account.backup.uploadFile'));
@@ -140,8 +141,8 @@ it('uploads a picked backup file to the account with its contents', async () => 
 
   const input = document.body.querySelector<HTMLInputElement>('dialog input[type="text"]')!;
   expect(input.value).toBe('laptop');
-  const save = [...document.body.querySelectorAll('dialog button')].find((node) => node.textContent?.trim() === t('account.backup.saveFile'))!;
-  (save as HTMLButtonElement).click();
+  const save = [...document.body.querySelectorAll('dialog button')].find((node) => node.textContent?.trim() === t('account.backup.saveFile'));
+  toElement(save, HTMLButtonElement).click();
   await flushPromises();
   const call = calls.find((entry) => entry.method === 'cloud.backup.createNamed')!;
   expect(call.params).toEqual({ name: 'laptop', manifest });

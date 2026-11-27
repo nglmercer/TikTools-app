@@ -127,7 +127,7 @@ test('keeps clipboard fallback redacted when clipboard access fails', async () =
   diagnosticLog.record({ source: 'account', level: 'error', code: 'failed', message: 'password=private-secret' });
   const wrapper = mountWithPlugins(DiagnosticsLog);
   await wrapper.get('button[aria-label="Copy all"]').trigger('click');
-  expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).not.toContain('private-secret');
+  expect(wrapper.get<HTMLTextAreaElement>('textarea').element.value).not.toContain('private-secret');
   expect(wrapper.get('[role=status]').text()).toContain('Clipboard unavailable');
 });
 

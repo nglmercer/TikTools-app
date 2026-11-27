@@ -4,7 +4,7 @@ import { EPHEMERAL_EVENT_MS, isEphemeralEvent, visibleEphemeralEvents } from '..
 
 const now = 1_000_000;
 function event(overrides: Partial<DisplayEvent>): DisplayEvent {
-  return { id: 1, receivedAt: now - 1_000, kind: 'chat', author: 'luna', text: 'hola', ...overrides } as DisplayEvent;
+  return { id: 1, receivedAt: now - 1_000, kind: 'chat', author: 'luna', text: 'hola', ...overrides };
 }
 
 it('treats likes and joins as reactions but keeps chat and gifts permanent', () => {

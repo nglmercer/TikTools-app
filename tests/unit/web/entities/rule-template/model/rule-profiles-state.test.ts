@@ -15,6 +15,40 @@ import {
   useRuleProfiles,
 } from '../../../../../../src/web/entities/rule-template/model/rule-profiles-state.ts';
 import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+import { answer } from '../../../../support/answer.ts';
+import { propertyOf } from '../../../../support/json.ts';
+
+/** The key/value pair an `app.state.set` call carries. */
+interface AppStatePair {
+  key: string;
+  value: string;
+}
+
+function appStatePair(params: unknown): AppStatePair {
+  const key = propertyOf(params, 'key');
+  const value = propertyOf(params, 'value');
+  if (typeof key !== 'string' || typeof value !== 'string') throw new Error(`expected a key/value pair, got ${JSON.stringify(params)}`);
+  return { key, value };
+}
+
+/** The per-record changes an `automation.set_enablement` call carries. */
+interface EnablementUpdate {
+  kind: string;
+  id: string;
+  enabled: boolean;
+}
+
+function enablementUpdates(params: unknown): EnablementUpdate[] {
+  const updates = propertyOf(params, 'updates');
+  if (!Array.isArray(updates)) throw new Error(`expected an updates list, got ${JSON.stringify(params)}`);
+  return updates.map((update) => {
+    const kind = propertyOf(update, 'kind');
+    const id = propertyOf(update, 'id');
+    const enabled = propertyOf(update, 'enabled');
+    if (typeof kind !== 'string' || typeof id !== 'string' || typeof enabled !== 'boolean') throw new Error(`bad enablement update ${JSON.stringify(update)}`);
+    return { kind, id, enabled };
+  });
+}
 
 function fakeControl(
   handler: (method: string, params: unknown) => Promise<unknown>,
@@ -32,10 +66,10 @@ function fakeControl(
   const client: ControlClient = {
     attach: () => {},
     detach: () => {},
-    call: ((method: string, params?: unknown) => {
+    call: async <T>(method: string, params?: unknown): Promise<T> => {
       calls.push({ method, params });
-      return handler(method, params);
-    }) as ControlClient['call'],
+      return answer<T>(await handler(method, params));
+    },
     onTopic: () => () => {},
     onPush: () => () => {},
     onTransportError: () => () => {},
@@ -144,10 +178,7 @@ test('register stores the pack and marks it active', async () => {
   const { client } = fakeControl(async (method, params) => {
     if (method === RPC.appStateGet) return { state: store };
     if (method === RPC.appStateSet) {
-      const { key, value } = params as {
-        key: string;
-        value: string;
-      };
+      const { key, value } = appStatePair(params);
       store[key] = value;
       return { ok: true };
     }
@@ -204,21 +235,12 @@ test('switch enables the target, disables everything else, prunes deleted rules'
   const { client } = fakeControl(async (method, params) => {
     if (method === RPC.appStateGet) return { state: store };
     if (method === RPC.appStateSet) {
-      const { key, value } = params as {
-        key: string;
-        value: string;
-      };
+      const { key, value } = appStatePair(params);
       store[key] = value;
       return { ok: true };
     }
     if (method === 'automation.set_enablement') {
-      const { updates } = params as {
-        updates: Array<{
-          kind: string;
-          id: string;
-          enabled: boolean;
-        }>;
-      };
+      const updates = enablementUpdates(params);
       toggled.push(...updates);
       const missing = updates
         .filter((update) => update.id === 'gone')
@@ -297,7 +319,8 @@ test('delete removes the pack and its rules, falling back to default', async () 
     }
     if (method === RPC.appStateSet) return { ok: true };
     if (method === RPC.automationDelete) {
-      const { id } = params as { id: string };
+      const id = propertyOf(params, 'id');
+      if (typeof id !== 'string') throw new Error('expected a record id');
       if (id === 'gone') throw new ControlCallError(ERROR_CODE.automationNotFound, 'gone');
       deleted.push({ method, id });
       return { ok: true };
@@ -395,17 +418,13 @@ test('export mirrors the CLI profile shape and skips action-less events', () => 
   expect(exported.entries).toBe(1);
   expect(exported.skipped).toBe(1);
   expect(exported.doc['id']).toBe('pack-a');
-  const templates = exported.doc['templates'] as Array<{
-    template: {
-      id: string;
-      actions: unknown[];
-    };
-    params: unknown;
-  }>;
+  const templates = exported.doc['templates'];
+  if (!Array.isArray(templates)) throw new Error('expected the exported document to list templates');
+  const exportedTemplate = propertyOf(templates[0], 'template');
   // Assert: the template keeps the CLI's shape: a stable export ID, its one action, and no parameters
-  expect(templates[0]?.template.id).toBe('export-e1');
-  expect(templates[0]?.template.actions).toHaveLength(1);
-  expect(templates[0]?.params).toEqual({});
+  expect(propertyOf(exportedTemplate, 'id')).toBe('export-e1');
+  expect(propertyOf(exportedTemplate, 'actions')).toHaveLength(1);
+  expect(propertyOf(templates[0], 'params')).toEqual({});
   // Round-trips through the importer.
   expect(parseRuleProfile(exported.doc).ok).toBe(true);
 });

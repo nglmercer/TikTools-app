@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { activateLocale } from '@/shared/i18n/i18n.ts';
 import { testMessage } from '@/shared/i18n/test-message.ts';
+import { toElement } from '../../../../support/dom.ts';
 import { startDynamicTour, startTour } from '../../../../../../src/web/features/guided-help/model/coordinator.ts';
 import { tourRegistry } from '../../../../../../src/web/features/guided-help/model/registry.ts';
 import { tutorialCard, tutorialCategories, tutorialEntries, tutorialSteps } from '../../../../../../src/web/features/guided-help/model/tutorial-catalog.ts';
@@ -22,9 +23,9 @@ function mountDialog() {
 }
 
 const titleOf = (id: string): string => tutorialCard('en', id).title;
-const entriesByTag = (tag: string) => tutorialEntries.filter((entry) => entry.tags.includes(tag as never));
+const entriesByTag = (tag: string) => tutorialEntries.filter((entry) => entry.tags.some((candidate) => candidate === tag));
 const entriesByCategory = (category: string) => tutorialEntries.filter((entry) => entry.category === category);
-const automationEntriesByTag = (tag: string) => entriesByCategory('automations').filter((entry) => entry.tags.includes(tag as never));
+const automationEntriesByTag = (tag: string) => entriesByCategory('automations').filter((entry) => entry.tags.some((candidate) => candidate === tag));
 
 async function openTutorialByTitle(wrapper: ReturnType<typeof mountDialog>, title: string): Promise<void> {
   await wrapper.get('input[type="search"]').setValue(title);
@@ -155,7 +156,7 @@ it('moves focus into detail, restores it to the card and supports step arrow key
   await flushPromises();
   const card = wrapper.findAll('.tutorial-catalog__card').find((node) => node.text().includes(titleOf('automationEvents')));
   if (!card) throw new Error('automation events card not found');
-  (card.element as HTMLElement).focus();
+  toElement(card.element, HTMLElement).focus();
   await card.trigger('click');
   await flushPromises();
 
@@ -163,7 +164,7 @@ it('moves focus into detail, restores it to the card and supports step arrow key
 
   const steps = tutorialSteps('en', 'automationEvents');
   const numbers = wrapper.findAll('.tutorial-step-preview__numbers button');
-  (numbers[1]!.element as HTMLElement).focus();
+  toElement(numbers[1]!.element, HTMLElement).focus();
   await numbers[1]!.trigger('keydown', { key: 'ArrowRight' });
   await flushPromises();
   expect(wrapper.get('.tutorial-step-preview__body').text()).toContain(steps[2]!.title);
@@ -171,7 +172,7 @@ it('moves focus into detail, restores it to the card and supports step arrow key
 
   await wrapper.get('.tutorial-catalog__back').trigger('click');
   await flushPromises();
-  expect((document.activeElement as HTMLElement).dataset.tutorialId).toBe('automationEvents');
+  expect(toElement(document.activeElement, HTMLElement).dataset.tutorialId).toBe('automationEvents');
   wrapper.unmount();
 });
 

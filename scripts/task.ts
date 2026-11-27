@@ -83,7 +83,7 @@ async function frontendLint(): Promise<void> {
   // trees combined with other targets (upstream-reported). Standalone HTML was
   // never linted by the retired eslint pipeline either.
   await tool('oxlint-vize', '-c', '.oxlintrc.json', '--deny-warnings', 'src');
-  await tool('oxlint-vize', '-c', '.oxlintrc.json', '--deny-warnings', 'scripts', 'tests/unit', 'tests/bun', 'packages', 'vite.config.ts', 'vitest.config.ts', 'vitest.widgets.config.ts');
+  await tool('oxlint-vize', '-c', '.oxlintrc.json', '--deny-warnings', 'scripts', 'tests/unit', 'tests/e2e', 'tests/site', 'tests/shared', 'tests/bun', 'packages', 'vite.config.ts', 'vitest.config.ts', 'vitest.widgets.config.ts');
   await script('lint-custom.ts');
   // The gate typecheck is the native TypeScript 7.1 beta through Vize's
   // content mapper: measured zero divergences against vue-tsc on this

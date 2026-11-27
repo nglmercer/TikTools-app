@@ -1,9 +1,20 @@
 import { flushPromises } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
-import type { ControlClient, GapHandler, TopicHandler } from '@/shared/api/control-client.ts';
+import type { ControlClient, GapHandler, RpcParams } from '@/shared/api/control-client.ts';
 import type { RankingDefinition } from '../../../../../../src/web/entities/ranking/types.ts';
 import { createFeedRankings, feedRankingDefinition, FEED_RANKING_IDS } from '../../../../../../src/web/entities/ranking/model/feed-rankings.ts';
 import { EVENT_KIND, FIXTURE_ID, RPC, TOPIC } from '../../../../../shared/index.ts';
+import { answer } from '../../../../support/answer.ts';
+import { isRecord, propertyOf } from '../../../../support/json.ts';
+
+function isRankingDefinition(value: unknown): value is RankingDefinition {
+  return isRecord(value)
+    && value['schemaVersion'] === 1
+    && typeof value['id'] === 'string'
+    && typeof value['creatorId'] === 'string'
+    && typeof value['roomId'] === 'string'
+    && Array.isArray(value['sources']);
+}
 
 export function rankingSnapshot(rankingId: string, creatorId: string, roomId: string, scores: number[], revision = 1) {
   return {
@@ -21,44 +32,54 @@ function fakeHost(options: { fail?: boolean } = {}) {
   const definitions = new Map<string, RankingDefinition>();
   const calls: Array<{
     method: string;
-    params: unknown;
+    params: RpcParams;
   }> = [];
-  const topics = new Map<string, Set<TopicHandler>>();
+  const topics = new Map<string, Set<(data: unknown) => void>>();
   const gaps = new Set<GapHandler>();
   const scores: Record<string, number[]> = {};
-  const client = {
-    call: async (method: string, params: Record<string, unknown> = {}) => {
+  const reply = async (method: string, params: RpcParams): Promise<unknown> => {
+    if (options.fail) throw new Error('rankings unavailable');
+    if (method === RPC.rankingsList) return { rankings: [...definitions.values()] };
+    if (method === RPC.rankingsCreate) {
+      if (!isRankingDefinition(params)) throw new Error('rankings.create expects a ranking definition');
+      definitions.set(params.id, params);
+      return { ok: true };
+    }
+    if (method === 'rankings.update') {
+      const definition = params['definition'];
+      if (!isRankingDefinition(definition)) throw new Error('rankings.update expects a ranking definition');
+      definitions.set(definition.id, definition);
+      return { ok: true };
+    }
+    if (method === RPC.rankingsSnapshot) {
+      const definition = definitions.get(String(params['id']))!;
+      return rankingSnapshot(definition.id, definition.creatorId, definition.roomId, scores[definition.id] ?? []);
+    }
+    throw new Error(`unexpected ${method}`);
+  };
+  const client: ControlClient = {
+    attach: () => {},
+    detach: () => {},
+    call: async <T>(method: string, params: RpcParams = {}): Promise<T> => {
       calls.push({ method, params });
-      if (options.fail) throw new Error('rankings unavailable');
-      if (method === RPC.rankingsList) return { rankings: [...definitions.values()] };
-      if (method === RPC.rankingsCreate) {
-        definitions.set(String(params['id']), params as unknown as RankingDefinition);
-        return { ok: true };
-      }
-      if (method === 'rankings.update') {
-        const definition = params['definition'] as RankingDefinition;
-        definitions.set(definition.id, definition);
-        return { ok: true };
-      }
-      if (method === RPC.rankingsSnapshot) {
-        const definition = definitions.get(String(params['id']))!;
-        return rankingSnapshot(definition.id, definition.creatorId, definition.roomId, scores[definition.id] ?? []);
-      }
-      throw new Error(`unexpected ${method}`);
+      return answer<T>(await reply(method, params));
     },
-    onTopic: (topic: string, handler: TopicHandler) => {
+    onTopic: <T>(topic: string, handler: (data: T) => void) => {
       const set = topics.get(topic) ?? new Set();
-      set.add(handler);
+      const listener = (data: unknown) => Reflect.apply(handler, undefined, [data]);
+      set.add(listener);
       topics.set(topic, set);
-      return () => set.delete(handler);
+      return () => set.delete(listener);
     },
+    onPush: () => () => {},
+    onTransportError: () => () => {},
     onGap: (handler: GapHandler) => {
       gaps.add(handler);
       return () => gaps.delete(handler);
     },
-  } as unknown as ControlClient;
+  };
   const emit = (topic: string, data: unknown) => topics.get(topic)?.forEach((handler) => handler(data));
-  return { client, calls, definitions, scores, emit, gap: () => gaps.forEach((handler) => handler({} as never)) };
+  return { client, calls, definitions, scores, emit, gap: () => gaps.forEach((handler) => handler(0)) };
 }
 
 describe('feed rankings', () => {
@@ -103,7 +124,7 @@ describe('feed rankings', () => {
     await rankings.connect('luna', 'room-2');
     const updates = host.calls.filter((call) => call.method === 'rankings.update');
     expect(updates).toHaveLength(2);
-    expect(updates.every((call) => (call.params as { reset: boolean }).reset)).toBe(true);
+    expect(updates.every((call) => propertyOf(call.params, 'reset') === true)).toBe(true);
     expect(host.definitions.size).toBe(2);
     expect(host.definitions.get(FEED_RANKING_IDS.top)?.roomId).toBe('room-2');
     rankings.dispose();

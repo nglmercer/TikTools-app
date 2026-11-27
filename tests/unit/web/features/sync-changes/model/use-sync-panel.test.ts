@@ -61,7 +61,7 @@ describe('useSyncPanel', () => {
 
   it('resets every change one by one when the adapter has no resetAll', async () => {
     const { adapter, spies } = fakeAdapter(allCapabilities);
-    delete (adapter as { resetAll?: unknown }).resetAll;
+    delete adapter.resetAll;
     const scope = effectScope();
     const state = scope.run(() => useSyncPanel(adapter, useSyncChanges(adapter)))!;
     await flushPromises();

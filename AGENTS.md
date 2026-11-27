@@ -135,5 +135,15 @@
 - Titles say the behavior and the condition ("empties the feed when Clear feed is pressed"), not
   "works" or "is idempotent".
 - Declare helpers such as `const t = ...` after the imports.
-- `as never` / `as unknown as` casts hide the shape of a fixture. Prefer a typed builder in the test's
-  `support/` folder; keep a cast only where the production type is private or intentionally too strict.
+- Tests and test fixtures (`tests/**`, `src/**/testing/**`) contain no type assertions: oxlint's
+  `consistent-type-assertions` (style `never`) fails `frontend-lint`; only `as const` is allowed. Instead of
+  `value as Foo`:
+  - annotate (`const data: Foo = JSON.parse(text)`) or use `satisfies`;
+  - build complete objects with the builders in `tests/unit/support` (`liveEvent`, `liveAction`, `actionType`,
+    `pluginStatus`, `automationEdit`, ...) rather than a partial plus a cast;
+  - narrow with a runtime guard: `expectElement` / `toElement` (`tests/unit/support/dom.ts`),
+    `parseRecord` / `isRecord` / `propertyOf` (`json.ts`), or VTU generics (`wrapper.get<HTMLInputElement>('input')`);
+  - make fakes real: a class that `implements` the interface, `vi.stubGlobal`, `new DOMRect(...)`,
+    `createFakeControlClient`; call erased handlers with `Reflect.apply`, and use `Reflect.get/set` for page
+    globals inside `page.evaluate`;
+  - fix the fixture type once (a generic `onTopic<T>`, `emit(topic, data: unknown)`) instead of every call site.

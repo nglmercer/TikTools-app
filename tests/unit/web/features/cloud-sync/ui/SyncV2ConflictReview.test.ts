@@ -3,7 +3,7 @@ import { enableAutoUnmount } from '@vue/test-utils';
 import { afterEach, expect, test } from 'vitest';
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
-import type { V2ConflictTarget } from '../../../../../../src/web/features/cloud-sync/model/recovery-contracts.ts';
+import type { V2ConflictReview, V2ConflictTarget } from '../../../../../../src/web/features/cloud-sync/model/recovery-contracts.ts';
 import type { SyncV2Conflicts } from '../../../../../../src/web/features/cloud-sync/model/use-sync-v2-conflicts.ts';
 import SyncV2ConflictReview from '../../../../../../src/web/features/cloud-sync/ui/SyncV2ConflictReview.vue';
 
@@ -15,7 +15,7 @@ function model(targets: V2ConflictTarget[] = []): SyncV2Conflicts {
   return {
     v2Conflicts: ref(targets),
     v2ConflictCount: computed(() => targets.length),
-    v2ConflictReview: ref(null),
+    v2ConflictReview: ref<V2ConflictReview | null>(null),
     v2ConflictBusy: ref(false),
     v2ConflictError: ref(''),
     v2ConflictResolved: ref(false),
@@ -24,7 +24,7 @@ function model(targets: V2ConflictTarget[] = []): SyncV2Conflicts {
     resolveV2Conflict: async () => {},
     v2ConflictValueText: () => '',
     reset: () => {},
-  } as unknown as SyncV2Conflicts;
+  };
 }
 
 test('the manual conflict queue only appears with pending conflicts and shows their count', () => {

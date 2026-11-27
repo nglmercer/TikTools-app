@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { ActionTypeDefinition } from '../../../../../../src/automation/behavior/types.ts';
 import { findTestConnectionAction } from '../../../../../../src/web/entities/plugin/lib/plugin-test-action.ts';
+import { actionType } from '../../../../support/automation.ts';
 
 const actionTypes = [
-  { id: 'l4d2.test_connection', source: { kind: 'plugin', pluginId: 'l4d2.interactive' } },
-  { id: 'l4d2.spawn_common', source: { kind: 'plugin', pluginId: 'l4d2.interactive' } },
-  { id: 'other.test_connection', source: { kind: 'plugin', pluginId: 'other.plugin' } },
-  { id: 'builtin.test_connection', source: { kind: 'builtin' } },
-] as unknown as ActionTypeDefinition[];
+  actionType({ id: 'l4d2.test_connection', source: { kind: 'plugin', pluginId: 'l4d2.interactive' } }),
+  actionType({ id: 'l4d2.spawn_common', source: { kind: 'plugin', pluginId: 'l4d2.interactive' } }),
+  actionType({ id: 'other.test_connection', source: { kind: 'plugin', pluginId: 'other.plugin' } }),
+  actionType({ id: 'builtin.test_connection', source: { kind: 'builtin' } }),
+];
 
 describe('findTestConnectionAction', () => {
   it('finds the plugin self-check action', () => {

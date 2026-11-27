@@ -1,7 +1,7 @@
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { nextTick } from 'vue';
+import { nextTick, type App } from 'vue';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { createSessionRecovery, sessionRecoveryKey } from '@/shared/api/session-recovery.ts';
 import SessionRecoveryDialog from '../../../../../../src/web/shared/ui/dialog/SessionRecoveryDialog.vue';
@@ -14,7 +14,15 @@ function mountDialog(backoff: readonly number[] = [60_000]) {
   const recovery = createSessionRecovery({ pairUrl: '/', retry, backoff });
   const wrapper = mountWithPlugins(SessionRecoveryDialog, {
     attachTo: document.body,
-    global: { provide: { [sessionRecoveryKey as symbol]: recovery } },
+    global: {
+      plugins: [
+        {
+          install(app: App): void {
+            app.provide(sessionRecoveryKey, recovery);
+          },
+        },
+      ],
+    },
   });
   return { wrapper, recovery, retry };
 }

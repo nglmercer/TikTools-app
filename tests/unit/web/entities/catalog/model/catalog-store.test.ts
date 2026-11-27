@@ -6,6 +6,7 @@ import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { DEFAULT_CATALOG_FILTERS } from '../../../../../../src/web/entities/catalog/model/catalog-query.ts';
 import { useCatalogStore } from '../../../../../../src/web/entities/catalog/model/catalog-store.ts';
+import { propertyOf } from '../../../../support/json.ts';
 import { ACCOUNT_STATE, ERROR_CODE, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 function item(id: string, kind = 'plugin') {
@@ -51,7 +52,7 @@ describe('unified catalog store', () => {
 
   it('loads the first page, then appends the next one for the same query', async () => {
     const { stores, calls } = host([RPC.catalogItems], (_method, params) => {
-      const cursor = (params as { cursor?: string }).cursor;
+      const cursor = propertyOf(params, 'cursor');
       return cursor
         ? { items: [item('b.two')], nextCursor: null }
         : { items: [item(FIXTURE_ID.aOne)], nextCursor: 'c1' };
@@ -70,7 +71,7 @@ describe('unified catalog store', () => {
   it('drops a slow reply after the filters changed', async () => {
     const slow = deferred<unknown>();
     const { stores } = host([RPC.catalogItems], (_method, params) => {
-      const text = (params as { query: string }).query;
+      const text = propertyOf(params, 'query');
       return text === 'old' ? slow.promise : { items: [item('new.one')], nextCursor: null };
     });
     await discover(stores);
@@ -86,7 +87,7 @@ describe('unified catalog store', () => {
   it('resolves installed plugins one by one and keeps local-only ones labelled', async () => {
     const { stores, calls } = host([RPC.catalogItems, RPC.catalogItem], (method, params) => {
       if (method === RPC.catalogItem) {
-        if ((params as { id: string }).id === 'b.two') return item('b.two');
+        if (propertyOf(params, 'id') === 'b.two') return item('b.two');
         throw new ControlCallError(ERROR_CODE.notFound, 'catalog item not found');
       }
       return { items: [item(FIXTURE_ID.aOne)], nextCursor: null };

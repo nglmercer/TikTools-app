@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { ActionTypeDefinition, PluginStatus } from '../../../../../../src/automation/behavior/types.ts';
+import type { PluginStatus } from '../../../../../../src/automation/behavior/types.ts';
 import { isMenuAction } from '@/shared/ui/menu/menu-types.ts';
 import { pluginMenu } from '../../../../../../src/web/entities/plugin/lib/plugin-menu.ts';
+import { actionType } from '../../../../support/automation.ts';
 
 const t = (key: string) => key;
 
@@ -13,7 +14,7 @@ function plugin(overrides: Partial<PluginStatus> = {}, descriptor: Partial<Plugi
       description: { default: '', i18key: '' }, dependency: { default: '', i18key: '' },
       permissions: [], actionTypeIds: [], eventTypeIds: [], ...descriptor,
     },
-  } as PluginStatus;
+  };
 }
 
 const actions = (entries: ReturnType<typeof pluginMenu>) =>
@@ -30,7 +31,7 @@ describe('pluginMenu', () => {
   });
 
   it('enables tabs and the connection test from the plugin capabilities', () => {
-    const types = [{ id: 'deck.test_connection', source: { kind: 'plugin', pluginId: 'deck' } }] as unknown as ActionTypeDefinition[];
+    const types = [actionType({ id: 'deck.test_connection', source: { kind: 'plugin', pluginId: 'deck' } })];
     const menu = pluginMenu(plugin({}, { hasSettings: true, hasConnectionProbe: true }), types, t);
     expect(actions(menu)).toEqual(['open', 'toggle-enabled:true', 'settings', 'connection', 'versions', 'test', 'uninstall']);
   });

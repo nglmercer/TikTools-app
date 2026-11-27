@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { routes } from '../../../../../src/web/app/router/routes.ts';
 import { builtinTabPaths, tabFromRoute, tabLocation } from '../../../../../src/web/app/router/tab-routes.ts';
+import type { BuiltinAppTab } from '@/types.ts';
+
+const isBuiltinTab = (tab: string): tab is BuiltinAppTab => Object.hasOwn(builtinTabPaths, tab);
 
 function createTestRouter() {
   return createRouter({ history: createMemoryHistory(), routes });
@@ -11,7 +14,8 @@ describe('tab routes', () => {
   it('maps every builtin tab to a route that resolves back to it', () => {
     const router = createTestRouter();
     for (const [tab, path] of Object.entries(builtinTabPaths)) {
-      expect(tabLocation(tab as keyof typeof builtinTabPaths)).toBe(path);
+      if (!isBuiltinTab(tab)) throw new Error(`Unexpected builtin tab ${tab}`);
+      expect(tabLocation(tab)).toBe(path);
       expect(tabFromRoute(router.resolve(path))).toBe(tab);
     }
   });
@@ -24,7 +28,7 @@ describe('tab routes', () => {
   });
 
   it('falls back to the feed for unknown tabs', () => {
-    expect(tabLocation('unknown' as never)).toBe('/feed');
+    expect(Reflect.apply(tabLocation, undefined, ['unknown'])).toBe('/feed');
   });
 
   it('redirects unknown paths to the home route', async () => {

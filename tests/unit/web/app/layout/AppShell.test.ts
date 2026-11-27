@@ -11,6 +11,8 @@ import { nativeDefinitionHost } from '@/entities/automation/testing/native-defin
 import { importLibraryDocument } from '@/entities/cloud-bundles/lib/library-import.ts';
 import AppShell from '../../../../../src/web/app/layout/AppShell.vue';
 import { ACTION_TYPE, EVENT_KIND, RPC } from '../../../../shared/index.ts';
+import { toElement } from '../../../support/dom.ts';
+import { propertyOf } from '../../../support/json.ts';
 
 afterEach(() => {
   diagnosticView.open.value = false;
@@ -76,7 +78,7 @@ describe('AppShell library review', () => {
       if (method === 'cloudLibrary.read') return { meta: { id: libraryDocumentId, revision: '1', sha256: 'a'.repeat(64) }, document: template };
       if (method === RPC.automationCreate) {
         options?.onMetadata?.({
-          resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }],
+          resourceVersions: [{ kind: 'automation', scope: String(propertyOf(params, 'kind')), id: String(propertyOf(params?.record, 'id')), revision: '1' }],
         });
         return params?.record;
       }
@@ -114,7 +116,7 @@ describe('AppShell library review', () => {
     await flushPromises();
     expect(dialogs()).toHaveLength(1);
     expect(settled).toBe(false);
-    (dialogs()[0] as HTMLButtonElement).click();
+    toElement(dialogs()[0], HTMLButtonElement).click();
     await flushPromises();
     await outcome;
     expect(settled).toBe(true);

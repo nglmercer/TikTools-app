@@ -27,6 +27,7 @@ export const RPC = {
   automationDefinitionSubmit: 'automation.definition.submit',
   behaviorProfilesPacks: 'behavior.profiles.packs',
   behaviorProfilesActive: 'behavior.profiles.active',
+  behaviorTemplatesCustom: 'behavior.templates.custom',
   globalsTypedReplace: 'globals.typed.replace',
   globalsTypedList: 'globals.typed.list',
   globalsList: 'globals.list',

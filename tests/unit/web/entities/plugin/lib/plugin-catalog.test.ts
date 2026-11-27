@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import type { ActionTypeDefinition, LiveAction, PluginStatus } from '../../../../../../src/automation/behavior/types.ts';
+import type { PluginStatus } from '../../../../../../src/automation/behavior/types.ts';
 import { catalogPlugins, matchesPluginQuery, pluginActionUsage, pluginTags } from '../../../../../../src/web/entities/plugin/lib/plugin-catalog.ts';
 import { ACTION_TYPE } from '../../../../../shared/index.ts';
+import { actionType, liveAction } from '../../../../support/automation.ts';
+import { propertyOf } from '../../../../support/json.ts';
 
 const text = (value: string) => ({ default: value, i18key: '' });
-const localize = (value: unknown) => (value as { default: string }).default;
+const localize = (value: unknown) => {
+  const label = propertyOf(value, 'default');
+  return typeof label === 'string' ? label : '';
+};
 
 function plugin(id: string, overrides: Partial<PluginStatus> = {}, tags?: string[]): PluginStatus {
   return {
@@ -27,10 +32,10 @@ function plugin(id: string, overrides: Partial<PluginStatus> = {}, tags?: string
 }
 
 const actionTypes = [
-  { id: 'deck.run', tag: 'Scenes', source: { kind: 'plugin', pluginId: 'deck' } },
-  { id: 'deck.stop', tag: 'scenes', source: { kind: 'plugin', pluginId: 'deck' } },
-  { id: 'say', tag: 'audio', source: { kind: 'builtin' } },
-] as unknown as ActionTypeDefinition[];
+  actionType({ id: 'deck.run', tag: 'Scenes', source: { kind: 'plugin', pluginId: 'deck' } }),
+  actionType({ id: 'deck.stop', tag: 'scenes', source: { kind: 'plugin', pluginId: 'deck' } }),
+  actionType({ id: 'say', tag: 'audio', source: { kind: 'builtin' } }),
+];
 
 describe('plugin catalog', () => {
   it('prefers declared tags and derives the rest from actions and events', () => {
@@ -53,7 +58,12 @@ describe('plugin catalog', () => {
   });
 
   it('counts actions backed by the plugin', () => {
-    const actions = [{ typeId: 'deck.run' }, { typeId: 'deck.stop' }, { typeId: 'say' }, { typeId: 'missing' }] as LiveAction[];
+    const actions = [
+      liveAction({ id: 'a', typeId: 'deck.run' }),
+      liveAction({ id: 'b', typeId: 'deck.stop' }),
+      liveAction({ id: 'c', typeId: 'say' }),
+      liveAction({ id: 'd', typeId: 'missing' }),
+    ];
     expect(pluginActionUsage('deck', actions, actionTypes)).toBe(2);
     expect(pluginActionUsage('tts', actions, actionTypes)).toBe(0);
   });

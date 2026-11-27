@@ -5,8 +5,11 @@ import AppStatusBar from '../../../../../../src/web/widgets/app-status-bar/ui/Ap
 
 const t = (key: string): string => testMessage('en', key);
 
-function mountStatusBar(props: Record<string, unknown>) {
-  return mountWithPlugins(AppStatusBar, { props: { creator: '', viewers: 0, ...props } as never });
+type AllProps = InstanceType<typeof AppStatusBar>['$props'];
+type StatusBarProps = Pick<AllProps, 'status'> & Partial<Omit<AllProps, 'status'>>;
+
+function mountStatusBar(props: StatusBarProps) {
+  return mountWithPlugins(AppStatusBar, { props: { creator: '', viewers: 0, ...props } });
 }
 
 describe('AppStatusBar', () => {

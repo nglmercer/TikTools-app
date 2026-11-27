@@ -49,12 +49,9 @@ test('dynamic plugin tab appears, renders, and falls back when removed', async (
 
   // Host drops the plugin → refresh → tab falls back to Plugins, no crash.
   const dropped = await readHostState(page);
-  const snapshot = dropped.automationSnapshot as {
-    pluginPages: unknown[];
-    plugins: unknown[];
-  };
-  snapshot.pluginPages = [];
-  snapshot.plugins = [];
+  const snapshot = dropped.automationSnapshot;
+  snapshot['pluginPages'] = [];
+  snapshot['plugins'] = [];
   await writeHostState(page, dropped);
   await emitTopic(page, 'plugin.uninstalled', { pluginId: PLUGIN_ID.sonicboomServer });
   await expect(page.getByRole('link', { name: PLUGIN_TITLE.tts })).toHaveCount(0);

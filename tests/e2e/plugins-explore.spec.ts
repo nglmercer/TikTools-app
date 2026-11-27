@@ -70,7 +70,7 @@ test('Explore shows a neutral retry state when the Cloud is unreachable, and "no
   state.catalog!.items = [];
   state.catalog!.dataState = 'noActiveGeneration';
   await page.evaluate(
-    (next) => Object.assign((window as unknown as { __TIKTOOLS_E2E_STATE__: object }).__TIKTOOLS_E2E_STATE__, { catalog: next }),
+    (next) => Object.assign(window.__TIKTOOLS_E2E_STATE__, { catalog: next }),
     state.catalog,
   );
   await page.getByRole('button', { name: t('exploreCatalog.retry') }).click();

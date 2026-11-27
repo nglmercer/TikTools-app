@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
 import { ControlCallError } from '@/shared/api/control-client.ts';
+import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import type { LiveChannel } from '@/types.ts';
 import { createDiscoveryState } from '../../../../../../src/web/entities/live-room/model/discovery-state.ts';
 import { RPC } from '../../../../../shared/index.ts';
@@ -13,26 +14,7 @@ function stubControl(respond: (method: string, params?: RpcParams) => unknown): 
     params?: RpcParams;
   }>;
 } {
-  const calls: Array<{
-    method: string;
-    params?: RpcParams;
-  }> = [];
-  const control: ControlClient = {
-    attach: () => {},
-    detach: () => {},
-    call: <T,>(method: string, params?: RpcParams): Promise<T> => {
-      calls.push({ method, params });
-      try {
-        return Promise.resolve(respond(method, params) as T);
-      } catch (failure) {
-        return Promise.reject(failure as Error) as Promise<T>;
-      }
-    },
-    onTopic: () => () => {},
-    onPush: () => () => {},
-    onTransportError: () => () => {},
-    onGap: () => () => {},
-  };
+  const { client: control, calls } = createFakeControlClient(respond);
   return { control, calls };
 }
 

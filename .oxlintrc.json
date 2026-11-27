@@ -18,6 +18,12 @@
     "vize/vue/require-v-for-key": "error",
     "vize/vue/no-v-html": "error"
   },
+  "overrides": [
+    {
+      "files": ["tests/**/*.ts", "src/**/testing/**/*.ts"],
+      "rules": { "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }] }
+    }
+  ],
   "ignorePatterns": [
     "dist/**", "node_modules/**", "out/**", "release/**", "target/**",
     "vendor/**", ".dev-plugins/**", ".plugin-staging/**", "docs/.generated/**",

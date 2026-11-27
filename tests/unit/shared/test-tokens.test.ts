@@ -4,6 +4,7 @@ import { createFeedViewport } from '@/entities/live-event/model/feed-viewport.ts
 import * as tokens from '../../shared/index.ts';
 import { LOCALE_STORAGE_KEY } from '@/shared/i18n/locale-preference.ts';
 import { VIEW_STATE_STORAGE_KEY } from '@/shared/lib/view-state.ts';
+import { isRecord } from '../support/json.ts';
 
 describe('shared test tokens', () => {
   it('pins the storage keys to the ones the app writes', () => {
@@ -17,7 +18,8 @@ describe('shared test tokens', () => {
 
   it('never names two concepts with the same value inside one group', () => {
     for (const [group, values] of Object.entries(tokens)) {
-      const list = Object.values(values as Record<string, string>);
+      if (!isRecord(values)) throw new Error(`Expected token group ${group} to be an object`);
+      const list = Object.values(values);
       expect(new Set(list).size, group).toBe(list.length);
     }
   });

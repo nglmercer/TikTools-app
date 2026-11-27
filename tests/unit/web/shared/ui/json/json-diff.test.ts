@@ -202,7 +202,7 @@ describe('foldRows', () => {
     const items = foldRows(rows, { context: 2 });
     expect(items.filter((item) => item.type === 'fold')).toHaveLength(2);
     const changedAt = rows.findIndex((row) => row.kind === 'changed');
-    const visible = items.filter((item) => item.type === 'row').map((item) => (item as { index: number }).index);
+    const visible = items.flatMap((item) => (item.type === 'row' ? [item.index] : []));
     expect(visible).toContain(changedAt - 2);
     expect(visible).not.toContain(changedAt - 3);
     expect(visible).toContain(changedAt + 2);

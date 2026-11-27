@@ -7,6 +7,7 @@ import { applyConditionTemplate, type ConditionTemplate } from '../../../../src/
 import { liveGoalTemplates } from '../../../../src/automation/behavior/live-goal-templates.ts';
 import { moderationConditionTemplates } from '../../../../src/automation/behavior/moderation-templates.ts';
 import { filterOutcome, matchesAllFilters, recordOutcome } from '../../../../src/automation/behavior/testing/filter-matcher.ts';
+import { propertyOf } from '../../support/json.ts';
 
 /**
  * The corpus is shared with the Rust matcher (`filters.rs` `corpus_tests`).
@@ -34,9 +35,14 @@ interface Corpus {
   productionCases: CorpusCase[];
 }
 
-const corpus = JSON.parse(
+const corpus: Corpus = JSON.parse(
   readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../tests/fixtures/automation-filters/filter-corpus.json'), 'utf8'),
-) as Corpus;
+);
+
+function filterOf(entry: CorpusCase): object {
+  if (entry.filter === undefined) throw new Error(`corpus case "${entry.label}" has no filter`);
+  return entry.filter;
+}
 
 function eventOf(entry: CorpusCase): unknown {
   if (typeof entry.event !== 'string') return entry.event;
@@ -56,7 +62,7 @@ describe('shared filter corpus', () => {
     expect(corpus.filterCases.length).toBeGreaterThan(100);
     expect(corpus.recordCases.length).toBeGreaterThan(0);
     expect(corpus.productionCases.length).toBeGreaterThan(0);
-    const operators = new Set(corpus.filterCases.map((entry) => (entry.filter as { operator?: string }).operator));
+    const operators = new Set(corpus.filterCases.map((entry) => propertyOf(filterOf(entry), 'operator')));
     for (const operator of ['gte', 'gt', 'lte', 'lt', 'eq', 'neq', 'contains', 'starts-with', 'in', 'is-true', 'is-false']) {
       expect(operators.has(operator)).toBe(true);
     }
@@ -64,7 +70,7 @@ describe('shared filter corpus', () => {
 
   test('filter cases agree with the host matcher', () => {
     const failures = corpus.filterCases
-      .filter((entry) => filterOutcome(entry.filter as object, eventOf(entry)).matched !== entry.matches)
+      .filter((entry) => filterOutcome(filterOf(entry), eventOf(entry)).matched !== entry.matches)
       .map((entry) => entry.label);
     expect(failures).toEqual([]);
   });
@@ -73,7 +79,7 @@ describe('shared filter corpus', () => {
     const failures = corpus.filterCases
       .filter((entry) => {
         if (entry.captures === undefined) return false;
-        const { captures } = filterOutcome(entry.filter as object, eventOf(entry));
+        const { captures } = filterOutcome(filterOf(entry), eventOf(entry));
         return JSON.stringify(captures) !== JSON.stringify(entry.captures);
       })
       .map((entry) => entry.label);
@@ -109,9 +115,7 @@ describe('shared filter corpus', () => {
     const templated = corpus.productionCases.filter((entry) => entry.template !== undefined);
     expect(templated.length).toBeGreaterThan(0);
     for (const entry of templated) {
-      expect(applyConditionTemplate(templateById(entry.template ?? ''), entry.answers ?? {})).toEqual(
-        entry.filters as never,
-      );
+      expect(applyConditionTemplate(templateById(entry.template ?? ''), entry.answers ?? {})).toEqual(entry.filters);
     }
   });
 });

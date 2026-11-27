@@ -84,7 +84,7 @@ describe('paged list', () => {
     const list = createPagedList<Row>({ key: (item) => item.id, fetch: () => outcomes.shift()! });
     await list.refresh();
     await list.refresh();
-    expect((list.error.value as Error).message).toBe('down');
+    expect(list.error.value).toEqual(new Error('down'));
     expect(list.items.value).toHaveLength(1);
     const pending = list.refresh();
     list.reset();

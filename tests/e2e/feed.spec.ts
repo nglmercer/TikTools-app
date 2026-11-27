@@ -7,19 +7,25 @@ import { emptyState } from './fixtures/states.ts';
 import { SEL } from './support/selectors.ts';
 import { TOPIC, LIMIT } from '../shared/index.ts';
 
+declare global {
+  interface Window {
+    /** Counts `Intl.DateTimeFormat#format` calls; installed by the first test's init script. */
+    feedFormatCalls: number;
+  }
+}
+
 test('feed appends only format new cards and still update locale, search, and clear', async ({ page }) => {
   const capture = await installFakeHost(page, emptyState());
   await test.step('install a counter on date formatting and open the empty feed', async () => {
     await page.addInitScript(() => {
-      const target = window as typeof window & { feedFormatCalls: number };
-      target.feedFormatCalls = 0;
+      window.feedFormatCalls = 0;
       const descriptor = Object.getOwnPropertyDescriptor(Intl.DateTimeFormat.prototype, 'format')!;
       Object.defineProperty(Intl.DateTimeFormat.prototype, 'format', {
         ...descriptor,
         get() {
-          const format = descriptor.get!.call(this) as (date?: number | Date) => string;
+          const format: (date?: number | Date) => string = descriptor.get!.call(this);
           return (date?: number | Date) => {
-            target.feedFormatCalls += 1;
+            window.feedFormatCalls += 1;
             return format(date);
           };
         },
@@ -35,17 +41,17 @@ test('feed appends only format new cards and still update locale, search, and cl
     });
     await emitChat(1);
     await expect(page.locator(SEL.eventCard)).toHaveCount(1);
-    await page.evaluate(() => { (window as typeof window & { feedFormatCalls: number }).feedFormatCalls = 0; });
+    await page.evaluate(() => { window.feedFormatCalls = 0; });
     await emitChat(2);
     await expect(page.locator(SEL.eventCard)).toHaveCount(2);
-    expect(await page.evaluate(() => (window as typeof window & { feedFormatCalls: number }).feedFormatCalls)).toBe(1);
+    expect(await page.evaluate(() => window.feedFormatCalls)).toBe(1);
   });
 
   await test.step('switch the language to Spanish and check the format count', async () => {
     // The native shell menu switches the language by pushing its action.
     await emitPush(page, { type: 'shell-menu-action', id: 'locale:es' });
     await expect(page.locator('html')).toHaveAttribute('lang', 'es');
-    await expect.poll(() => page.evaluate(() => (window as typeof window & { feedFormatCalls: number }).feedFormatCalls)).toBe(3);
+    await expect.poll(() => page.evaluate(() => window.feedFormatCalls)).toBe(3);
   });
   await test.step('search for one message, then clear the search', async () => {
     await page.locator(SEL.feedSearch).fill('message 2');
@@ -70,7 +76,7 @@ test('events keep arriving while another tab is open and are waiting on return',
   await emitTopic(page, TOPIC.liveUiEvent, { event: { kind: 'chat', author: 'alice', text: 'before', msgId: 'before' } });
   await expect(page.locator(SEL.eventCard)).toHaveCount(1);
   const setTab = (tab: string) => page.evaluate((target) => {
-    (window as unknown as { __tiktools_benchmark_controls__: { setTab(tab: string): void } }).__tiktools_benchmark_controls__.setTab(target);
+    window.__tiktools_benchmark_controls__.setTab(target);
   }, tab);
   await setTab('settings');
   await expect(page.locator(SEL.feedStream)).toHaveCount(0);
@@ -89,8 +95,7 @@ test('image-disabled diagnostic mode removes avatar and gift image requests', as
   await page.goto('/');
   await waitForFrontend(page);
   await page.evaluate(() => {
-    (window as unknown as { __tiktools_benchmark_controls__: { setImagesEnabled(enabled: boolean): void } })
-      .__tiktools_benchmark_controls__.setImagesEnabled(false);
+    window.__tiktools_benchmark_controls__.setImagesEnabled(false);
   });
   await emitTopic(page, TOPIC.liveUiEvent, { event: { kind: 'gift', author: 'alice', text: 'gift', msgId: 'gift-image-ab',
     avatarUrl: 'https://example.invalid/avatar.png', giftDetails: { name: 'Rose', count: 1, diamonds: 1, imageUrl: 'https://example.invalid/gift.png' } } });
@@ -121,13 +126,9 @@ test('autoscroll and paused position survive feed navigation', async ({ page }) 
   const anchored = await page.locator(SEL.feedStream).evaluate((node) => node.scrollTop);
   expect(anchored).toBeGreaterThan(0);
   expect(anchored).toBeLessThan(100);
-  await page.evaluate(() =>
-    (window as unknown as { __tiktools_benchmark_controls__: { setTab(tab: string): void } }).__tiktools_benchmark_controls__.setTab('settings'),
-  );
+  await page.evaluate(() => window.__tiktools_benchmark_controls__.setTab('settings'));
   await expect(page.locator(SEL.feedStream)).toHaveCount(0);
-  await page.evaluate(() =>
-    (window as unknown as { __tiktools_benchmark_controls__: { setTab(tab: string): void } }).__tiktools_benchmark_controls__.setTab('feed'),
-  );
+  await page.evaluate(() => window.__tiktools_benchmark_controls__.setTab('feed'));
   await expect.poll(() => page.locator(SEL.feedStream).evaluate((node) => node.scrollTop)).toBe(anchored);
   await page.getByRole('button', { name: /auto-scroll/ }).click();
   await expect.poll(bottomDistance).toBeLessThan(2);

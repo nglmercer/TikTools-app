@@ -57,15 +57,6 @@ test('template gallery imports freeze collision IDs across uncertainty and never
 });
 
 test('retained raw template catalogs normalize UI defaults without rewriting source or applying import-size/count caps', async () => {
-  const native = nativeDefinitionHost((method, _params, options) => {
-    if (method === RPC.systemInfo) return { features: { persistence: true } };
-    if (method === RPC.automationRuns) return { runs: [] };
-    if (method === RPC.automationSnapshot) {
-      options?.onMetadata?.({ resourceVersions: [] });
-      return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} };
-    }
-    throw new Error(`Unexpected fallback ${method}`);
-  });
   const documents = Array.from({ length: 35 }, (_, index) => ({
     templateVersion: 1,
     id: `retained-${index}`,
@@ -73,7 +64,17 @@ test('retained raw template catalogs normalize UI defaults without rewriting sou
     actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: { message: index === 0 ? 'x'.repeat(100_000) : 'message' } }],
     event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat },
   }));
-  native.library.setCatalog({ packs: [], activeId: 'default', templates: documents as never });
+  // The host keeps the catalog as JSON text in app state, so the raw documents reach the store exactly as stored
+  const native = nativeDefinitionHost((method, _params, options) => {
+    if (method === RPC.systemInfo) return { features: { persistence: true } };
+    if (method === RPC.automationRuns) return { runs: [] };
+    if (method === RPC.appStateGet) return { state: { [RPC.behaviorTemplatesCustom]: JSON.stringify(documents) } };
+    if (method === RPC.automationSnapshot) {
+      options?.onMetadata?.({ resourceVersions: [] });
+      return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} };
+    }
+    throw new Error(`Unexpected fallback ${method}`);
+  });
   const fake = createFakeControlClient(native.handle);
   const harness = createStoreHarness(fake.client);
   const automation = harness.use(() => useAutomationStore());

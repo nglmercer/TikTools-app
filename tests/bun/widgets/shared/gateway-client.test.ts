@@ -43,7 +43,7 @@ function startFakeGateway(expectedToken = 'ttk_test', port = 0): FakeGateway {
         received.push(text);
         let parsed: Record<string, unknown>;
         try {
-          parsed = JSON.parse(text) as Record<string, unknown>;
+          parsed = JSON.parse(text);
         } catch {
           return;
         }
@@ -117,10 +117,10 @@ describe('gateway client', () => {
     client.connect();
     await waitFor(() => seen.statuses.includes('connected'));
 
-    const auth = JSON.parse(gateway.received[0] as string) as Record<string, unknown>;
+    const auth: Record<string, unknown> = JSON.parse(gateway.received[0] ?? '');
     expect(auth['type']).toBe('auth');
     expect(auth).not.toHaveProperty('topics');
-    const subscribe = JSON.parse(gateway.received[1] as string) as Record<string, unknown>;
+    const subscribe: Record<string, unknown> = JSON.parse(gateway.received[1] ?? '');
     expect(subscribe).toEqual({ type: 'subscribe', topics: [LIVE_EVENT_TOPIC, EVENT_GAP_TOPIC] });
 
     gateway.broadcast(JSON.stringify(makeTestFollowEnvelope()));

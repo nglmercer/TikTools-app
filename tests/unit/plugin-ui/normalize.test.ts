@@ -3,11 +3,16 @@ import { join } from 'node:path';
 
 import { expect, test } from 'vitest';
 
-import type { JsonValue } from '../../../src/shared/json.ts';
+import type { JsonObject, JsonValue } from '../../../src/shared/json.ts';
 import { collectOptionSources, normalizeNode, normalizePage, normalizeUiDescriptor } from '../../../src/plugin-ui/normalize.ts';
 import { NODE_TYPE, PLUGIN_ID, PLUGIN_SOURCE } from '../../shared/index.ts';
 
 const text = { default: 'Hello', i18key: '' };
+
+interface PluginManifest {
+  id: string;
+  ui: JsonObject;
+}
 
 test('normalizes a nested declarative page', () => {
   const page = normalizePage({
@@ -48,11 +53,8 @@ test('normalizes a nested declarative page', () => {
 
 
 test('normalizes the Twitch reference page with settings input, sections, and video icon', () => {
-  const manifest = JSON.parse(readFileSync(join(process.cwd(), 'examples/plugin-twitch/plugin.json'), 'utf8')) as {
-    id: string;
-    ui: JsonValue;
-  };
-  const ui = normalizeUiDescriptor({ ...(manifest.ui as object), pluginId: manifest.id } as JsonValue);
+  const manifest: PluginManifest = JSON.parse(readFileSync(join(process.cwd(), 'examples/plugin-twitch/plugin.json'), 'utf8'));
+  const ui = normalizeUiDescriptor({ ...manifest.ui, pluginId: manifest.id });
   expect(ui?.mode).toBe('declarative');
   const page = ui?.pages[0];
   expect(page?.icon).toBe('video');
@@ -71,9 +73,9 @@ test('normalizes the Twitch reference page with settings input, sections, and vi
 });
 
 test('rejects unknown node types, bad bindings, and over-deep trees', () => {
-  expect(normalizeNode({ type: 'obs-scene' } as unknown as JsonValue)).toBeUndefined();
+  expect(normalizeNode({ type: 'obs-scene' })).toBeUndefined();
   // Domain nodes are not part of the generic grammar.
-  expect(normalizeNode({ type: 'tts-settings' } as unknown as JsonValue)).toBeUndefined();
+  expect(normalizeNode({ type: 'tts-settings' })).toBeUndefined();
   expect(normalizeNode({ type: 'text' })).toBeUndefined();
   expect(normalizeNode({ type: 'select', bind: 'eval(x)' })).toBeUndefined();
   expect(normalizeNode({ type: 'range', bind: 'settings.v', min: 5, max: 1 })).toBeUndefined();

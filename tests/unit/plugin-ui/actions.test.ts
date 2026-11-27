@@ -20,10 +20,10 @@ test('accepts every allowlisted action type', () => {
 });
 
 test('rejects generic RPC and malformed descriptors', () => {
-  const bad: JsonValue[] = [
-    undefined as unknown as JsonValue,
-    null as unknown as JsonValue,
-    'save-settings' as unknown as JsonValue,
+  const bad: Array<JsonValue | undefined> = [
+    undefined,
+    null,
+    'save-settings',
     { type: 'rpc', method: RPC.appStateGet },
     { type: 'eval', code: 'alert(1)' },
     { type: NODE_TYPE.pluginAction },

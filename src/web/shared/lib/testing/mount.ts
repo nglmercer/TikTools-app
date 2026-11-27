@@ -10,8 +10,9 @@ const feedMotion = {
 };
 
 export function mountWithPlugins<C extends Component>(component: C, options: ComponentMountingOptions<C> = {}) {
-  return mount(component, {
+  const merged: ComponentMountingOptions<C> = {
     ...options,
     global: { ...options.global, plugins: [i18n, feedMotion, ...(options.global?.plugins ?? [])] },
-  } as ComponentMountingOptions<C>);
+  };
+  return mount(component, merged);
 }

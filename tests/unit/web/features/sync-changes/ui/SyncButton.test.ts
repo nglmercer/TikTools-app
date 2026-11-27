@@ -51,7 +51,7 @@ describe('SyncButton', () => {
 
   it('is disabled with the reason when the account is signed out', async () => {
     const { adapter, spies } = fakeAdapter(allCapabilities);
-    delete (adapter as { requiresCloud?: boolean }).requiresCloud;
+    delete adapter.requiresCloud;
     const wrapper = await mount(adapter, ACCOUNT_STATE.signedOut);
     expect(wrapper.get('button').attributes('disabled')).toBeDefined();
     expect(wrapper.find('.sync-button__badge').exists()).toBe(false);
@@ -61,7 +61,7 @@ describe('SyncButton', () => {
 
   it('opens preparation when Cloud sync is not enabled', async () => {
     const { adapter } = fakeAdapter(allCapabilities);
-    delete (adapter as { requiresCloud?: boolean }).requiresCloud;
+    delete adapter.requiresCloud;
     const wrapper = await mount(adapter, ACCOUNT_STATE.signedIn, false);
     expect(wrapper.get('button').attributes('disabled')).toBeUndefined();
     await wrapper.get('button').trigger('click');
@@ -73,7 +73,7 @@ describe('SyncButton', () => {
 
   it('is enabled once signed in and opted in', async () => {
     const { adapter } = fakeAdapter(allCapabilities);
-    delete (adapter as { requiresCloud?: boolean }).requiresCloud;
+    delete adapter.requiresCloud;
     const wrapper = await mount(adapter);
     expect(wrapper.get('button').attributes('disabled')).toBeUndefined();
     expect(wrapper.get('button').text()).toBe('Changes · 4');
@@ -81,8 +81,8 @@ describe('SyncButton', () => {
 
   it('is disabled with the adapter reason when the host cannot sync this section', async () => {
     const { adapter } = fakeAdapter(allCapabilities);
-    delete (adapter as { requiresCloud?: boolean }).requiresCloud;
-    (adapter as { unavailableReason?: () => string | null }).unavailableReason = () => 'Not on this host';
+    delete adapter.requiresCloud;
+    adapter.unavailableReason = () => 'Not on this host';
     const wrapper = await mount(adapter);
     expect(wrapper.get('button').attributes('disabled')).toBeDefined();
   });

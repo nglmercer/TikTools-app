@@ -29,12 +29,12 @@ describe('BaseFileUpload', () => {
 
   it('uses the same validation for the file picker and permits choosing the same file again', async () => {
     const wrapper = mount();
-    const input = wrapper.get('input');
+    const input = wrapper.get<HTMLInputElement>('input');
     const file = image();
     Object.defineProperty(input.element, 'files', { value: [file], configurable: true });
     await input.trigger('change');
     expect(wrapper.emitted('update:modelValue')).toEqual([[file]]);
-    expect((input.element as HTMLInputElement).value).toBe('');
+    expect(input.element.value).toBe('');
     Object.defineProperty(input.element, 'files', { value: [new File(['x'], 'wrong.txt')], configurable: true });
     await input.trigger('change');
     expect(wrapper.emitted('error')).toHaveLength(1);

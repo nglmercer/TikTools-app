@@ -37,7 +37,7 @@ describe.skipIf(!existsSync(pluginCatalog))('catalog parity with the SonicBoom s
   const pluginSource = existsSync(pluginCatalog) ? readFileSync(pluginCatalog, 'utf8') : '';
 
   const pluginIds = [...pluginSource.matchAll(/id:\s*'([^']+)'/g)]
-    .map((match) => match[1] as string)
+    .flatMap((match) => (match[1] === undefined ? [] : [match[1]]))
     .sort();
 
   test('both catalogs list the same emote ids', () => {

@@ -73,7 +73,7 @@ describe('AppUpdater', () => {
     });
     let emit: ((state: UpdateStatus) => void) | undefined;
     client.onTopic = (topic, handler) => {
-      if (topic === 'app.update.stateChanged') emit = (state) => handler({ state } as never);
+      if (topic === 'app.update.stateChanged') emit = (state) => Reflect.apply(handler, undefined, [{ state }]);
       return () => {};
     };
     const harness = createStoreHarness(client);
@@ -101,7 +101,7 @@ describe('AppUpdater', () => {
     });
     let emit: ((state: UpdateStatus) => void) | undefined;
     client.onTopic = (topic, handler) => {
-      if (topic === 'app.update.stateChanged') emit = (state) => handler({ state } as never);
+      if (topic === 'app.update.stateChanged') emit = (state) => Reflect.apply(handler, undefined, [{ state }]);
       return () => {};
     };
     const harness = createStoreHarness(client);
@@ -136,7 +136,7 @@ describe('AppUpdater', () => {
     });
     let emit: ((state: UpdateStatus) => void) | undefined;
     client.onTopic = (topic, handler) => {
-      if (topic === 'app.update.stateChanged') emit = (state) => handler({ state } as never);
+      if (topic === 'app.update.stateChanged') emit = (state) => Reflect.apply(handler, undefined, [{ state }]);
       return () => {};
     };
     const harness = createStoreHarness(client);
@@ -191,7 +191,7 @@ describe('AppUpdater', () => {
     });
     const harness = createStoreHarness(client);
     await harness.use(useAppUpdaterStore).initialize();
-    const postMessage = vi.fn();
+    const postMessage = vi.fn<(message: string) => void>();
     const previous = window.ipc;
     window.ipc = { postMessage };
     try {
@@ -199,7 +199,7 @@ describe('AppUpdater', () => {
       const button = wrapper.findAll('button').find((item) => item.text().includes(t('appUpdater.install')));
       expect(button).toBeDefined();
       await button!.trigger('click');
-      expect(JSON.parse(postMessage.mock.calls[0]![0] as string)).toEqual({ type: 'app-update-install', locale: 'en' });
+      expect(JSON.parse(postMessage.mock.calls[0]![0])).toEqual({ type: 'app-update-install', locale: 'en' });
     } finally {
       window.ipc = previous;
     }
@@ -229,7 +229,7 @@ describe('AppUpdater', () => {
     });
     let emit: ((state: UpdateStatus) => void) | undefined;
     client.onTopic = (topic, handler) => {
-      if (topic === 'app.update.stateChanged') emit = (state) => handler({ state } as never);
+      if (topic === 'app.update.stateChanged') emit = (state) => Reflect.apply(handler, undefined, [{ state }]);
       return () => {};
     };
     const harness = createStoreHarness(client);
@@ -254,7 +254,7 @@ describe('AppUpdater', () => {
     });
     let emit: ((state: UpdateStatus) => void) | undefined;
     client.onTopic = (topic, handler) => {
-      if (topic === 'app.update.stateChanged') emit = (state) => handler({ state } as never);
+      if (topic === 'app.update.stateChanged') emit = (state) => Reflect.apply(handler, undefined, [{ state }]);
       return () => {};
     };
     const harness = createStoreHarness(client);

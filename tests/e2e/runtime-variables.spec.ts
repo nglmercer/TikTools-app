@@ -127,7 +127,7 @@ test('editing another variable retains the exact native integer', async ({ page 
   const state = emptyState();
   state.announcedMethods = [RPC.globalsTypedList, RPC.globalsTypedReplace];
   state.typedGlobals = {
-    counter: { type: 'number', value: JSON.parse('9223372036854775807') as number, numberText: '9223372036854775807' },
+    counter: { type: 'number', value: JSON.parse('9223372036854775807'), numberText: '9223372036854775807' },
     label: { type: 'text', value: 'before' },
   };
   const capture = await installFakeHost(page, state);

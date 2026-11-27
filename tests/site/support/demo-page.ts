@@ -7,7 +7,9 @@ import { selector } from './selectors.ts';
 /** Pending RPC count reported by the demo metrics output. -1 until the metrics exist. */
 export async function pendingRequests(page: Page | Frame): Promise<number> {
   const text = await page.getByTestId(demoTestId.metrics).textContent();
-  return text ? (JSON.parse(text) as { client?: { pending?: number } }).client?.pending ?? -1 : -1;
+  if (!text) return -1;
+  const metrics: { client?: { pending?: number } } = JSON.parse(text);
+  return metrics.client?.pending ?? -1;
 }
 
 /** Every simulated RPC has completed. */
@@ -18,7 +20,9 @@ export async function expectSettled(page: Page | Frame): Promise<void> {
 /** Simulated events played so far, from the demo metrics. */
 export async function playedTicks(page: Page | Frame): Promise<number> {
   const text = await page.getByTestId(demoTestId.metrics).textContent();
-  return text ? (JSON.parse(text) as { host?: { ticks?: number } }).host?.ticks ?? 0 : 0;
+  if (!text) return 0;
+  const metrics: { host?: { ticks?: number } } = JSON.parse(text);
+  return metrics.host?.ticks ?? 0;
 }
 
 /** Text of the demo event counter after `played` simulated events, e.g. `2 / 300`. */

@@ -4,6 +4,7 @@ import type { ProcessorStatusEntry, ProcessorStatusMetrics } from '../../../../.
 import { sampleEventForType } from '../../../../../../src/automation/event-registry.ts';
 import { processorMetricRows, processorPreviewEvent, processorStatusTone } from '../../../../../../src/web/entities/processor/lib/processors.ts';
 import { EVENT_KIND } from '../../../../../shared/index.ts';
+import { isRecord, propertyOf } from '../../../../support/json.ts';
 
 const metrics: ProcessorStatusMetrics = {
   calls: 10,
@@ -60,18 +61,19 @@ describe('processor panel helpers', () => {
     expect(typeof fallback.data).toBe('object');
     // Unknown plugin event types degrade to a minimal envelope.
     const unknown = processorPreviewEvent(entry(['plugin.unknown']));
-    expect(unknown.type as string).toBe('plugin.unknown');
+    expect<string>(unknown.type).toBe('plugin.unknown');
     expect(unknown.id).toBe('sample-event');
   });
 
   it('preview events replay matching live data instead of the sample', () => {
     const live = sampleEventForType(EVENT_KIND.tiktokGift);
-    (live.data as Record<string, unknown>)['giftName'] = 'Galaxy';
+    if (!isRecord(live.data)) throw new Error('expected the sample gift data to be an object');
+    live.data['giftName'] = 'Galaxy';
     const replay = processorPreviewEvent(entry([EVENT_KIND.tiktokGift]), live);
-    expect((replay.data as Record<string, unknown>)['giftName']).toBe('Galaxy');
+    expect(propertyOf(replay.data, 'giftName')).toBe('Galaxy');
     // A mismatched live event degrades to the sample of the subscribed type.
     const chat = sampleEventForType(EVENT_KIND.tiktokChat);
     const fallback = processorPreviewEvent(entry([EVENT_KIND.tiktokGift]), chat);
-    expect((fallback.data as Record<string, unknown>)['giftName']).toBe('Rose');
+    expect(propertyOf(fallback.data, 'giftName')).toBe('Rose');
   });
 });

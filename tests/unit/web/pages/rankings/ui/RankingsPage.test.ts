@@ -64,8 +64,8 @@ describe('rankings management', () => {
       if (method === RPC.rankingsSnapshot) return new Promise((resolve) => { resolveSnapshot = resolve; });
       return { ok: true };
     });
-    client.onTopic = (topic, callback) => {
-      if (topic === TOPIC.rankingUpdated) publish = callback as (data: unknown) => void;
+    client.onTopic = <T>(topic: string, callback: (data: T) => void) => {
+      if (topic === TOPIC.rankingUpdated) publish = (data) => Reflect.apply(callback, undefined, [data]);
       return () => {};
     };
     const wrapper = mountWithPlugins(RankingsPage, { global: { plugins: storePlugins(client) } });

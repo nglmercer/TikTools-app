@@ -21,7 +21,7 @@ it('keeps an empty text value empty instead of casting it to boolean true', () =
   const wrapper = mountWithPlugins(SchemaFieldControl, {
     props: { field: field({ placeholder: 'Search text' }), value: '', controlId: 'empty-text' },
   });
-  expect((wrapper.get('input').element as HTMLInputElement).value).toBe('');
+  expect(wrapper.get<HTMLInputElement>('input').element.value).toBe('');
 });
 
 it('anchors variable suggestions to the control and inserts into the current text', async () => {

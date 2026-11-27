@@ -35,7 +35,7 @@ it('combines action ordering, run mode and cooldown edits into one draft before 
   await button(wrapper, 'automations.event.scopeGlobal').trigger('click');
   expect(wrapper.emitted('save')).toBeUndefined();
   await button(wrapper, 'automations.editor.save').trigger('click');
-  const saved = wrapper.emitted('save')![0]![0] as LiveEvent;
+  const saved = wrapper.emitted<[LiveEvent]>('save')![0]![0];
   expect(saved).toMatchObject({ name: 'Edited', actionIds: ['second', 'first'], runMode: 'random', cooldownMs: 5000, cooldownScope: 'global' });
   expect(event).toMatchObject({ name: 'Original', actionIds: ['first', 'second'], runMode: 'all', cooldownMs: 0 });
   await wrapper.setProps({ event: cloneRecord(saved) });
@@ -50,7 +50,7 @@ it('reorders actions by dragging the grip with a pointer', async () => {
   const rows = wrapper.findAll('[data-action-id]');
   expect(rows).toHaveLength(2);
   rows.forEach((row, index) => {
-    row.element.getBoundingClientRect = () => ({ top: index * 40, bottom: index * 40 + 40 }) as DOMRect;
+    row.element.getBoundingClientRect = () => new DOMRect(0, index * 40, 0, 40);
   });
   const grip = button(wrapper, 'automations.event.reorder');
   await grip.trigger('pointerdown', { button: 0, pointerId: 1, clientY: 0 });
@@ -58,7 +58,7 @@ it('reorders actions by dragging the grip with a pointer', async () => {
   await grip.trigger('pointerup', {});
   expect(wrapper.findAll('[data-action-id]').map((row) => row.attributes('data-action-id'))).toEqual(['second', 'first']);
   await button(wrapper, 'automations.editor.save').trigger('click');
-  expect((wrapper.emitted('save')![0]![0] as LiveEvent).actionIds).toEqual(['second', 'first']);
+  expect(wrapper.emitted<[LiveEvent]>('save')![0]![0].actionIds).toEqual(['second', 'first']);
 });
 
 it('duplicates a condition right below itself from the row action menu', async () => {
@@ -75,7 +75,7 @@ it('duplicates a condition right below itself from the row action menu', async (
     .find((entry) => entry.textContent === t('automations.conditions.duplicate'))!;
   item.click();
   await nextTick();
-  const changed = wrapper.emitted('change')!.at(-1)![0] as LiveEvent;
+  const changed = wrapper.emitted<[LiveEvent]>('change')!.at(-1)![0];
   expect(changed.filters).toEqual([filters[0], filters[0]]);
   expect(changed.filters[0]).not.toBe(changed.filters[1]);
 });
@@ -98,7 +98,7 @@ it('combines conditions with one global AND/OR toggle and no false missing-value
     .find((item) => item.textContent?.trim() === t('automations.conditions.matchAny'))!;
   option.click();
   await nextTick();
-  const changed = wrapper.emitted('change')!.at(-1)![0] as LiveEvent;
+  const changed = wrapper.emitted<[LiveEvent]>('change')!.at(-1)![0];
   expect(changed.matchMode).toBe('or');
   expect(changed.filters).toEqual(filters);
 });
@@ -114,7 +114,7 @@ it('configures a condition template and discards it with the other unsaved edits
   const dialog = new DOMWrapper(document.querySelector<HTMLDialogElement>('dialog[open]')!);
   await dialog.get('input').setValue('0.75');
   await dialog.findAll('button').find((item) => item.text() === t('automations.conditions.apply'))!.trigger('click');
-  const changed = wrapper.emitted('change')!.at(-1)![0] as LiveEvent;
+  const changed = wrapper.emitted<[LiveEvent]>('change')!.at(-1)![0];
   expect(changed.name).toBe(t('packages.categories.moderation'));
   expect(changed.filters).toEqual([
     { path: 'event.intel.comment.composition.repetitionScore', operator: 'gte', value: '0.75' },
@@ -164,7 +164,7 @@ it('filters the action list without changing selection on save', async () => {
   await search.setValue('second');
   expect(wrapper.findAll('[data-action-id]').map((row) => row.attributes('data-action-id'))).toEqual(['second']);
   await button(wrapper, 'automations.editor.save').trigger('click');
-  expect((wrapper.emitted('save')![0]![0] as LiveEvent).actionIds).toEqual(['first', 'second']);
+  expect(wrapper.emitted<[LiveEvent]>('save')![0]![0].actionIds).toEqual(['first', 'second']);
   await search.setValue('nothing matches');
   expect(wrapper.findAll('[data-action-id]')).toHaveLength(0);
   expect(wrapper.text()).toContain(t('automations.event.noMatchingActions'));
@@ -201,7 +201,7 @@ it('removes a condition through the row action menu', async () => {
   expect(items).toHaveLength(1);
   items[0]!.click();
   await nextTick();
-  const changed = wrapper.emitted('change')!.at(-1)![0] as LiveEvent;
+  const changed = wrapper.emitted<[LiveEvent]>('change')!.at(-1)![0];
   expect(changed.filters).toEqual([filters[1]]);
 });
 
@@ -226,7 +226,7 @@ it('edits capture aliases in their own tab', async () => {
   const writeText = vi.fn();
   Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
   await aliasInputs()[0]!.setValue('commandPrefix');
-  const changed = wrapper.emitted('change')!.at(-1)![0] as LiveEvent;
+  const changed = wrapper.emitted<[LiveEvent]>('change')!.at(-1)![0];
   expect(changed.filters[0]?.as).toBe('commandPrefix');
   await wrapper.findAll('button')
     .find((item) => item.attributes('aria-label') === t('common.copy'))!

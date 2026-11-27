@@ -14,6 +14,10 @@ import {
 } from '../../../../../../src/web/entities/automation/model/definition-contracts.ts';
 import { definitionJournal } from '../../../../../../src/web/entities/automation/model/definition-journal.ts';
 import { ACTION_TYPE, ERROR_CODE, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
+import { isLiveAction, toLiveAction } from '../../../../support/automation.ts';
+import { propertyOf } from '../../../../support/json.ts';
+
+const WRITE_METHODS: string[] = [RPC.automationCreate, RPC.automationUpdate, RPC.automationEnable, RPC.automationDisable];
 
 const source = (): LiveAction => ({
   schemaVersion: 2,
@@ -28,10 +32,11 @@ function fixture() {
   let revision = '1';
   let writes = 0;
   const native = nativeDefinitionHost((method, params, options) => {
-    if (([RPC.automationCreate, RPC.automationUpdate, RPC.automationEnable, RPC.automationDisable] as string[]).includes(method)) {
+    if (WRITE_METHODS.includes(method)) {
       ++writes;
       revision = String(BigInt(String(options?.meta?.expectedRevision)) + 1n);
-      record = structuredClone(params?.record as LiveAction ?? { ...record, enabled: method === RPC.automationEnable });
+      const submitted = params?.record;
+      record = structuredClone(isLiveAction(submitted) ? submitted : { ...record, enabled: method === RPC.automationEnable });
       options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: 'action', id: record.id, revision }] });
       return record;
     }
@@ -61,7 +66,7 @@ describe('native Owner definition journal', () => {
       read: async () => ({ record: f.record(), revision: f.revision() }),
       save: async (_kind, record, base) => {
         const ack = await f.journal.submit({ ...f.input, record, expectedRevision: base.revision!, operation: base.create ? 'create' : 'update' }, f.host);
-        return { record: ack.value as LiveAction, revision: ack.resourceVersions[0]!.revision };
+        return { record: toLiveAction(ack.value), revision: ack.resourceVersions[0]!.revision };
       },
       remove: async () => {},
     });
@@ -141,7 +146,7 @@ describe('native Owner definition journal', () => {
     const f = fixture();
     await f.journal.refresh();
     f.calls.length = 0;
-    await expect(f.journal.submit(f.input, undefined as unknown as typeof f.host)).rejects.toMatchObject({ code: ERROR_CODE.capabilityUnavailable });
+    await expect(Reflect.apply(f.journal.submit, f.journal, [f.input, undefined])).rejects.toMatchObject({ code: ERROR_CODE.capabilityUnavailable });
     expect(f.calls).toHaveLength(0);
     expect(f.writes()).toBe(0);
   });
@@ -155,8 +160,8 @@ describe('native Owner definition journal', () => {
     f.host.hostId = 'later-host';
     await expect(f.journal.submit({ ...f.input, expectedRevision: '1' }, f.host)).rejects.toMatchObject({ code: ERROR_CODE.commandPending });
     const ack = await writing;
-    expect((ack.value as LiveAction).name).toBe('Saved action');
-    expect((ack.value as LiveAction).config.message).toBe('private source');
+    expect(toLiveAction(ack.value).name).toBe('Saved action');
+    expect(toLiveAction(ack.value).config.message).toBe('private source');
     expect(f.writes()).toBe(1);
     expect(f.calls.filter((c) => c.method === RPC.automationDefinitionSubmit)).toHaveLength(1);
     expect(f.calls.find((c) => c.method === RPC.automationDefinitionSubmit)?.params).toMatchObject({
@@ -172,19 +177,16 @@ describe('native Owner definition journal', () => {
     const transport = createFakeControlClient(async (method, params, options) => {
       const result = await f.native.handle(method, params, options);
       if (method !== RPC.automationDefinitionSubmit) return result;
-      const submission = result as {
-        state: DefinitionState;
-        acknowledgement: unknown;
-      };
-      const success = submission.state.recent[0]!;
-      submission.state.recent.push({
+      const state = parseDefinitionState(propertyOf(result, 'state'));
+      const success = state.recent[0]!;
+      state.recent.push({
         ...success,
         intent: { ...success.intent, commandId: `owner-definition-${'f'.repeat(32)}` },
         outcome: 'rejected',
         receipt: null,
         errorCode: ERROR_CODE.revisionConflict,
       });
-      return { state: submission.state, acknowledgement: null };
+      return { state, acknowledgement: null };
     });
     const journal = definitionJournal(transport.client);
     await expect(journal.submit(f.input, f.host)).rejects.toMatchObject({ code: 'unconfirmed' });

@@ -1,6 +1,6 @@
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { describe, expect, it } from 'vitest';
-import type { ActionTypeDefinition, BehaviorRun, LiveAction, LiveEvent, PluginStatus } from '../../../../../../src/automation/behavior/types.ts';
+import type { LiveAction } from '../../../../../../src/automation/behavior/types.ts';
 import {
   actionNames,
   availableActionTypeIds,
@@ -18,22 +18,23 @@ import {
   triggerOptions,
 } from '../../../../../../src/web/entities/automation/lib/automation-records.ts';
 import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
+import { propertyOf } from '../../../../support/json.ts';
+import { actionType, behaviorRun, liveEvent, pluginEventType, pluginStatus, text } from '../../../../support/automation.ts';
 
 const t = (key: string): string => testMessage('en', key);
 
-const localize = (value: unknown) => (value as { default: string }).default;
-const text = (value: string) => ({ default: value, i18key: '' });
+const localize = (value: unknown): string => {
+  const label = propertyOf(value, 'default');
+  return typeof label === 'string' ? label : '';
+};
 
 const types = [
-  { id: ACTION_TYPE.coreLog, title: text('Log'), source: { kind: 'builtin' } },
-  { id: ACTION_TYPE.deckScene, title: text('Scene'), source: { kind: 'plugin', pluginId: 'deck' } },
-  { id: 'tts.say', title: text('Say'), source: { kind: 'plugin', pluginId: 'tts' } },
-] as unknown as ActionTypeDefinition[];
+  actionType({ id: ACTION_TYPE.coreLog, title: text('Log'), source: { kind: 'builtin' } }),
+  actionType({ id: ACTION_TYPE.deckScene, title: text('Scene'), source: { kind: 'plugin', pluginId: 'deck' } }),
+  actionType({ id: 'tts.say', title: text('Say'), source: { kind: 'plugin', pluginId: 'tts' } }),
+];
 
-const plugins = [
-  { installed: true, enabled: true, descriptor: { id: 'deck' } },
-  { installed: true, enabled: false, descriptor: { id: 'tts' } },
-] as unknown as PluginStatus[];
+const plugins = [pluginStatus('deck'), pluginStatus('tts', { enabled: false })];
 
 function action(id: string, name: string, enabled = true, typeId: string = ACTION_TYPE.coreLog, config = {}): LiveAction {
   return { schemaVersion: 2, id, name, enabled, typeId, config };
@@ -75,21 +76,21 @@ describe('automation records', () => {
 
   it('keeps the newest live run per action', () => {
     const runs = [
-      { id: '1', actionId: 'a', test: true },
-      { id: '2', actionId: 'a', test: false },
-      { id: '3', actionId: 'a', test: false },
-    ] as BehaviorRun[];
+      behaviorRun({ id: '1', actionId: 'a', test: true }),
+      behaviorRun({ id: '2', actionId: 'a', test: false }),
+      behaviorRun({ id: '3', actionId: 'a', test: false }),
+    ];
     expect(lastRunByAction(runs).get('a')?.id).toBe('2');
   });
 
   it('labels triggers from built-ins and plugin declarations', () => {
-    const declared = [{ type: EVENT_KIND.hotkeyPressed, title: text('Hotkey'), source: { kind: 'plugin', pluginId: 'hotkeys' } }];
+    const declared = [pluginEventType({ type: EVENT_KIND.hotkeyPressed, title: text('Hotkey'), source: { kind: 'plugin', pluginId: 'hotkeys' } })];
     const builtin = (trigger: string) => `builtin:${trigger}`;
     expect(triggerMessageKey('tiktok.room_stats')).toBe('automations.triggers.tiktok-room_stats');
-    expect(triggerLabel(EVENT_KIND.tiktokGift, declared as never, builtin, localize)).toBe('builtin:tiktok.gift');
-    expect(triggerLabel(EVENT_KIND.hotkeyPressed, declared as never, builtin, localize)).toBe('Hotkey');
+    expect(triggerLabel(EVENT_KIND.tiktokGift, declared, builtin, localize)).toBe('builtin:tiktok.gift');
+    expect(triggerLabel(EVENT_KIND.hotkeyPressed, declared, builtin, localize)).toBe('Hotkey');
     expect(triggerLabel('custom.thing', [], builtin, localize)).toBe('custom.thing');
-    expect(triggerOptions(declared as never, builtin, localize).at(-1)).toEqual({ value: EVENT_KIND.hotkeyPressed, label: 'Hotkey', plugin: 'hotkeys' });
+    expect(triggerOptions(declared, builtin, localize).at(-1)).toEqual({ value: EVENT_KIND.hotkeyPressed, label: 'Hotkey', plugin: 'hotkeys' });
   });
 
   it('recognizes host-owned triggers only', () => {
@@ -100,7 +101,7 @@ describe('automation records', () => {
   });
 
   it('resolves, toggles and reorders linked actions', () => {
-    const event = { actionIds: ['b', 'missing', 'a'] } as LiveEvent;
+    const event = liveEvent({ actionIds: ['b', 'missing', 'a'] });
     expect(actionNames(event, [action('a', 'Alpha'), action('b', 'Beta')])).toEqual(['Beta', 'Alpha']);
     expect(toggleId(['a'], 'b')).toEqual(['a', 'b']);
     expect(toggleId(['a', 'b'], 'a')).toEqual(['b']);

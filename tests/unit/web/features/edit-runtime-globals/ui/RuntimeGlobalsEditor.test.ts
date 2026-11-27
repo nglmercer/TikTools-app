@@ -122,14 +122,14 @@ describe('RuntimeGlobalsEditor', () => {
     await flushPromises();
     await store.loadTyped();
     await flushPromises();
-    expect((wrapper.get('input[aria-label="Value"]').element as HTMLInputElement).value).toBe('2');
+    expect(wrapper.get<HTMLInputElement>('input[aria-label="Value"]').element.value).toBe('2');
     await saveButton(wrapper).trigger('click');
     await flushPromises();
     expect(calls.filter((call) => call.method === RPC.globalsTypedReplace).map((call) => call.params?.expectedRevision))
       .toEqual(['a'.repeat(64), 'a'.repeat(64)]);
     await discardButton(wrapper).trigger('click');
     await flushPromises();
-    expect((wrapper.get('input[aria-label="Value"]').element as HTMLInputElement).value).toBe('3');
+    expect(wrapper.get<HTMLInputElement>('input[aria-label="Value"]').element.value).toBe('3');
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
   });
 
@@ -151,7 +151,7 @@ describe('RuntimeGlobalsEditor', () => {
     capabilities.invalidate();
     await flushPromises();
     expect(wrapper.get('input[aria-label="Value"]').attributes('type')).toBe('password');
-    expect((wrapper.get('input[aria-label="Value"]').element as HTMLInputElement).value).toBe('unsaved-private-draft');
+    expect(wrapper.get<HTMLInputElement>('input[aria-label="Value"]').element.value).toBe('unsaved-private-draft');
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
     expect(wrapper.get('[role="alert"]').text()).toContain('This host does not support these variable types');
     expect(calls.some((call) => call.method === RPC.globalsSet || call.method === RPC.globalsTypedReplace)).toBe(false);

@@ -4,6 +4,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import GuideButton from '../../../../../../src/web/features/guided-help/ui/GuideButton.vue';
 import { activateLocale } from '@/shared/i18n/i18n.ts';
 import { tourCatalogs } from '../../../../../../src/web/features/guided-help/catalogs';
+import { rectList } from '../../../../support/dom.ts';
 import { mountGuideScope, mountGuideTargets, removeGuideFixtures } from '../support/dom.ts';
 
 type TestConfig = Record<string, unknown> & {
@@ -37,7 +38,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
   vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function (this: HTMLElement) {
-    return (this.isConnected ? [new DOMRect(0, 0, 120, 30)] : []) as unknown as DOMRectList;
+    return this.isConnected ? rectList(new DOMRect(0, 0, 120, 30)) : rectList();
   });
 });
 afterEach(() => { removeGuideFixtures(); });

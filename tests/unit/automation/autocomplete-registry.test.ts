@@ -139,8 +139,8 @@ describe('snapshot-seeded contributions', () => {
   test('malformed snapshot entries are skipped, never fatal', () => {
     applySnapshotContributions([
       ...textintelSnapshot(),
-      { id: '  ', pluginId: 'demo' } as unknown as PluginAutocompleteContribution,
-      { id: 'demo/empty', pluginId: '  ' } as unknown as PluginAutocompleteContribution,
+      { id: '  ', pluginId: 'demo', source: { kind: 'plugin', pluginId: 'demo' } },
+      { id: 'demo/empty', pluginId: '  ', source: { kind: 'plugin', pluginId: 'demo' } },
     ]);
     expect(autocompleteContributions().map((entry) => entry.id).sort()).toEqual([
       'textintel/moderation',

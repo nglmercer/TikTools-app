@@ -1,25 +1,28 @@
 import { describe, expect, test } from 'vitest';
 
 import type { HostMessage } from '../../../../../../src/shared/messages.ts';
-import type { ControlClient, PushHandler, TopicHandler } from '@/shared/api/control-client.ts';
+import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
 import { useAutomation } from '../../../../../../src/web/entities/automation/model/automation-state.ts';
 import { libraryDefinitionDigest } from '@/entities/rule-template/model/library-contracts.ts';
 import { EVENT_KIND, FIXTURE_ID, RPC, TOPIC } from '../../../../../shared/index.ts';
 
-function fakeControl(): {
+type Handler = (data: never) => void;
+
+function fakeControl(handle: (method: string, params: unknown) => unknown = () => Promise.reject(new Error('not stubbed'))): {
   client: ControlClient;
-  pushes: Map<string, PushHandler[]>;
-  topics: Map<string, TopicHandler[]>;
+  pushes: Map<string, Handler[]>;
+  topics: Map<string, Handler[]>;
 } {
-  const pushes = new Map<string, PushHandler[]>();
-  const topics = new Map<string, TopicHandler[]>();
+  const pushes = new Map<string, Handler[]>();
+  const topics = new Map<string, Handler[]>();
+  const untyped: Function = handle;
   const client: ControlClient = {
     attach: () => {},
     detach: () => {},
-    call: () => Promise.reject(new Error('not stubbed')),
+    call: async <T = unknown>(method: string, params?: RpcParams): Promise<T> => Reflect.apply(untyped, undefined, [method, params]),
     onTopic: (topic, handler) => {
       const list = topics.get(topic) ?? [];
-      list.push(handler as TopicHandler);
+      list.push(handler);
       topics.set(topic, list);
       return () => {};
     },
@@ -35,9 +38,9 @@ function fakeControl(): {
   return { client, pushes, topics };
 }
 
-function emit<T>(handlers: T[] | undefined, value: T extends (arg: infer A) => void ? A : never): void {
+function emit(handlers: Handler[] | undefined, value: unknown): void {
   for (const handler of handlers ?? [])
-    (handler as (arg: unknown) => void)(value);
+    Reflect.apply(handler, undefined, [value]);
 }
 
 describe('useAutomation live updates', () => {
@@ -120,16 +123,15 @@ describe('useAutomation fire event', () => {
       params: unknown;
     }>;
   } {
-    const { client } = fakeControl();
     const calls: Array<{
       method: string;
       params: unknown;
     }> = [];
-    client.call = ((method: string, params: unknown) => {
+    const { client } = fakeControl((method, params) => {
       calls.push({ method, params });
       if (method === 'automation.fire') return Promise.resolve(result);
       return Promise.reject(new Error(`unexpected call ${method}`));
-    }) as ControlClient['call'];
+    });
     return { client, calls };
   }
 
@@ -215,9 +217,8 @@ describe('useAutomation hotkey access request', () => {
     client: ControlClient;
     calls: string[];
   } {
-    const { client } = fakeControl();
     const calls: string[] = [];
-    client.call = ((method: string) => {
+    const { client } = fakeControl((method) => {
       calls.push(method);
       if (method === 'system.requestInputAccess') return Promise.resolve(result);
       if (method === RPC.automationRuns) return Promise.resolve({ runs: [] });
@@ -234,7 +235,7 @@ describe('useAutomation hotkey access request', () => {
         });
       }
       return Promise.resolve({ actions: [], events: [], plugins: [], actionTypes: [], translations: {} });
-    }) as ControlClient['call'];
+    });
     return { client, calls };
   }
 

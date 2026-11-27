@@ -1,8 +1,9 @@
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ActionTypeDefinition, LiveAction } from '../../../../../../src/automation/behavior/types.ts';
+import type { LiveAction } from '../../../../../../src/automation/behavior/types.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
+import { actionType, text } from '../../../../support/automation.ts';
 import ActionEditor from '../../../../../../src/web/features/edit-automation-action/ui/ActionEditor.vue';
 
 enableAutoUnmount(afterEach);
@@ -12,18 +13,14 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-const text = (value: string) => ({ default: value, i18key: '' });
-
-const optionType = {
+const optionType = actionType({
   id: 'test.hazard',
   title: text('Spawn hazard'),
   description: text('Spawns a hazard.'),
   tag: 'hazard',
-  source: { kind: 'builtin' },
-  requiredCapabilities: [],
   configSchema: { type: 'object', properties: {} },
   uiHints: { fields: { hazard: { optionsFrom: 'host.gifts' } } },
-} as unknown as ActionTypeDefinition;
+});
 
 const action: LiveAction = {
   schemaVersion: 2,
@@ -48,17 +45,16 @@ function mountEditor(optionErrors: Record<string, string>) {
   });
 }
 
-const emptyTextType = {
+const emptyTextType = actionType({
   id: 'plugin.search-play',
   title: text('Search and play'),
   description: text('Searches and plays a match.'),
   tag: 'music',
   source: { kind: 'plugin', pluginId: 'plugin' },
-  requiredCapabilities: [],
   fields: [
     { key: 'text', label: text('Search text'), kind: 'text', value: '', template: true, placeholder: 'Daft Punk' },
   ],
-} as unknown as ActionTypeDefinition;
+});
 
 it('renders an empty default for a templated text field as empty, not "true"', async () => {
   const wrapper = mountWithPlugins(ActionEditor, {
@@ -73,8 +69,8 @@ it('renders an empty default for a templated text field as empty, not "true"', a
     },
   });
   await flushPromises();
-  const input = wrapper.findAll('input').find((el) => (el.element as HTMLInputElement).placeholder === 'Daft Punk');
-  expect((input!.element as HTMLInputElement).value).toBe('');
+  const input = wrapper.findAll<HTMLInputElement>('input').find((el) => el.element.placeholder === 'Daft Punk');
+  expect(input!.element.value).toBe('');
 });
 
 it('keeps the enable switch in the General section header and mutes an inactive action', async () => {

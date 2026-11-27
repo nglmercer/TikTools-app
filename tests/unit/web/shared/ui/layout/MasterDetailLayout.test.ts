@@ -10,11 +10,11 @@ test('keeps collection and draft instances when resizing or returning to the lis
     props: { narrow:false, detailOpen:true, backLabel:'Back' },
     slots: { master:'<input value="filter" aria-label="Search">', detail:Draft },
   });
-  const editor = wrapper.get('input[aria-label="Draft"]');
+  const editor = wrapper.get<HTMLInputElement>('input[aria-label="Draft"]');
   await editor.setValue('unsaved draft');
   await wrapper.setProps({ narrow:true });
   expect(wrapper.get('input[aria-label="Draft"]').element).toBe(editor.element);
-  expect((editor.element as HTMLInputElement).value).toBe('unsaved draft');
+  expect(editor.element.value).toBe('unsaved draft');
   await wrapper.get('.master-detail__back button').trigger('click');
   expect(wrapper.emitted('back')).toHaveLength(1);
   // Parent owns closing, so a pending discard review keeps the editor open.
@@ -24,5 +24,5 @@ test('keeps collection and draft instances when resizing or returning to the lis
   expect(wrapper.get('.master-detail__master').attributes('hidden')).toBeUndefined();
   await wrapper.setProps({ narrow:false });
   expect(wrapper.get('input[aria-label="Draft"]').element).toBe(editor.element);
-  expect((editor.element as HTMLInputElement).value).toBe('unsaved draft');
+  expect(editor.element.value).toBe('unsaved draft');
 });

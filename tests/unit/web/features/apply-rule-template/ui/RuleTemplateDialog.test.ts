@@ -1,7 +1,8 @@
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, expect, test } from 'vitest';
-import type { ActionTypeDefinition, LiveAction, LiveEvent } from '../../../../../../src/automation/behavior/types.ts';
+import type { LiveAction, LiveEvent } from '../../../../../../src/automation/behavior/types.ts';
+import { actionType, text } from '../../../../support/automation.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import BaseFileDrop from '@/shared/ui/file-drop/BaseFileDrop.vue';
@@ -37,7 +38,7 @@ test('oversized expansion reports an error while retaining the configured templa
         plugins: [],
         translations: {},
         actionTypes: [
-          { id: ACTION_TYPE.coreLog, title: { default: 'Log' }, source: { kind: 'builtin' }, requiredCapabilities: [] } as unknown as ActionTypeDefinition,
+          actionType({ id: ACTION_TYPE.coreLog, title: text('Log') }),
         ],
       },
     },
@@ -69,7 +70,7 @@ const snapshot = {
   plugins: [],
   translations: {},
   actionTypes: [
-    { id: ACTION_TYPE.coreLog, title: { default: 'Log' }, source: { kind: 'builtin' }, requiredCapabilities: [] } as unknown as ActionTypeDefinition,
+    actionType({ id: ACTION_TYPE.coreLog, title: text('Log') }),
   ],
 };
 
@@ -85,6 +86,8 @@ const localTemplate = () => {
   return { ...parsed.template, custom: true };
 };
 
+const defaultTab: RuleTemplateTab = 'templates';
+
 function mountTemplates(props: { tab?: RuleTemplateTab } = {}) {
   const { client } = createFakeControlClient((method) => {
     if (method === 'cloudLibrary.list') return { items: [], nextCursor: null };
@@ -96,7 +99,7 @@ function mountTemplates(props: { tab?: RuleTemplateTab } = {}) {
       open: true,
       customTemplates: [localTemplate()],
       snapshot,
-      tab: 'templates' as RuleTemplateTab,
+      tab: defaultTab,
       'onUpdate:tab': (value: RuleTemplateTab) => wrapper.setProps({ tab: value }),
       ...props,
     },
@@ -156,7 +159,7 @@ test('the Import tab stages a template file, reports problems and emits the impo
   expect(wrapper.findAll('.base-import-dialog__items li').map((item) => item.text())).toEqual(['Mine one', 'Mine two']);
   expect(wrapper.find('[role="alert"]').exists()).toBe(false);
   await wrapper.get('.base-button--primary').trigger('click');
-  const [templates, done] = wrapper.emitted('import')![0] as [Array<{ id: string }>, (added: number) => void];
+  const [templates, done] = wrapper.emitted<[Array<{ id: string }>, (added: number) => void]>('import')![0]!;
   expect(templates.map((template) => template.id)).toEqual(['mine-one', 'mine-two']);
   expect(wrapper.get('.base-button--primary').attributes('disabled')).toBeDefined();
   done(2);
@@ -197,7 +200,7 @@ test('retries the same generated records after failure and generates new identit
   await activateLocale('en');
   const wrapper = mountTemplates();
   await wrapper.findAll('.rule-templates__card').find((card) => card.text().includes('Local one'))!.trigger('click');
-  const attempt = (index: number) => wrapper.emitted('apply')![index] as [LiveAction[], LiveEvent, (success: boolean) => void];
+  const attempt = (index: number) => wrapper.emitted<[LiveAction[], LiveEvent, (success: boolean) => void]>('apply')![index]!;
   await wrapper.get('.base-button--primary').trigger('click');
   const [firstActions, firstEvent, failed] = attempt(0);
   failed(false);

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import { eventIdentity, type AutomationEventLike } from '../../../../src/widgets/shared/event-types.ts';
 import { EVENT_KIND, FIXTURE_ID } from '../../../shared/index.ts';
+import { isRecord } from '../../support/json.ts';
 
 function event(overrides: Partial<AutomationEventLike> & { msgId?: string } = {}): AutomationEventLike {
   const { msgId, ...rest } = overrides;
@@ -11,7 +12,7 @@ function event(overrides: Partial<AutomationEventLike> & { msgId?: string } = {}
     timestamp: rest.timestamp ?? 1,
     creator: rest.creator,
     user: rest.user ?? null,
-    data: msgId === undefined ? (rest.data ?? {}) : { ...(rest.data as object), msgId },
+    data: msgId === undefined ? (rest.data ?? {}) : { ...(isRecord(rest.data) ? rest.data : {}), msgId },
   };
 }
 

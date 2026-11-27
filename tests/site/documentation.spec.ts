@@ -142,12 +142,13 @@ for (const locale of docLocales) {
     await input.fill(({ en: 'Back up', es: 'Respaldar', pt: 'backup', fr: 'sauvegarde', zh: '备份', ja: 'バックアップ' })[locale]);
     const results = page.locator('.VPLocalSearchBox a.result');
     await expect(results.first()).toBeVisible();
-    const urls = await results.evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).href));
+    const urls = await results.evaluateAll((links) => links.map((link) => (link instanceof HTMLAnchorElement ? link.href : '')));
     expect(urls.length).toBeGreaterThan(0);
     expect(urls.every((url) => new URL(url).pathname.startsWith(`${site.base}${locale}/`))).toBe(true);
-    await expect(results.filter({
-      hasText: (await articles).find((entry) => entry.relativePath === `${locale}/user/preferences/backups.md`)!.frontmatter.title as string,
-    }).first()).toBeVisible();
+    const backups = (await articles).find((entry) => entry.relativePath === `${locale}/user/preferences/backups.md`);
+    const backupsTitle = backups?.frontmatter.title;
+    if (typeof backupsTitle !== 'string') throw new Error(`the ${locale} backups article has no title`);
+    await expect(results.filter({ hasText: backupsTitle }).first()).toBeVisible();
     await input.fill('zzzznoresultstiktoolsreview');
     await expect(page.locator('.VPLocalSearchBox')).toContainText(docCopy[locale].noResults);
     await page.keyboard.press('Escape');

@@ -55,7 +55,9 @@ async function launchFromCatalog(page: Page, title: string): Promise<void> {
 }
 
 async function expectStep(page: Page, id: TourId, step: (typeof tourRegistry)[TourId]['steps'][number]): Promise<void> {
-  const copy = (tourCatalogs.en[id] as unknown as Record<string, { title: string }>)[step.id]!;
+  const steps: Record<string, { title: string } | undefined> = tourCatalogs.en[id];
+  const copy = steps[step.id];
+  if (!copy) throw new Error(`tour ${id} has no copy for step ${step.id}`);
   await expect(page.locator(driver.title)).toHaveText(copy.title, { timeout: timeout.step });
   await expect(page.locator(guideTargetSelector(step.target))).toBeVisible();
 }

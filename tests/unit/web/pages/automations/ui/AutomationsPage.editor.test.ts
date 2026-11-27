@@ -17,6 +17,7 @@ import {
 } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
 import { i18n } from '@/shared/i18n/i18n.ts';
 import { ACTION_TYPE, EVENT_KIND, LIBRARY_OPERATION, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
+import { propertyOf } from '../../../../support/json.ts';
 const itn = (key: string, params?: Record<string, string>) => i18n.global.t(key, params ?? {});
 
 beforeEach(() => {
@@ -127,12 +128,9 @@ it('offers the sync panel for the events and for the actions, but not on the var
     item('automations.library.duplicate').click();
     await flushPromises();
     const created = calls.find((call) => call.method === RPC.automationDefinitionSubmit && call.params?.operation === 'create');
-    const copy = created?.params?.record as {
-      id?: string;
-      name?: string;
-    } | undefined;
+    const copy = created?.params?.record;
     expect(copy).toMatchObject({ name: itn('automations.library.duplicateName', { name: 'Big gifts' }) });
-    expect(copy?.id).not.toBe('e1');
+    expect(propertyOf(copy, 'id')).not.toBe('e1');
 
     await kebab('Chat hello').trigger('click');
     await nextTick();

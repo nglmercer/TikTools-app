@@ -37,12 +37,12 @@ describe('automation editor base and outcome fencing', () => {
   beforeEach(() => resetResolutionPreference('manual'));
   afterEach(() => resetResolutionPreference('automatic'));
   test('two editors retain their opening revision: one wins and the other preserves its candidate', async () => {
-    let current = { record: action, revision: '1' };
+    let current: AutomationRecordVersion & { record: LiveAction | LiveEvent } = { record: action, revision: '1' };
     const host = gateway();
     host.read = vi.fn(async () => current);
     host.save = vi.fn(async (_kind, record, base) => {
       if (base.revision !== current.revision) throw new ControlCallError(ERROR_CODE.revisionConflict, 'Host changed');
-      current = { record: record as LiveAction, revision: '2' };
+      current = { record, revision: '2' };
       return current;
     });
     const first = useAutomationEditor(host);

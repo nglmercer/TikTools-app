@@ -13,6 +13,7 @@ import {
   substituteRuleParams,
 } from '../../../../../../src/web/entities/rule-template/lib/rule-templates.ts';
 import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
+import { isRecord, propertyOf, type JsonRecord } from '../../../../support/json.ts';
 
 const MINIMAL = {
   templateVersion: 1,
@@ -26,9 +27,9 @@ test('host templates parse, stay available on installed types, and round-trip', 
   // The host serves these documents in the snapshot from
   // crates/tiktools-core/src/services/builtin-templates.json; the frontend
   // never hardcodes its own copy anymore.
-  const documents = JSON.parse(
+  const documents: unknown[] = JSON.parse(
     readFileSync(join(process.cwd(), 'crates', 'tiktools-core', 'src', 'services', 'builtin-templates.json'), 'utf8'),
-  ) as unknown[];
+  );
   const templates = snapshotRuleTemplates({ hostTemplates: documents });
   expect(templates.length).toBeGreaterThanOrEqual(4);
   const available = new Set([ACTION_TYPE.coreFetch, 'core.points', 'core.points.subtract', 'audio.play', ACTION_TYPE.coreLog]);
@@ -149,29 +150,29 @@ test('builtin param titles carry i18keys that resolve in every shipped locale', 
   // key missing from a locale would silently fall back to English. Pin
   // full coverage for the host-supported locales instead.
   const seen = new Map<string, string>();
-  const documents = JSON.parse(readFileSync(join(process.cwd(), 'crates', 'tiktools-core', 'src', 'services', 'builtin-templates.json'), 'utf8')) as unknown[];
+  const documents: unknown[] = JSON.parse(readFileSync(join(process.cwd(), 'crates', 'tiktools-core', 'src', 'services', 'builtin-templates.json'), 'utf8'));
   for (const template of snapshotRuleTemplates({ hostTemplates: documents })) {
     const properties = template.params?.['properties'];
-    if (!properties || typeof properties !== 'object' || Array.isArray(properties)) continue;
-    for (const property of Object.values(properties as Record<string, unknown>)) {
-      if (!property || typeof property !== 'object') continue;
-      const title = (property as Record<string, unknown>)['title'];
-      if (!title || typeof title !== 'object') continue;
-      const key = (title as Record<string, unknown>)['i18key'];
-      if (typeof key === 'string' && key) seen.set(key, (title as Record<string, unknown>)['default'] as string);
+    if (!isRecord(properties)) continue;
+    for (const property of Object.values(properties)) {
+      const title = propertyOf(property, 'title');
+      const key = propertyOf(title, 'i18key');
+      const label = propertyOf(title, 'default');
+      if (typeof key === 'string' && key) seen.set(key, typeof label === 'string' ? label : '');
     }
   }
   expect(seen.size).toBeGreaterThanOrEqual(6);
   for (const locale of ['en', 'es', 'pt', 'fr', 'zh', 'ja']) {
-    const messages = (await import(`../../../../../../src/web/shared/i18n/locales/${locale}.ts`)).default;
+    const messages: unknown = (await import(`../../../../../../src/web/shared/i18n/locales/${locale}.ts`)).default;
+    if (!isRecord(messages)) throw new Error(`locale ${locale} did not export a message tree`);
     const flat: Record<string, string> = {};
-    const walk = (node: Record<string, unknown>, path: string[]) => {
+    const walk = (node: JsonRecord, path: string[]) => {
       for (const [k, v] of Object.entries(node)) {
         if (typeof v === 'string') flat[[...path, k].join('.')] = v;
-        else if (v && typeof v === 'object') walk(v as Record<string, unknown>, [...path, k]);
+        else if (isRecord(v)) walk(v, [...path, k]);
       }
     };
-    walk(messages as Record<string, unknown>, []);
+    walk(messages, []);
     for (const key of seen.keys()) {
       expect(flat[key], `${locale} missing ${key}`).toBeTruthy();
     }

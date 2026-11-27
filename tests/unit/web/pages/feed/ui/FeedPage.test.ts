@@ -5,7 +5,7 @@ import { createApp, nextTick } from 'vue';
 import type { UiEvent } from '../../../../../../src/shared/messages.ts';
 import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
 import { useLiveFeedStore } from '@/entities/live-event/model/live-feed-store.ts';
-import type { ControlClient, TopicHandler } from '@/shared/api/control-client.ts';
+import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
 import { controlClientKey } from '@/shared/api/use-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { createPinia, setActivePinia } from 'pinia';
@@ -21,27 +21,31 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-function harness(call: ControlClient['call'] = (async () => ({})) as ControlClient['call']) {
-  const topics = new Map<string, Set<TopicHandler>>();
+type CallHandler = (method: string, params?: RpcParams) => unknown;
+
+function harness(handler: CallHandler = () => ({})) {
+  const topics = new Map<string, Set<(data: never) => void>>();
+  const untyped: Function = handler;
   const client: ControlClient = {
     attach: () => {},
     detach: () => {},
-    call,
+    // The untyped Reflect.apply overload returns any, so the handler's result flows into the caller's chosen T.
+    call: async <T = unknown>(method: string, params?: RpcParams): Promise<T> => Reflect.apply(untyped, undefined, [method, params]),
     onTopic: (topic, handler) => {
       const set = topics.get(topic) ?? new Set();
-      set.add(handler as TopicHandler);
+      set.add(handler);
       topics.set(topic, set);
-      return () => set.delete(handler as TopicHandler);
+      return () => set.delete(handler);
     },
     onPush: () => () => {},
     onTransportError: () => () => {},
     onGap: () => () => {},
   };
-  const emit = (topic: string, data: unknown) => topics.get(topic)?.forEach((handler) => handler(data));
+  const emit = (topic: string, data: unknown) => topics.get(topic)?.forEach((handler) => Reflect.apply(handler, undefined, [data]));
   return { client, emit };
 }
 
-async function mountFeed(call?: ControlClient['call'], view: 'stage' | 'list' = 'list') {
+async function mountFeed(call?: CallHandler, view: 'stage' | 'list' = 'list') {
   const { client, emit } = harness(call);
   const pinia = createPinia();
   setActivePinia(pinia);
@@ -52,8 +56,7 @@ async function mountFeed(call?: ControlClient['call'], view: 'stage' | 'list' = 
   const wrapper = mountWithPlugins(FeedPage, {
     attachTo: document.body,
     global: {
-      plugins: [pinia],
-      provide: { [controlClientKey as symbol]: client },
+      plugins: [pinia, { install: (app) => void app.provide(controlClientKey, client) }],
     },
   });
   if (view === 'list') {
@@ -146,19 +149,12 @@ describe('FeedPage', () => {
   });
 
   it('ranks General by gift diamonds and Likes from the host ranking engine', async () => {
-    const definitions = new Map<
-      string,
-      {
-        id: string;
-        creatorId: string;
-        roomId: string;
-      }
-    >();
+    const definitions = new Map<string, RpcParams>();
     // Arrange: a host ranking engine that serves gift-diamond totals for General and like totals for Likes
-    const call = (async (method: string, params: Record<string, unknown> = {}) => {
+    const call: CallHandler = async (method, params = {}) => {
       if (method === RPC.rankingsList) return { rankings: [...definitions.values()] };
       if (method === RPC.rankingsCreate) {
-        definitions.set(String(params['id']), params as never);
+        definitions.set(String(params['id']), params);
         return { ok: true };
       }
       if (method === RPC.rankingsSnapshot) {
@@ -166,7 +162,7 @@ describe('FeedPage', () => {
         return rankingSnapshot(id, 'luna', 'room-42', id === 'feed-top-gifters' ? [900, 30] : [5000]);
       }
       return {};
-    }) as ControlClient['call'];
+    };
     const { wrapper, emit } = await mountFeed(call);
     emit(TOPIC.liveConnected, { uniqueId: 'luna', roomId: 'room-42' });
     // The legacy projection is ignored once the ranking is provisioned.

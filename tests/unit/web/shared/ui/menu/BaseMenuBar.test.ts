@@ -26,7 +26,7 @@ function press(key: string): void {
 describe('BaseMenuBar', () => {
   it('exposes a single tab stop and moves focus with arrow keys', async () => {
     const wrapper = mountMenuBar();
-    const [file, view] = wrapper.findAll('[role="menuitem"]').map((item) => item.element as HTMLElement);
+    const [file, view] = wrapper.findAll<HTMLElement>('[role="menuitem"]').map((item) => item.element);
     expect(file!.tabIndex).toBe(0);
     expect(view!.tabIndex).toBe(-1);
     file!.focus();
@@ -36,7 +36,7 @@ describe('BaseMenuBar', () => {
 
   it('opens with the keyboard and moves between menus while open', async () => {
     const wrapper = mountMenuBar();
-    (wrapper.findAll('[role="menuitem"]')[0]!.element as HTMLElement).focus();
+    wrapper.findAll<HTMLElement>('[role="menuitem"]')[0]!.element.focus();
     press('ArrowDown');
     await nextTick();
     expect(openMenuLabels()).toEqual(['Connect', 'Exit']);

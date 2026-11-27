@@ -4,29 +4,39 @@ import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { TOPIC } from '../../../../../shared/index.ts';
 
+/** The page window the broker script decorates: the script assigns the `tiktools` surface and the broker hooks onto it. */
+class FakeWindow {
+  tiktools!: {
+    settings: { get(): Promise<unknown> };
+    events: { subscribe(topics: string[], listener: () => void): () => void };
+  };
+  __tiktools_broker_diagnostics__!: () => {
+    pending: number;
+    topics: number;
+    listeners: number;
+  };
+  __tiktools_broker_push__!: (value: unknown) => void;
+  __tiktools_broker_dispose__!: () => void;
+  readonly ipc: { postMessage: (text: string) => void };
+
+  constructor(
+    requests: Array<{ id: string }>,
+    private readonly listeners: Map<string, () => void>,
+  ) {
+    this.ipc = { postMessage: (text: string) => { requests.push(JSON.parse(text)); } };
+  }
+
+  addEventListener = (name: string, listener: () => void) => this.listeners.set(name, listener);
+  removeEventListener = (name: string) => this.listeners.delete(name);
+}
+
 function harness() {
   const script = readFileSync(join(process.cwd(), 'crates', 'tiktools-desktop', 'src', 'plugin_webview', 'init.js'), 'utf8');
   const timers = new Map<number, () => void>();
   const listeners = new Map<string, () => void>();
   const requests: Array<{ id: string }> = [];
   let sequence = 0;
-  const window = {
-    ipc: { postMessage: (text: string) => { requests.push(JSON.parse(text)); } },
-    addEventListener: (name: string, listener: () => void) => listeners.set(name, listener),
-    removeEventListener: (name: string) => listeners.delete(name),
-  } as unknown as Window & {
-    tiktools: {
-      settings: { get(): Promise<unknown> };
-      events: { subscribe(topics: string[], listener: () => void): () => void };
-    };
-    __tiktools_broker_diagnostics__: () => {
-      pending: number;
-      topics: number;
-      listeners: number;
-    };
-    __tiktools_broker_push__: (value: unknown) => void;
-    __tiktools_broker_dispose__: () => void;
-  };
+  const window = new FakeWindow(requests, listeners);
   runInNewContext(script, {
     window,
     setTimeout: (callback: () => void) => {

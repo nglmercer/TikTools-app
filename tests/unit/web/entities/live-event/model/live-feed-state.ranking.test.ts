@@ -11,8 +11,8 @@ describe('authoritative core likes ranking', () => {
       const preconnectLeader = { rank: 1, score: 5, uniqueId: 'early', nickname: 'Early', userId: '9' };
       harness.emit(TOPIC.liveLikesRanking, {
         creatorId: 'creator', roomId: FIXTURE_ID.roomA, leaders: [preconnectLeader],
-      } as never);
-      harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: FIXTURE_ID.roomA } as never);
+      });
+      harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: FIXTURE_ID.roomA });
       // Assert: the pre-connection ranking is already shown, so the board does not wait for live.connected
       expect(live.likeLeaders.value).toEqual([preconnectLeader]);
       const alice = { rank: 1, score: 150, uniqueId: 'alice', nickname: 'Alice', userId: '1' };
@@ -21,7 +21,7 @@ describe('authoritative core likes ranking', () => {
         creatorId: 'creator',
         roomId: FIXTURE_ID.roomA,
         leaders: [alice, bob],
-      } as never);
+      });
       expect(live.likeLeaders.value).toEqual([alice, bob]);
       // Assert: ranking updates never add feed events, so the board is independent of the feed history
       expect(live.events.value).toHaveLength(0);
@@ -31,7 +31,7 @@ describe('authoritative core likes ranking', () => {
         creatorId: 'creator',
         roomId: 'other-room',
         leaders: [{ ...alice, score: 9000 }],
-      } as never);
+      });
       expect(live.likeLeaders.value).toEqual([alice, bob]);
 
       // Act: a fresh ranking for the joined room reorders the board, so leaders follow the new scores
@@ -39,14 +39,14 @@ describe('authoritative core likes ranking', () => {
         creatorId: 'creator',
         roomId: FIXTURE_ID.roomA,
         leaders: [{ ...bob, rank: 1, score: 200 }, { ...alice, rank: 2, score: 150 }],
-      } as never);
+      });
       expect(live.likeLeaders.value.map((leader) => leader.uniqueId)).toEqual(['bob', 'alice']);
 
       // Rejoining the same room does not clear authoritative session totals.
-      harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: FIXTURE_ID.roomA } as never);
+      harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: FIXTURE_ID.roomA });
       expect(live.likeLeaders.value).toHaveLength(2);
       // Act: joining a different room starts a new session, which resets the authoritative totals
-      harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: 'room-b' } as never);
+      harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: 'room-b' });
       expect(live.likeLeaders.value).toHaveLength(0);
     } finally {
       live.dispose();
@@ -67,7 +67,7 @@ describe('authoritative core likes ranking', () => {
             nickname: '', userId: String(index + 1),
           })),
         ],
-      } as never);
+      });
       expect(live.likeLeaders.value).toHaveLength(10);
       expect(live.likeLeaders.value[0]?.score).toBe(50);
       expect(live.likeLeaders.value.every((leader) => leader.score > 0)).toBe(true);

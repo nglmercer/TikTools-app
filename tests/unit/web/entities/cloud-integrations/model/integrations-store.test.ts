@@ -170,7 +170,7 @@ describe('cloud integrations store', () => {
       );
       client.onTopic = (topic, handler) => {
         if (topic === 'cloud.context.invalidated') {
-          notice = () => handler({} as never);
+          notice = () => Reflect.apply(handler, undefined, [{}]);
           listeners += 1;
         }
         return () => { listeners -= 1; };
@@ -182,10 +182,10 @@ describe('cloud integrations store', () => {
       };
       const stores = createStoreHarness(client);
       const integrations = stores.use(() => useIntegrationsStore());
-      integrations.issued = { connectionId: id, provider: 'webhook', label: 'Alerts', secret, deliveryPath: '/x' } as never;
+      integrations.issued = { connectionId: id, provider: 'webhook', label: 'Alerts', secret, deliveryPath: '/x' };
       notice();
       expect(integrations.issued).toBeNull();
-      integrations.issued = { connectionId: id, provider: 'webhook', label: 'Alerts', secret, deliveryPath: '/x' } as never;
+      integrations.issued = { connectionId: id, provider: 'webhook', label: 'Alerts', secret, deliveryPath: '/x' };
       gap();
       expect(integrations.issued).toBeNull();
       expect(listeners).toBe(2);

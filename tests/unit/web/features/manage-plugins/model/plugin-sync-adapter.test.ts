@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { PluginStatus } from '../../../../../../src/automation/behavior/types.ts';
 import type { WorkspaceEntry, WorkspaceValue } from '@/entities/cloud-sync/api/workspace-changes.ts';
+import type { JsonValue } from '@/entities/cloud-sync/api/sync-adapter.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
+import { pluginStatus } from '../../../../support/automation.ts';
+import { propertyOf } from '../../../../support/json.ts';
 import { createPluginSyncAdapter } from '../../../../../../src/web/features/manage-plugins/model/plugin-sync-adapter.ts';
 import { RPC } from '../../../../../shared/index.ts';
 
@@ -9,8 +12,10 @@ const absent: WorkspaceValue = { state: 'absent', revision: null, value: null, v
 const present = (version: string, enabled: boolean, revision = 1): WorkspaceValue => ({
   state: 'present', revision, version, enabled, value: { schemaVersion: 1, pluginId: 'alpha', version, enabled },
 });
-const plugin = (id: string, version: string, enabled: boolean, installed = true): PluginStatus =>
-  ({ descriptor: { id, version, name: id }, installed, enabled, available: true }) as unknown as PluginStatus;
+const plugin = (id: string, version: string, enabled: boolean, installed = true): PluginStatus => {
+  const status = pluginStatus(id, { installed, enabled });
+  return { ...status, descriptor: { ...status.descriptor, version } };
+};
 
 function setup(
   entries: WorkspaceEntry[],
@@ -73,8 +78,8 @@ describe('plugin sync adapter', () => {
     const { adapter } = setup([entry({ remote: present('1.0.0', true), pending })], [plugin('alpha', '1.0.0', false)]);
     const [change] = await adapter.list();
     expect(change).toMatchObject({ id: 'plugin-selections/alpha', kind: 'plugin', name: 'ALPHA', status: 'modified', side: 'local' });
-    expect((change!.before as { enabled: boolean }).enabled).toBe(true);
-    expect((change!.after as { enabled: boolean }).enabled).toBe(false);
+    expect(propertyOf(change!.before, 'enabled')).toBe(true);
+    expect(propertyOf(change!.after, 'enabled')).toBe(false);
   });
 
   it('lists an unconfirmed or conflicting edit as a conflict with base, local and Cloud', async () => {
@@ -82,8 +87,8 @@ describe('plugin sync adapter', () => {
     const { adapter } = setup([entry({ remote: present('2.0.0', true, 2), pending })], [plugin('alpha', '1.0.0', false)]);
     const [change] = await adapter.list();
     expect(change).toMatchObject({ status: 'conflict', side: 'conflict' });
-    expect((change!.base as { version: string }).version).toBe('1.0.0');
-    expect((change!.remote as { version: string }).version).toBe('2.0.0');
+    expect(propertyOf(change!.base, 'version')).toBe('1.0.0');
+    expect(propertyOf(change!.remote, 'version')).toBe('2.0.0');
   });
 
   it('lists a staged settings edit and a staged delete', async () => {
@@ -113,10 +118,10 @@ describe('plugin sync adapter', () => {
 
   it('lists a settings change by key names only and never reads or shows a value', async () => {
     // Arrange: three settings records whose values carry LEAK markers that must never leave the adapter
-    const held = (state: 'present' | 'deleted', value: unknown): WorkspaceValue => ({
+    const held = (state: 'present' | 'deleted', value: JsonValue): WorkspaceValue => ({
       state,
       revision: 2,
-      value: value as WorkspaceValue['value'],
+      value,
       version: 'LEAK-VERSION',
       enabled: true,
     });

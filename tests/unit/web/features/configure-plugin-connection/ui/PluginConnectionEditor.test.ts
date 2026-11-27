@@ -180,7 +180,7 @@ describe.each(['stacked', 'sections'] as const)('credentials and authorization i
       await wrapper.get('input').setValue('http://127.0.0.1:9001');
       vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS - 1);
       await wrapper.setProps({ layout: layout === 'stacked' ? 'sections' : 'stacked' });
-      expect((wrapper.get('input').element as HTMLInputElement).value).toBe('http://127.0.0.1:9001');
+      expect(wrapper.get<HTMLInputElement>('input').element.value).toBe('http://127.0.0.1:9001');
       expect(wrapper.emitted('save')).toBeUndefined();
       vi.advanceTimersByTime(1);
       expect(wrapper.emitted('save')).toEqual([
@@ -234,7 +234,7 @@ test('editing the connection form and the defaults form saves one shared documen
     const saves = wrapper.emitted('save')!;
     expect(saves).toHaveLength(1);
     expect(saves[0]![1]).toEqual({ serverUrl: 'http://127.0.0.1:9000', playerId: 'player-7' });
-    expect((connectionSection!.get('input').element as HTMLInputElement).value).toBe('http://127.0.0.1:9000');
+    expect(connectionSection!.get<HTMLInputElement>('input').element.value).toBe('http://127.0.0.1:9000');
   } finally {
     vi.useRealTimers();
   }

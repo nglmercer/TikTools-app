@@ -1,26 +1,29 @@
 import { expect, test } from 'vitest';
-import type { ControlClient, PushHandler, TopicHandler } from '@/shared/api/control-client.ts';
+import type { ControlClient, PushHandler } from '@/shared/api/control-client.ts';
 import { usePlugins } from '@/entities/plugin/model/plugins-state.ts';
 import { useAutomation } from '../../../../../../src/web/entities/automation/model/automation-state.ts';
 import { RPC, TOPIC } from '../../../../../shared/index.ts';
 
+type TopicSink = (data: never) => void;
+
 function harness() {
-  const topics = new Map<string, Set<TopicHandler>>();
+  const topics = new Map<string, Set<TopicSink>>();
   const pushes = new Map<string, Set<PushHandler>>();
   const calls: string[] = [];
   let finish!: (value: unknown) => void;
   const stalled = new Promise<unknown>((resolve) => { finish = resolve; });
+  const awaitStalled: Function = () => stalled;
   const client: ControlClient = {
     attach() {}, detach() {},
-    call<T>(method: string) {
+    async call<T>(method: string): Promise<T> {
       calls.push(method);
-      return stalled as Promise<T>;
+      return Reflect.apply(awaitStalled, undefined, []);
     },
-    onTopic<T>(topic: string, handler: (data: T) => void) {
-      const list = topics.get(topic) ?? new Set<TopicHandler>();
+    onTopic(topic, handler) {
+      const list = topics.get(topic) ?? new Set<TopicSink>();
       topics.set(topic, list);
-      list.add(handler as TopicHandler);
-      return () => { list.delete(handler as TopicHandler); };
+      list.add(handler);
+      return () => { list.delete(handler); };
     },
     onPush(type, handler) {
       const list = pushes.get(type) ?? new Set<PushHandler>();
@@ -31,7 +34,10 @@ function harness() {
     onTransportError: () => () => {}, onGap: () => () => {},
   };
   const listeners = () => [...topics.values(), ...pushes.values()].reduce((total, list) => total + list.size, 0);
-  return { client, topics, calls, finish: (value: unknown) => finish(value), listeners };
+  const emit = (topic: string, data: unknown) => {
+    for (const handler of topics.get(topic) ?? []) Reflect.apply(handler, undefined, [data]);
+  };
+  return { client, topics, calls, emit, finish: (value: unknown) => finish(value), listeners };
 }
 
 test('100 feature remounts return subscriptions to baseline and cancel debounced refresh', async () => {
@@ -39,8 +45,8 @@ test('100 feature remounts return subscriptions to baseline and cancel debounced
   for (let cycle = 0; cycle < 100; ++cycle) {
     const automation = useAutomation(state.client);
     const plugins = usePlugins(state.client, { translate: (key) => key, refreshBehavior: async () => {}, reportError() {} });
-    for (const handler of state.topics.get(TOPIC.workflowChanged) ?? []) handler({});
-    for (const handler of state.topics.get('plugin.progress') ?? []) handler({ pluginId: 'p', state: 'ready', message: '' });
+    state.emit(TOPIC.workflowChanged, {});
+    state.emit('plugin.progress', { pluginId: 'p', state: 'ready', message: '' });
     automation.dispose();
     plugins.dispose();
     automation.dispose();

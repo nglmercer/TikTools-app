@@ -27,7 +27,7 @@ function mountDialog(props: Record<string, unknown> = {}) {
 describe('BaseDialog', () => {
   it('opens modally and renders its content only while open', async () => {
     const wrapper = mountDialog();
-    const dialog = wrapper.get('dialog').element as HTMLDialogElement;
+    const dialog = wrapper.get<HTMLDialogElement>('dialog').element;
     expect(dialog.open).toBe(false);
     expect(wrapper.find('.content').exists()).toBe(false);
     await wrapper.setProps({ open: true });
@@ -42,7 +42,7 @@ describe('BaseDialog', () => {
   it('syncs the model when the native dialog closes', async () => {
     const wrapper = mountDialog({ open: true });
     await nextTick();
-    const dialog = wrapper.get('dialog').element as HTMLDialogElement;
+    const dialog = wrapper.get<HTMLDialogElement>('dialog').element;
     dialog.close();
     dialog.dispatchEvent(new Event('close'));
     await nextTick();

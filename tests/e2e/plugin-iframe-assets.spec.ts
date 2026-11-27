@@ -146,13 +146,12 @@ async function expectScrollableInlineUi(
   // The plugin document is the single content scroller: at these sizes
   // the content overflows and must scroll instead of clipping.
   const metrics = await frame.locator('#app').evaluate((el) => {
-    const box = el as HTMLElement;
-    const style = getComputedStyle(box);
+    const style = getComputedStyle(el);
     return {
-      scrollHeight: box.scrollHeight,
-      clientHeight: box.clientHeight,
-      scrollWidth: box.scrollWidth,
-      clientWidth: box.clientWidth,
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
       overflowY: style.overflowY,
       boxSizing: style.boxSizing,
     };
@@ -171,13 +170,9 @@ async function expectScrollableInlineUi(
   // lands at the maximum (no clipped strip swallows the end of the
   // content, which border-box + internal scroll guarantee together).
   await frame.locator('#app').evaluate((el) => {
-    const box = el as HTMLElement;
-    box.scrollTop = box.scrollHeight;
+    el.scrollTop = el.scrollHeight;
   });
-  const bottom = await frame.locator('#app').evaluate((el) => {
-    const box = el as HTMLElement;
-    return { top: box.scrollTop, max: box.scrollHeight - box.clientHeight };
-  });
+  const bottom = await frame.locator('#app').evaluate((el) => ({ top: el.scrollTop, max: el.scrollHeight - el.clientHeight }));
   expect(bottom.max).toBeGreaterThan(0);
   expect(bottom.top).toBeGreaterThanOrEqual(bottom.max - 2);
 

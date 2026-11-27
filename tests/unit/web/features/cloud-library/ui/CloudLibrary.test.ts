@@ -7,6 +7,7 @@ import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testin
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { nativeDefinitionHost } from '@/entities/automation/testing/native-definition-fixture.ts';
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
+import { createRequest } from '../../../../support/automation.ts';
 import CloudLibrary from '../../../../../../src/web/features/cloud-library/ui/CloudLibrary.vue';
 import { ACCOUNT_STATE, ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
 
@@ -120,7 +121,7 @@ describe('CloudLibrary', () => {
     });
     // Arrange: capture the context-invalidated topic and the event-gap handler so the test can fire each one
     client.onTopic = (topic, handler) => {
-      if (topic === 'cloud.context.invalidated') cloudInvalidated = () => handler({} as never);
+      if (topic === 'cloud.context.invalidated') cloudInvalidated = () => Reflect.apply(handler, undefined, [{}]);
       return () => { cloudInvalidated = () => {}; };
     };
     client.onGap = (handler) => {
@@ -191,10 +192,9 @@ describe('CloudLibrary', () => {
         if (method === 'cloudLibrary.list') return { items: [summary()], nextCursor: null };
         if (method === 'cloudLibrary.read') return { meta: summary(), document: template };
         if (method === RPC.automationCreate) {
-          options?.onMetadata?.({
-            resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }],
-          });
-          return params?.record;
+          const { kind, record } = createRequest(params);
+          options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: kind, id: record.id, revision: '1' }] });
+          return record;
         }
         throw new Error(`unexpected ${method}`);
       });

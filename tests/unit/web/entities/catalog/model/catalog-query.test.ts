@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { activeFilterCount, createCatalogSearch, DEFAULT_CATALOG_FILTERS, filtersToQuery, normalizeQuery, queryKey } from '../../../../../../src/web/entities/catalog/model/catalog-query.ts';
+import { propertyOf } from '../../../../support/json.ts';
 
 describe('catalog query', () => {
   it('bounds the text, deduplicates kinds and defaults to every kind', () => {
-    const query = normalizeQuery({ text: `  ${'x'.repeat(150)}  `, kinds: ['plugin', 'plugin', 'template'] as never });
+    const query = normalizeQuery({ text: `  ${'x'.repeat(150)}  `, kinds: ['plugin', 'plugin', 'template'] });
     expect(query.text.length).toBe(100);
     expect(query.kinds).toEqual(['plugin', 'template']);
-    expect(normalizeQuery({ kinds: ['overlay'] as never }).kinds).toEqual(['plugin', 'template', 'profile']);
+    const unknownKind: unknown = Reflect.apply(normalizeQuery, undefined, [{ kinds: ['overlay'] }]);
+    expect(propertyOf(unknownKind, 'kinds')).toEqual(['plugin', 'template', 'profile']);
   });
 
   it('keys identical queries the same regardless of kind order', () => {
