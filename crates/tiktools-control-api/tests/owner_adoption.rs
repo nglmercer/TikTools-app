@@ -2,14 +2,14 @@
 //! Native owner review uses a host-owned journal; remote draft permission never
 //! grants journal access or the ability to choose an owner command identity.
 use serde_json::{json, Value};
-use std::sync::Arc;
-use tiktools_control_api::{ControlApi, RemoteSession, RequestContext, RpcResponse};
+use tiktools_control_api::{RequestContext, RpcResponse};
 use tiktools_core::{
-    collaboration::{hash_secret, Capability, ClientKind, Collect, Grant, InviteCreate, Redeem},
+    collaboration::{Capability, Grant},
     control::AutomationKind,
-    paths::AppPaths,
-    AppCore, HostEmitter, NoopMediaHost,
 };
+
+mod support;
+use support::Fixture;
 
 const SOURCE: &str = "private-owner-adoption-definition-source";
 const SCRIPT: &str = "private-owner-adoption-script-source";
@@ -20,60 +20,11 @@ const METHODS: [&str; 4] = [
     "automation.adoption.review_unknown",
 ];
 
-struct Emitter;
-impl HostEmitter for Emitter {
-    fn emit(&self, _: tiktools_core::ipc::messages::HostMessage) {}
-}
-struct Fixture {
-    core: Arc<AppCore>,
-    api: ControlApi,
-    root: std::path::PathBuf,
-}
 impl Fixture {
     fn new() -> Self {
-        let root = std::env::temp_dir().join(format!(
-            "tt-owner-adoption-api-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let paths = AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("absent"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.clone(),
-        };
-        paths.ensure_directories().unwrap();
-        for path in [
-            paths.points_database(),
-            paths.automation_database(),
-            paths.analytics_database(),
-        ] {
-            std::fs::File::create(path).unwrap();
-        }
-        let core = Arc::new(AppCore::with_paths(
-            Arc::new(Emitter),
-            Arc::new(NoopMediaHost),
-            paths,
-        ));
-        Self {
-            api: ControlApi::new(core.clone()),
-            core,
-            root,
-        }
+        Self::with_prefix("tt-owner-adoption-api")
     }
     fn pair(&self) -> RequestContext {
-        let service = self.core.collaboration().unwrap();
-        let mut configuration = service.configuration().unwrap();
-        configuration.enabled = true;
-        configuration.advertised_origin = Some("http://127.0.0.1:8788".into());
-        service.configure(configuration).unwrap();
         let grant = Grant {
             capabilities: [
                 Capability::LiveRead,
@@ -101,47 +52,7 @@ impl Fixture {
             .into(),
             ..Grant::default()
         };
-        let invitation = service.create_invitation(InviteCreate { grant }).unwrap();
-        let exchange = "a".repeat(64);
-        let pending = service
-            .redeem(
-                Redeem {
-                    invite_id: invitation.invite_id,
-                    secret: invitation.secret,
-                    client_label: "Owner review draft author".into(),
-                    client_kind: ClientKind::Agent,
-                    exchange_secret_hash: hash_secret(&exchange),
-                },
-                "fixture",
-            )
-            .unwrap();
-        service.decide_request(&pending.request_id, true).unwrap();
-        let credentials = service
-            .collect(
-                Collect {
-                    request_id: pending.request_id,
-                    exchange_secret: exchange,
-                },
-                "fixture",
-            )
-            .unwrap();
-        let authorization = service
-            .authenticate_live(&credentials.access_token, false, false)
-            .unwrap();
-        RequestContext::Remote(RemoteSession::from_authorization(authorization).unwrap())
-    }
-    async fn call(
-        &self,
-        context: &RequestContext,
-        method: &str,
-        params: Value,
-        meta: Value,
-    ) -> RpcResponse {
-        let mut request = json!({"id":1,"method":method,"params":params});
-        if !meta.is_null() {
-            request["meta"] = meta;
-        }
-        self.api.execute_value_with_context(context, &request).await
+        self.pair_with(grant, "Owner review draft author", 'a')
     }
     async fn owner(&self, method: &str, params: Value, meta: Value) -> RpcResponse {
         self.call(&RequestContext::LocalOwner, method, params, meta)
