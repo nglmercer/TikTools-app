@@ -17,7 +17,9 @@ use tokio::time::timeout;
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::{
-    cloud_remote_host::{connect_relay, next_json, now_millis, Socket},
+    cloud_remote_host::{
+        connect_relay, next_json, now_millis, Socket, RELAY_LOST, RELAY_UNCONFIRMED,
+    },
     cloud_teams::{self, CloudTeams},
     control::OperationError,
 };
@@ -83,12 +85,9 @@ pub async fn run_command(
         .await?;
     let (origin, _) = cloud_teams::credentials(auth).await?;
     let mut socket = connect_relay(&origin, &ticket).await?;
-    let ready = timeout(
-        READY_TIMEOUT,
-        next_json(&mut socket, "the relay connection was lost"),
-    )
-    .await
-    .map_err(|_| OperationError::unavailable("the relay did not confirm the session"))??;
+    let ready = timeout(READY_TIMEOUT, next_json(&mut socket, RELAY_LOST))
+        .await
+        .map_err(|_| OperationError::unavailable(RELAY_UNCONFIRMED))??;
     if ready.get("type").and_then(Value::as_str) != Some("ready")
         || ready.get("role").and_then(Value::as_str) != Some("controller")
         || ready.get("hostId").and_then(Value::as_str) != Some(host_id.as_str())
@@ -115,7 +114,7 @@ pub async fn run_command(
     socket
         .send(Message::Text(frame.to_string().into()))
         .await
-        .map_err(|_| OperationError::unavailable("the relay connection was lost"))?;
+        .map_err(|_| OperationError::unavailable(RELAY_LOST))?;
 
     match timeout(RESULT_TIMEOUT, wait_for_result(&mut socket, &command_id)).await {
         Ok(outcome) => outcome,
@@ -133,7 +132,7 @@ async fn wait_for_result(
     command_id: &str,
 ) -> Result<CommandOutcome, OperationError> {
     loop {
-        let frame = next_json(socket, "the relay connection was lost").await?;
+        let frame = next_json(socket, RELAY_LOST).await?;
         match frame.get("type").and_then(Value::as_str) {
             Some("command.accepted" | "command.status" | "pong") => continue,
             Some("command.rejected")

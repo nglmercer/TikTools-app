@@ -31,6 +31,10 @@ const MAX_FRAME_BYTES: usize = 128 * 1024;
 const MAX_RESULT_BYTES: usize = 64 * 1024;
 const PING_EVERY: Duration = Duration::from_secs(20);
 const READY_TIMEOUT: Duration = Duration::from_secs(10);
+/// The relay socket dropped or sent something that is not a message.
+pub(crate) const RELAY_LOST: &str = "the relay connection was lost";
+/// The relay never answered the ticket with a `ready` frame.
+pub(crate) const RELAY_UNCONFIRMED: &str = "the relay did not confirm the session";
 const BACKOFF_MIN: Duration = Duration::from_secs(2);
 const BACKOFF_MAX: Duration = Duration::from_secs(60);
 
@@ -216,12 +220,9 @@ async fn session(
     let ticket = teams.issue_ticket(auth, host_id, device_id).await?;
     let (origin, _) = cloud_teams::credentials(auth).await?;
     let mut socket = connect_relay(&origin, &ticket).await?;
-    let ready = timeout(
-        READY_TIMEOUT,
-        next_json(&mut socket, "the relay did not confirm the session"),
-    )
-    .await
-    .map_err(|_| OperationError::unavailable("the relay did not confirm the session"))??;
+    let ready = timeout(READY_TIMEOUT, next_json(&mut socket, RELAY_UNCONFIRMED))
+        .await
+        .map_err(|_| OperationError::unavailable(RELAY_UNCONFIRMED))??;
     if ready.get("type").and_then(Value::as_str) != Some("ready")
         || ready.get("role").and_then(Value::as_str) != Some("host")
         || ready.get("hostId").and_then(Value::as_str) != Some(host_id)
@@ -241,11 +242,11 @@ async fn session(
             }
             _ = ping.tick() => {
                 socket.send(Message::Text(json!({"type": "ping"}).to_string().into())).await
-                    .map_err(|_| OperationError::unavailable("the relay connection was lost"))?;
+                    .map_err(|_| OperationError::unavailable(RELAY_LOST))?;
             }
             frame = socket.next() => {
                 let Some(frame) = frame else { return Ok(()) };
-                let frame = frame.map_err(|_| OperationError::unavailable("the relay connection was lost"))?;
+                let frame = frame.map_err(|_| OperationError::unavailable(RELAY_LOST))?;
                 match frame {
                     Message::Text(text) => {
                         if text.len() > MAX_FRAME_BYTES {
@@ -264,7 +265,7 @@ async fn session(
                     Message::Close(_) => return Ok(()),
                     Message::Ping(payload) => {
                         socket.send(Message::Pong(payload)).await
-                            .map_err(|_| OperationError::unavailable("the relay connection was lost"))?;
+                            .map_err(|_| OperationError::unavailable(RELAY_LOST))?;
                     }
                     Message::Pong(_) => {}
                     _ => return Err(OperationError::unavailable("the relay sent a binary frame")),
@@ -336,7 +337,7 @@ async fn confirm_pending(
                     .into(),
             ))
             .await
-            .map_err(|_| OperationError::unavailable("the relay connection was lost"))?;
+            .map_err(|_| OperationError::unavailable(RELAY_LOST))?;
     }
     Ok(())
 }
@@ -559,7 +560,7 @@ async fn send_result(
     socket
         .send(Message::Text(frame.to_string().into()))
         .await
-        .map_err(|_| OperationError::unavailable("the relay connection was lost"))
+        .map_err(|_| OperationError::unavailable(RELAY_LOST))
 }
 
 fn valid_command_id(value: &str) -> bool {
