@@ -424,6 +424,25 @@ async fn native_avatar_reaches_ui_points_and_room_tops() {
     assert!(saw_top, "room.stats must carry mapped top viewers");
 }
 
+/// The `hotkey.pressed` event type declared by the `hotkeys` plugin.
+fn hotkey_event_types() -> Value {
+    json!([{
+        "type": "hotkey.pressed",
+        "title": {"default": "Hotkey pressed"},
+        "source": {"kind": "plugin", "pluginId": "hotkeys"}
+    }])
+}
+
+/// The installed, enabled and available `hotkeys` plugin status.
+fn hotkey_plugins() -> Value {
+    json!([{
+        "descriptor": {"id": "hotkeys"},
+        "installed": true,
+        "enabled": true,
+        "available": true
+    }])
+}
+
 /// Automation snapshot with one enabled plugin-typed event (`hotkey.pressed`)
 /// that logs `key <data.key>`; the plugin is installed and enabled.
 fn plugin_hotkey_snapshot() -> serde_json::Value {
@@ -446,17 +465,8 @@ fn plugin_hotkey_snapshot() -> serde_json::Value {
             "actionIds": ["say-key"],
             "runMode": "all"
         }],
-        "eventTypes": [{
-            "type": "hotkey.pressed",
-            "title": {"default": "Hotkey pressed"},
-            "source": {"kind": "plugin", "pluginId": "hotkeys"}
-        }],
-        "plugins": [{
-            "descriptor": {"id": "hotkeys"},
-            "installed": true,
-            "enabled": true,
-            "available": true
-        }]
+        "eventTypes": hotkey_event_types(),
+        "plugins": hotkey_plugins()
     })
 }
 
@@ -1627,17 +1637,8 @@ fn hotkey_snapshot(action_type: &str, action_config: Value) -> Value {
             "actionIds": ["hotkey-action"],
             "runMode": "all"
         }],
-        "eventTypes": [{
-            "type": "hotkey.pressed",
-            "title": {"default": "Hotkey pressed"},
-            "source": {"kind": "plugin", "pluginId": "hotkeys"}
-        }],
-        "plugins": [{
-            "descriptor": {"id": "hotkeys"},
-            "installed": true,
-            "enabled": true,
-            "available": true
-        }]
+        "eventTypes": hotkey_event_types(),
+        "plugins": hotkey_plugins()
     })
 }
 
@@ -2907,19 +2908,14 @@ async fn external_ranking_contribution_is_idempotent_and_grouped_by_team() {
     let _ = std::fs::remove_dir_all(root);
 }
 
+/// A ranking over `custom.score` values (weight 1, top 10) for `creator` in
+/// `room`, the leaderboard the challenge tests are won by.
 #[cfg(feature = "persistence")]
-#[tokio::test]
-async fn leaderboard_challenge_selects_ranking_leader_above_target() {
-    use tiktools_aggregation::model::{Definition as Ranking, SourceRule};
-    use tiktools_competitions::{
-        CompetitionKind, Definition, SelectionMode, TiePolicy, Transition,
-    };
-    let (core, root) = private_core("leaderboard-challenge");
-    let suffix = now_millis();
-    let ranking = format!("challenge-rank-{suffix}");
-    core.ranking_create(Ranking {
+fn score_ranking(id: String) -> tiktools_aggregation::model::Definition {
+    use tiktools_aggregation::model::{Definition, SourceRule};
+    Definition {
         schema_version: 1,
-        id: ranking.clone(),
+        id,
         creator_id: "creator".into(),
         room_id: "room".into(),
         group_by: Default::default(),
@@ -2934,8 +2930,19 @@ async fn leaderboard_challenge_selects_ranking_leader_above_target() {
             enabled: true,
             gift_multipliers: Default::default(),
         }],
-    })
-    .unwrap();
+    }
+}
+
+#[cfg(feature = "persistence")]
+#[tokio::test]
+async fn leaderboard_challenge_selects_ranking_leader_above_target() {
+    use tiktools_competitions::{
+        CompetitionKind, Definition, SelectionMode, TiePolicy, Transition,
+    };
+    let (core, root) = private_core("leaderboard-challenge");
+    let suffix = now_millis();
+    let ranking = format!("challenge-rank-{suffix}");
+    core.ranking_create(score_ranking(ranking.clone())).unwrap();
     let challenge = |id: String, target| Definition {
         schema_version: 1,
         id,
@@ -3074,7 +3081,6 @@ async fn committed_point_awards_feed_points_rankings() {
 #[cfg(feature = "persistence")]
 #[tokio::test]
 async fn user_winner_action_is_queued_once_for_a_challenge() {
-    use tiktools_aggregation::model::{Definition as Ranking, SourceRule};
     use tiktools_competitions::{
         CompetitionKind, Definition, SelectionMode, TiePolicy, Transition, WinnerAction,
     };
@@ -3087,25 +3093,7 @@ async fn user_winner_action_is_queued_once_for_a_challenge() {
         }),
     )
     .unwrap();
-    core.ranking_create(Ranking {
-        schema_version: 1,
-        id: "score".into(),
-        creator_id: "creator".into(),
-        room_id: "room".into(),
-        group_by: Default::default(),
-        window: Default::default(),
-        user_limits: None,
-        capacity: 10,
-        limit: 10,
-        sources: vec![SourceRule {
-            source: "custom.score".into(),
-            metric: "value".into(),
-            weight: 1,
-            enabled: true,
-            gift_multipliers: Default::default(),
-        }],
-    })
-    .unwrap();
+    core.ranking_create(score_ranking("score".into())).unwrap();
     core.competition_create(Definition {
         schema_version: 1,
         id: "challenge".into(),
