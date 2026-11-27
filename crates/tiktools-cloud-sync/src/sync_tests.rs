@@ -509,6 +509,38 @@ async fn hold_write(
     run
 }
 
+/// Every "take the cloud copy" choice must fail locally, leave the stored
+/// state exactly as `before`, keep the key uncertain and keep sync blocked.
+async fn assert_take_cloud_refused(
+    sync: &SyncCoordinator,
+    review: &crate::V1UncertainReview,
+    store: &cloud_client::StateStore,
+    before: &cloud_client::StateSnapshot,
+) {
+    for choice in [
+        crate::V1RecoveryChoice::TakeCloudIfUnchanged,
+        crate::V1RecoveryChoice::TakeCloudIncludingNewer,
+    ] {
+        assert!(matches!(
+            sync.resolve_uncertain_v1(review, choice).await,
+            Err(SyncCoordError::Local(_))
+        ));
+        let after = store.load().unwrap().unwrap();
+        assert_eq!(after.generation, before.generation);
+        assert_eq!(after.state, before.state);
+        assert_eq!(
+            sync.uncertain_v1_keys().await.unwrap(),
+            vec!["acme.recovery"]
+        );
+    }
+    assert!(matches!(
+        sync.sync_now().await,
+        Err(SyncCoordError::Protocol(
+            crate::ProtocolFenceError::UncertainV1
+        ))
+    ));
+}
+
 /// Holds the next export response: arms the gate, starts `operation` and returns
 /// once the server has the request, so the test can change state while it waits.
 /// Release it with `mock.held_export.release.notify_one()`.
@@ -4328,28 +4360,7 @@ async fn uncertain_take_cloud_is_fail_closed_until_product_apply_is_durable() {
         review.remote().unwrap().value.as_ref().unwrap().version,
         "1.2.3"
     );
-    for choice in [
-        crate::V1RecoveryChoice::TakeCloudIfUnchanged,
-        crate::V1RecoveryChoice::TakeCloudIncludingNewer,
-    ] {
-        assert!(matches!(
-            sync.resolve_uncertain_v1(&review, choice).await,
-            Err(SyncCoordError::Local(_))
-        ));
-        let after = store.load().unwrap().unwrap();
-        assert_eq!(after.generation, before.generation);
-        assert_eq!(after.state, before.state);
-        assert_eq!(
-            sync.uncertain_v1_keys().await.unwrap(),
-            vec!["acme.recovery"]
-        );
-    }
-    assert!(matches!(
-        sync.sync_now().await,
-        Err(SyncCoordError::Protocol(
-            crate::ProtocolFenceError::UncertainV1
-        ))
-    ));
+    assert_take_cloud_refused(&sync, &review, &store, &before).await;
     mock.stop();
 }
 
@@ -4370,28 +4381,7 @@ async fn uncertain_take_absent_cloud_preserves_marker_and_local_selection() {
 
     let review = sync.review_uncertain_v1("acme.recovery").await.unwrap();
     assert!(review.remote().is_none());
-    for choice in [
-        crate::V1RecoveryChoice::TakeCloudIfUnchanged,
-        crate::V1RecoveryChoice::TakeCloudIncludingNewer,
-    ] {
-        assert!(matches!(
-            sync.resolve_uncertain_v1(&review, choice).await,
-            Err(SyncCoordError::Local(_))
-        ));
-        let after = store.load().unwrap().unwrap();
-        assert_eq!(after.generation, before.generation);
-        assert_eq!(after.state, before.state);
-        assert_eq!(
-            sync.uncertain_v1_keys().await.unwrap(),
-            vec!["acme.recovery"]
-        );
-    }
-    assert!(matches!(
-        sync.sync_now().await,
-        Err(SyncCoordError::Protocol(
-            crate::ProtocolFenceError::UncertainV1
-        ))
-    ));
+    assert_take_cloud_refused(&sync, &review, &store, &before).await;
     mock.stop();
 }
 
