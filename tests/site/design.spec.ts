@@ -45,15 +45,22 @@ test('demo toolbar shares real controls, contains menus and fits desktop and mob
   await page.screenshot({ path: '/tmp/tiktools-docs-design-demo-mobile.png' });
 });
 
-test('the landing lesson switches demo sections and docks the demo controls in the bar', async ({ page }) => {
+test('the landing tour jumps between real views and docks the demo controls in the bar', async ({ page }) => {
   await page.goto('');
-  const picker = page.getByTestId('stage-section');
-  await expect(picker).toHaveAttribute('aria-expanded', 'false');
-  await picker.click();
-  await expect(page.getByRole('menuitemcheckbox')).toHaveCount(5);
-  await page.getByRole('menuitemcheckbox', { name: experienceCopy.en.topics.connection.title, exact: true }).click();
-  await expect(page.locator('.product-stage__lesson h3')).toHaveText(experienceCopy.en.topics.connection.title);
-  await expect(page.locator('.product-stage iframe')).toHaveAttribute('src', /scenario=connection/);
+  const frame = page.locator('.product-stage iframe');
+  await expect(frame).toHaveAttribute('src', /showcase=1/);
+  await expect(page.locator('.product-stage__step')).toHaveCount(5);
+  await expect(page.getByTestId('stage-tour-toggle')).toHaveAttribute('aria-pressed', 'true');
+  const source = await frame.getAttribute('src');
+  await page.getByTestId('stage-step-points').click();
+  await expect(page.locator('.product-stage__lesson h3')).toHaveText(experienceCopy.en.topics.points.title);
+  await expect(page.getByTestId('stage-step-points')).toHaveAttribute('aria-current', 'step');
+  await expect(page.frameLocator('.product-stage iframe').locator('.points-leaderboard')).toBeVisible();
+  await expect(page.locator('.product-stage__guide')).toHaveAttribute('href', /\/user\/points\/rules\.html$/);
+  // Jumping between steps must never reload the demo.
+  expect(await frame.getAttribute('src')).toBe(source);
+  await page.getByTestId('stage-tour-toggle').click();
+  await expect(page.getByTestId('stage-tour-toggle')).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('.product-stage__bar .demo-frame__overlay a')).toBeVisible();
   await expect(page.locator('.product-stage__bar [data-testid="frame-zoom"]')).toBeVisible();
   await expect(page.locator('.product-stage__bar .compact-select__value')).toHaveText(/^\d+%$/);
@@ -92,10 +99,8 @@ test('the embedded demo hands vertical scroll back to the landing page', async (
   expect(box).not.toBeNull();
   // Aim at the visible top of the frame: its scaled canvas is taller than the viewport.
   await page.mouse.move(box!.x + box!.width / 2, box!.y + 80);
-  // The first wheel fills the demo's own feed scroller; Chromium only hands
-  // the remaining delta to the article on a subsequent wheel event.
+  // Chromium hands the delta to the article once the frame has nothing left to scroll.
   await page.mouse.wheel(0, 400);
-  await expect.poll(() => frame.locator('.live-feed__stream').evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   await page.mouse.wheel(0, 400);
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 });

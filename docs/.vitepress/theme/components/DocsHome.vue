@@ -5,7 +5,11 @@ import { documentLocale } from '../../../locales.ts';
 import { experienceCopy } from '../../../experience/copy.ts';
 import type { Topic } from '../../../experience/types.ts';
 import DemoFrame from './DemoFrame.vue';
-import BaseIconSelect from '../../../../src/web/shared/ui/menu/BaseIconSelect.vue';
+import { toolbarCopy } from '../../../../src/web/demo/toolbar-copy.ts';
+import type { DemoFrameState, ShowcaseFrameState } from '../../../../src/web/demo/frame-messages.ts';
+import IconEye from '../../../../src/web/shared/ui/icon/icons/IconEye.vue';
+import IconPlay from '../../../../src/web/shared/ui/icon/icons/IconPlay.vue';
+import IconPause from '../../../../src/web/shared/ui/icon/icons/IconPause.vue';
 import { landingCopy } from '../../../experience/landing/index.ts';
 import IconChat from '../../../../src/web/shared/ui/icon/icons/IconChat.vue';
 import IconLink from '../../../../src/web/shared/ui/icon/icons/IconLink.vue';
@@ -22,18 +26,26 @@ const copy = computed(() => experienceCopy[locale.value]);
 const landing = computed(() => landingCopy[locale.value]);
 const topics: Topic[] = ['connection', 'automation', 'overlays', 'points'];
 type Section = 'feed' | Topic;
-const sections: Section[] = ['feed', 'connection', 'automation', 'overlays', 'points'];
-const icons = { feed: IconChat, connection: IconLink, automation: IconFlow, overlays: IconLayers, points: IconCoins };
+type StepId = 'feed' | 'inspector' | Exclude<Topic, 'connection'>;
+// The guided tour visits these real views in order; connection stays a guide, not a tour step.
+const steps: StepId[] = ['feed', 'inspector', 'automation', 'overlays', 'points'];
+const icons = { feed: IconChat, inspector: IconEye, connection: IconLink, automation: IconFlow, overlays: IconLayers, points: IconCoins };
 const guides: Record<Topic, string> = { connection: 'first-live', automation: 'automations/first-rule', overlays: 'overlays/', points: 'points/rules' };
-const active = ref<Section>('feed');
-const activeTitle = computed(() => active.value === 'feed' ? landing.value.feed : copy.value.topics[active.value].title);
-const activeText = computed(() => active.value === 'feed' ? landing.value.stageHint : copy.value.topics[active.value].task);
-const sectionLabel = (section: Section) => section === 'feed' ? landing.value.feed : copy.value.topics[section].title;
-const sectionOptions = computed(() => sections.map((section) => ({ value: section, label: sectionLabel(section), icon: icons[section] })));
-const sectionNumber = computed(() => String(sections.indexOf(active.value) + 1).padStart(2, '0'));
-const guideHref = (section: Section) => section === 'feed'
+const tour = ref<InstanceType<typeof DemoFrame> | null>(null);
+const showcase = ref<ShowcaseFrameState>({ step: 0, count: steps.length, paused: false, done: false });
+const activeStep = computed<StepId>(() => steps[Math.min(showcase.value.step, steps.length - 1)]!);
+const stepTitle = (step: StepId) => step === 'feed' ? landing.value.feed : step === 'inspector' ? landing.value.inspector : copy.value.topics[step].title;
+const activeTitle = computed(() => stepTitle(activeStep.value));
+const activeText = computed(() => activeStep.value === 'feed' ? landing.value.stageHint : activeStep.value === 'inspector' ? landing.value.inspectorHint : copy.value.topics[activeStep.value].task);
+const player = computed(() => toolbarCopy[locale.value]);
+const stepNumber = computed(() => String(showcase.value.step + 1).padStart(2, '0'));
+const stepCount = computed(() => String(showcase.value.count).padStart(2, '0'));
+const guideHref = (section: Section | StepId) => section === 'feed' || section === 'inspector'
   ? withBase(`/${locale.value}/user/live/feed.html`)
   : withBase(`/${locale.value}/user/${guides[section]}${guides[section].endsWith('/') ? '' : '.html'}`);
+function onTourState(state: DemoFrameState) { if (state.showcase) showcase.value = state.showcase; }
+const goto = (index: number) => tour.value?.command({ action: 'showcase-goto', value: index });
+const toggleTour = () => tour.value?.command({ action: showcase.value.paused ? 'showcase-play' : 'showcase-pause' });
 </script>
 
 <template>
@@ -58,30 +70,41 @@ const guideHref = (section: Section) => section === 'feed'
         </div>
         <div class="product-stage__aside">
           <div class="product-stage__controls">
-            <BaseIconSelect
-              class="product-stage__sections"
-              :model-value="active"
-              :options="sectionOptions"
-              :label="copy.interactive"
-              placement="bottom-end"
-              test-id="stage-section"
-              @update:model-value="active = $event as Section"
-            />
+            <button
+              type="button"
+              class="product-stage__tour-toggle"
+              data-testid="stage-tour-toggle"
+              :aria-label="showcase.paused ? player.play : player.pause"
+              :title="showcase.paused ? player.play : player.pause"
+              :aria-pressed="!showcase.paused"
+              @click="toggleTour"
+            ><IconPlay v-if="showcase.paused" /><IconPause v-else /></button>
             <a
               class="product-stage__guide"
-              :href="guideHref(active)"
+              :href="guideHref(activeStep)"
             >{{ copy.readGuide }} <span aria-hidden="true">→</span></a>
           </div>
-          <p class="product-stage__context">{{ sectionNumber }} / 05 · {{ copy.fictional }}</p>
+          <p class="product-stage__context">{{ stepNumber }} / {{ stepCount }} · {{ copy.fictional }}</p>
         </div>
       </header>
+      <ol class="product-stage__steps" :aria-label="copy.interactive">
+        <li v-for="(step, index) in steps" :key="step">
+          <button
+            type="button"
+            class="product-stage__step"
+            :aria-current="index === showcase.step ? 'step' : undefined"
+            :data-testid="`stage-step-${step}`"
+            @click="goto(index)"
+          ><component :is="icons[step]" aria-hidden="true" /><span>{{ stepTitle(step) }}</span></button>
+        </li>
+      </ol>
       <div class="product-stage__window">
         <div class="product-stage__bar">
-          <span class="product-stage__brand" :title="`demo:${active}`">TikTools<small class="product-stage__demo-tag">demo:{{ active }}</small></span>
+          <span class="product-stage__brand" title="demo:showcase">TikTools<small class="product-stage__demo-tag">demo:showcase</small></span>
           <div id="product-stage-tools" class="product-stage__tools"></div>
         </div>
         <div class="product-stage__body">
-          <DemoFrame :key="`${locale}-${active}`" :scenario="active" :locale="locale" :panel="active" :title="activeTitle" :initial-events="active === 'feed' ? 9 : undefined" autoload minimal />
+          <DemoFrame :key="locale" ref="tour" scenario="feed" :locale="locale" :title="landing.feed" showcase autoload minimal @state="onTourState" />
         </div>
       </div>
     </section>

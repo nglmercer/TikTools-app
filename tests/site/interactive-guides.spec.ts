@@ -96,17 +96,17 @@ for (const locale of docLocales) {
     await expect(page.locator('iframe')).toHaveCount(1);
     const frame = page.frameLocator('.product-stage iframe');
     await expect(frame.locator('.live-feed')).toContainText('Hello TikTools!');
-    await expect(frame.getByTestId('demo-event-count')).toContainText('9 / 300');
-    expect(new Set(await frame.locator('.event-card__author').evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label')))).size).toBe(6);
+    await expect(page.locator('.product-stage__step')).toHaveCount(5);
+    // Events arrive by themselves; the first gift carries the same-origin Rose image.
     const rose = frame.locator('img.event-card__gift').first();
     await rose.scrollIntoViewIfNeeded();
     await expect(rose).toHaveAttribute('alt', 'Rose');
     await expect.poll(() => rose.evaluate(node => (node as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
     expect(new URL((await rose.getAttribute('src'))!,page.url()).origin).toBe(new URL(baseURL!).origin);
-    await frame.locator('.event-card__author[aria-label*="@sofia"]').first().click();
-    await expect(frame.locator('.viewer-profile__handle')).toHaveText('@sofia');
-    await expect(frame.locator('.viewer-profile__stat dd')).toHaveText(['65','12','9','15','1']);
     await expect(page.locator('.product-stage__guide')).toHaveAttribute('href', /\/user\/live\/feed\.html$/);
+    await page.getByTestId('stage-step-overlays').click();
+    await expect(frame.locator('[data-guide="overlay-preview"]')).toBeVisible();
+    await expect(page.locator('.product-stage__guide')).toHaveAttribute('href', /\/user\/overlays\/$/);
     const source = await page.locator('.product-stage iframe').getAttribute('src');
     await page.locator('.docs-home__actions a').first().click();
     await expect(page).toHaveURL(/#playground$/);

@@ -22,6 +22,7 @@ try {
   document.documentElement.lang = options.locale;
   if (options.embed) document.documentElement.dataset.demoPanel = options.embed;
   if (options.framed) document.documentElement.dataset.demoFrame = 'true';
+  if (options.showcase) document.documentElement.dataset.demoShowcase = options.record ? 'record' : 'true';
   const { bootDemo } = await import('./mount-demo.ts');
   await bootDemo(options, storage);
 } catch (error) {

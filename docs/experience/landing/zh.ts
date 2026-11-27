@@ -3,6 +3,8 @@ import type { LandingCopy } from './types.ts';
 const copy: LandingCopy = {
   stageHint: '观看示例事件到达，并打开观众资料。',
   feed: '实时活动',
+  inspector: '观众检查器',
+  inspectorHint: '打开任意观众，查看其资料、积分和礼物。',
   featuresEyebrow: '围绕你的直播而设计',
   featuresTitle: '让观众的每次互动都有回应。',
   featuresDescription: '连接直播、自动响应、设计 OBS 叠加层并奖励观众。在这里探索控件，再跟随指南完成真实配置。',

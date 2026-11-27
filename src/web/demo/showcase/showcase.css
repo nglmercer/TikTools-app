@@ -1,0 +1,167 @@
+/* Tour layer: one spotlight that glides between targets, a tooltip and a cursor. Nothing here loops forever. */
+.showcase {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+  --showcase-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.showcase__spot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  border: 2px solid var(--color-accent, #4d63e0);
+  border-radius: 10px;
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.32);
+  opacity: 0;
+  transition:
+    transform 520ms var(--showcase-ease),
+    width 520ms var(--showcase-ease),
+    height 520ms var(--showcase-ease),
+    opacity 240ms ease-out;
+}
+
+.showcase__tip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--color-accent, #4d63e0);
+  color: #fff;
+  font: 600 13px/1.3 var(--font-family, system-ui, sans-serif);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+  opacity: 0;
+  transition:
+    transform 520ms var(--showcase-ease),
+    opacity 240ms ease-out;
+}
+
+.showcase[data-on='true'] .showcase__spot,
+.showcase[data-on='true'] .showcase__tip {
+  opacity: 1;
+}
+
+.showcase__cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  opacity: 0;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
+  transition: opacity 200ms ease-out;
+  transform-origin: 4px 2px;
+}
+
+.showcase__cursor path {
+  fill: #fff;
+  stroke: #14161c;
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+.showcase__cursor[data-visible='true'] {
+  opacity: 1;
+}
+
+.showcase__ripple {
+  position: absolute;
+  left: -14px;
+  top: -14px;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--color-accent, #4d63e0);
+  border-radius: 50%;
+  opacity: 0;
+}
+
+.showcase[data-still='true'] .showcase__spot,
+.showcase[data-still='true'] .showcase__tip,
+.showcase[data-still='true'] .showcase__cursor {
+  transition: none;
+}
+
+/* The tour runs on a throwaway in-memory host; the app's persistence notice would only distract. */
+html[data-demo-showcase] .automation-edit-notice__toast {
+  display: none;
+}
+
+/* Motion for the real app while the showcase runs. These only add an entrance; the components are untouched. */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-demo-showcase] .event-card {
+    transition:
+      opacity 240ms ease-out,
+      transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  html[data-demo-showcase] .feed-inspector {
+    transition:
+      opacity 260ms ease-out,
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  html[data-demo-showcase] .feed-inspector__body > * {
+    transition: opacity 200ms ease-out;
+  }
+
+  @starting-style {
+    html[data-demo-showcase] .event-card {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    html[data-demo-showcase] .feed-inspector {
+      opacity: 0;
+      transform: translateX(14px);
+    }
+
+    html[data-demo-showcase] .feed-inspector__body > * {
+      opacity: 0;
+    }
+  }
+
+  html[data-showcase-entering] .app-layout__content {
+    animation: showcase-view-in 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Cross-fade between views while the director navigates; the tour layer stays out of the snapshot. */
+  .showcase {
+    view-transition-name: showcase-layer;
+  }
+
+  ::view-transition-group(showcase-layer) {
+    animation: none;
+  }
+
+  /* Only the live layer is shown; the outgoing snapshot would double the spotlight and tooltip. */
+  ::view-transition-old(showcase-layer) {
+    display: none;
+  }
+
+  ::view-transition-new(showcase-layer) {
+    animation: none;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 320ms;
+    animation-timing-function: ease-in-out;
+  }
+}
+
+@keyframes showcase-view-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

@@ -38,7 +38,11 @@ export function parseDemoOptions(search: string) {
   const framed = params.get('framed') === '1';
   if (params.has('preview') && params.get('preview') !== '1') throw new Error('Invalid preview presentation.');
   const preview = params.get('preview') === '1';
-  const scenario = params.get('scenario') ?? 'connection';
+  if (params.has('showcase') && params.get('showcase') !== '1') throw new Error('Invalid showcase presentation.');
+  const showcase = params.get('showcase') === '1';
+  if (params.has('record') && (params.get('record') !== '1' || !showcase)) throw new Error('Recording requires the showcase.');
+  const record = params.get('record') === '1';
+  const scenario = params.get('scenario') ?? (showcase ? 'feed' : 'connection');
   const locale = normalizeLocale(params.get('locale') ?? 'es');
   const embed = params.get('embed');
   if (embed !== null && !Object.hasOwn(embeddedPanels, embed)) throw new Error('Invalid embedded panel.');
@@ -51,5 +55,6 @@ export function parseDemoOptions(search: string) {
   const tour = params.get('tour');
   if (!isScenario(scenario) || !locale || !validDemoRoute(route) || !/^[a-zA-Z0-9_-]{1,64}$/.test(instance) || (tour !== null && !Object.hasOwn(tourRegistry, tour))) throw new Error('Invalid demo parameters.');
   if (panel && (route !== embeddedPanels[panel] || tour)) throw new Error('Embedded panels require their focused route without a tour.');
-  return { scenario, locale, route, instance, tour, embed: panel, initialEvents, framed, preview };
+  if (showcase && (panel || tour || preview || scenario !== 'feed')) throw new Error('The showcase runs on the feed scenario without a tour, panel or preview.');
+  return { scenario, locale, route, instance, tour, embed: panel, initialEvents, framed, preview, showcase, record };
 }

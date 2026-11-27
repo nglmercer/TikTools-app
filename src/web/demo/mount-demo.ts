@@ -24,6 +24,8 @@ import { useAutomationStore } from '@/entities/automation/model/automation-store
 import type { BuiltinAppTab } from '@/types.ts';
 import { parseFrameCommand, type ConnectionCase, type DemoFrameState } from './frame-messages.ts';
 import { demoPreviewUrl } from './preview-url.ts';
+import { mountShowcase, type ShowcaseHandle } from './showcase/mount-showcase.ts';
+import type { ShowcaseFrameState } from './frame-messages.ts';
 export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, storage: { clear(): void }) {
   const host = createDemoHost(options.scenario, options.locale);
   configureAppClock(() => DEMO_AT + host.diagnostics().ticks * 1000);
@@ -33,11 +35,13 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   if (options.scenario === 'diagnostics') recordFailure();
   const toolbar = document.querySelector('#demo-controls')!;
   const toolbarState = reactive({ paused: host.paused, busy: false, events: 0, status: 'ready' as PlaybackState['status'], guideState: 'idle', failure: false, ready: false, metrics: '', connectionCase: 'normal' as 'normal' | 'offline' | 'auth', recommendedTour: scenarioTour(options.scenario), showStep: options.scenario === 'feed', showCases: options.scenario === 'connection' });
+  let showcaseState: ShowcaseFrameState | undefined;
+  let showcase: ShowcaseHandle | undefined;
   function publishFrameState() {
     if (!options.framed || window.parent === window) return;
     const state: DemoFrameState = { type: 'tiktools.demo.state', instance: options.instance, ready: toolbarState.ready,
       paused: toolbarState.paused, busy: toolbarState.busy || ['preparing', 'active'].includes(toolbarState.guideState),
-      events: toolbarState.events, status: toolbarState.status, connectionCase: toolbarState.connectionCase };
+      events: toolbarState.events, status: toolbarState.status, connectionCase: toolbarState.connectionCase, ...(showcaseState ? { showcase: showcaseState } : {}) };
     window.parent.postMessage(state, location.origin);
   }
   const playback = createDemoPlayback(host, client, (state) => { Object.assign(toolbarState, state); publishFrameState(); });
@@ -136,11 +140,23 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   toolbarState.ready = true;
   if (options.embed === 'feed') for (let index = 0; index < options.initialEvents; index += 1) await playback.step();
   if (options.tour) launchTour(options.tour);
+  if (options.showcase && workspaceRouter) {
+    showcase = mountShowcase({
+      router: workspaceRouter, record: options.record, viewTransitions: !options.framed,
+      stepEvent: () => playback.step(),
+      locale: options.locale,
+      changed(state) { showcaseState = state; publishFrameState(); },
+    });
+    showcase.start();
+  }
   function onFrameCommand(event: MessageEvent) {
     if (!options.framed || !toolbarState.ready || event.origin !== location.origin || event.source !== window.parent) return;
     const command = parseFrameCommand(event.data, options.instance);
     if (!command) return;
-    if (command.action === 'reset') resetDemo();
+    if (command.action === 'showcase-play') showcase?.play();
+    else if (command.action === 'showcase-pause') showcase?.pause();
+    else if (command.action === 'showcase-goto') showcase?.goto(command.value);
+    else if (command.action === 'reset') resetDemo();
     else if (command.action === 'theme') applyAppTheme(command.value);
     else if (command.action === 'connection-case') void changeConnectionCase(command.value);
     else if (!toolbarState.busy && !['preparing', 'active'].includes(toolbarState.guideState)) {
@@ -154,7 +170,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   // Observable state has no mutators or test-only globals, and is useful for support diagnostics.
   const metricsTimer = setInterval(() => { toolbarState.paused = host.paused; toolbarState.metrics = JSON.stringify({ host: host.diagnostics(), client: client.diagnostics?.() }); publishFrameState(); }, 500);
   let disposed = false;
-  function cleanup() { if (disposed) return; disposed = true; tour?.stop('disposed'); stopTour(); playback.dispose(); clearInterval(timer); clearInterval(metricsTimer); toolbarApp.unmount(); client.detach(); host.dispose(); configureAppClock(undefined); window.removeEventListener('message', onFrameCommand); window.removeEventListener('pagehide', onPageHide); window.removeEventListener('pageshow', restore); }
+  function cleanup() { if (disposed) return; disposed = true; showcase?.dispose(); tour?.stop('disposed'); stopTour(); playback.dispose(); clearInterval(timer); clearInterval(metricsTimer); toolbarApp.unmount(); client.detach(); host.dispose(); configureAppClock(undefined); window.removeEventListener('message', onFrameCommand); window.removeEventListener('pagehide', onPageHide); window.removeEventListener('pageshow', restore); }
   function dispose() { if (disposed) return; cleanup(); app.unmount(); }
   function resetDemo() {
     // Stop pending preference writes before clearing this instance's storage.

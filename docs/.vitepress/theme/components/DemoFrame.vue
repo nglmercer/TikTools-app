@@ -15,7 +15,8 @@ import IconChevronRight from '../../../../src/web/shared/ui/icon/icons/IconChevr
 import IconPopout from '../../../../src/web/shared/ui/icon/icons/IconPopout.vue';
 import BaseCompactSelect from '../../../../src/web/shared/ui/combo-box/BaseCompactSelect.vue';
 
-const props = defineProps<{ scenario: string; locale?: string; route?: string; tour?: string; title: string; panel?: 'connection' | 'feed' | 'automation' | 'points' | 'overlays'; autoload?: boolean; minimal?: boolean; initialEvents?: number; scale?: 0.25 | 0.5 | 0.75 | 1; viewportHeight?: number }>();
+const props = defineProps<{ scenario: string; locale?: string; route?: string; tour?: string; title: string; panel?: 'connection' | 'feed' | 'automation' | 'points' | 'overlays'; autoload?: boolean; minimal?: boolean; showcase?: boolean; initialEvents?: number; scale?: 0.25 | 0.5 | 0.75 | 1; viewportHeight?: number }>();
+const emit = defineEmits<{ state: [DemoFrameState] }>();
 const { lang, isDark } = useData();
 const ready = ref(false);
 const mounted = ref(false);
@@ -29,6 +30,7 @@ const zoomLevels = [0.25, 0.5, 0.75, 1];
 const runtime = ref<DemoFrameState | null>(null);
 const logicalHeight = computed(() => {
   if (props.viewportHeight) return props.viewportHeight;
+  if (props.showcase) return 720;
   if (!props.minimal && props.panel === 'connection') return 480;
   if (props.minimal && measuredHeight.value) return Math.max(400, Math.min(1200, measuredHeight.value));
   return 800;
@@ -40,7 +42,8 @@ let observer: ResizeObserver | undefined;
 const instance = ref(`docs-${useId().replaceAll(/[^a-zA-Z0-9_-]/g, '_')}`);
 /** Fit the landing frame to its content instead of reserving a fixed 800px canvas. */
 function measureHeight(): void {
-  if (!props.minimal) return;
+  // The showcase changes views, so its frame keeps one fixed 16:9 canvas instead of fitting to content.
+  if (!props.minimal || props.showcase) return;
   const doc = iframe.value?.contentDocument;
   if (!doc) return;
   const content = doc.querySelector('.app-layout__content');
@@ -65,6 +68,7 @@ function measureHeight(): void {
 function receiveState(event: MessageEvent) {
   if (event.origin !== location.origin || event.source !== iframe.value?.contentWindow || !isDemoFrameState(event.data)) return;
   runtime.value = event.data;
+  emit('state', event.data);
   measureHeight();
 }
 onMounted(() => {
@@ -97,15 +101,17 @@ const url = computed(() => {
   if (props.tour) params.set('tour', props.tour);
   if (props.panel) { params.set('embed', props.panel); params.delete('tour'); }
   if (props.initialEvents !== undefined) params.set('events', String(props.initialEvents));
+  if (props.showcase) { params.set('showcase', '1'); params.delete('tour'); params.delete('embed'); params.delete('events'); }
   const valid = parseDemoOptions(params.toString());
   return `${withBase('/demo/')}?${params}${valid.route ? `#${valid.route}` : ''}`;
 });
-const fullUrl = computed(() => { const value = url.value.split('#'); const clean = new URLSearchParams(value[0]!.split('?')[1]); clean.delete('embed'); clean.delete('instance'); clean.delete('events'); clean.delete('framed'); clean.delete('theme'); return `${withBase('/demo/')}?${clean}${value[1] ? `#${value[1]}` : ''}`; });
+const fullUrl = computed(() => { const value = url.value.split('#'); const clean = new URLSearchParams(value[0]!.split('?')[1]); clean.delete('embed'); clean.delete('showcase'); clean.delete('instance'); clean.delete('events'); clean.delete('framed'); clean.delete('theme'); return `${withBase('/demo/')}?${clean}${value[1] ? `#${value[1]}` : ''}`; });
 function command(action: FrameAction) {
   if (!runtime.value?.ready) return;
   iframe.value?.contentWindow?.postMessage({ type: 'tiktools.demo.command', instance: runtime.value.instance, ...action }, location.origin);
   if (action.action === 'reset') { ready.value = false; runtime.value = null; }
 }
+defineExpose({ command });
 watch([() => runtime.value?.ready, isDark], ([frameReady, dark]) => {
   if (frameReady) command({ action: 'theme', value: dark ? 'dark' : 'light' });
 });

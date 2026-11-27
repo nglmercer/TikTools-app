@@ -53,5 +53,6 @@ export async function runSiteTask(namespace: 'docs' | 'demo' | 'site', args: str
     await runner.script('assemble-site.ts');
     await runner.script('check-site.ts');
   } else if (action === 'preview') await runner.script('preview-site.ts');
-  else throw new Error('Expected site dev|build|preview.');
+  else if (action === 'record-intro') await runner.script('record-intro.ts');
+  else throw new Error('Expected site dev|build|preview|record-intro.');
 }
