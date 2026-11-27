@@ -23,15 +23,15 @@ test('feed rows stay badge-free and open details in the shared panel', async ({ 
     },
   });
 
-  const row = page.locator('.event-row').first();
+  const row = page.locator('.event-card').first();
   await expect(row).toBeVisible();
   // Level and points are details, not row decoration.
   await expect(row.locator('.tt-badge-level')).toHaveCount(0);
   await expect(row.locator('.tt-points-badge')).toHaveCount(0);
   // The timestamp is always visible, even when points were earned.
-  await expect(row.locator('.event-row__time')).toBeVisible();
+  await expect(row.locator('.event-card__time')).toBeVisible();
 
-  await row.locator('.event-row__content').click();
+  await row.locator('.event-card__content').click();
   await expect(page.locator('.event-details')).toBeVisible();
   await expect(page.locator('.event-details')).toContainText('Level');
   await expect(page.locator('.event-details')).toContainText(t('feed.details.points'));
@@ -54,7 +54,7 @@ test('the avatar opens the user profile in the same panel', async ({ page }) => 
     event: { kind: 'chat', author: 'alice', nickname: 'Alice', text: 'hola', msgId: 'aside-chat-1' },
   });
 
-  await page.locator('.event-row').first().locator('.event-row__author').click();
+  await page.locator('.event-card').first().locator('.event-card__author').click();
   await expect(page.locator('.feed-inspector .viewer-profile')).toBeVisible();
   await expect(page.locator('.feed-inspector')).toContainText('@alice');
 
