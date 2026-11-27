@@ -31,14 +31,18 @@ test('100 actual Vue root remounts return listeners, timers and DOM to baseline'
     await new Promise<void>((resolve, reject) => { file.on('error', reject); file.end(resolve); });
     await testInfo.attach(name, { path, contentType: 'application/json' });
   };
-  const diagnostics = () => page.evaluate(() => {
+  // A remount removes the old root's diagnostics before the new root publishes its own.
+  const diagnostics = async () => {
+    await page.waitForFunction(() => typeof (window as unknown as Record<string, unknown>)['__tiktools_frontend_diagnostics__'] === 'function');
+    return page.evaluate(() => {
     const scope = window as unknown as { __tiktools_frontend_diagnostics__(): {
       domNodes: number; ownedTimers: number; iframeCount: number;
       control: { pending: number; topicSubscriptions: number; pushSubscriptions: number };
-      live: { frames: number; staged: number };
+      live: { frames: number };
     } };
     return scope.__tiktools_frontend_diagnostics__();
-  });
+    });
+  };
   await expect.poll(async () => (await diagnostics()).control.pending).toBe(0);
   const baseline = await diagnostics();
   await snapshot('warmup');
@@ -58,7 +62,6 @@ test('100 actual Vue root remounts return listeners, timers and DOM to baseline'
   expect(final.ownedTimers).toBe(0);
   expect(final.iframeCount).toBe(0);
   expect(final.live.frames).toBe(0);
-  expect(final.live.staged).toBe(0);
   await testInfo.attach('diagnostics', { body: JSON.stringify({ baseline, final }), contentType: 'application/json' });
   await assertNoUnhandledCalls(page);
   capture.assertClean();
@@ -91,7 +94,8 @@ test('100 Feed to Plugins navigation cycles actually mount both views and releas
     }).__tiktools_benchmark_controls__.setTab('plugins'));
     await expect(page.locator('.plugins-page')).toBeVisible();
     await expect(page.locator('.live-feed__stream')).toHaveCount(0);
-    expect((await read()).live.presentationActive).toBe(false);
+    // Visibility gating is retired: streams stay active on every tab so no chat history is skipped.
+    expect((await read()).live.presentationActive).toBe(true);
     await page.evaluate(() => (window as unknown as {
       __tiktools_benchmark_controls__: { setTab(tab: string): void };
     }).__tiktools_benchmark_controls__.setTab('feed'));
