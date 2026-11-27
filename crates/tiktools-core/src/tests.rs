@@ -14,9 +14,17 @@ mod runtime_variables;
     feature = "plugin-install"
 ))]
 mod v2_mutation_integration;
-#[cfg(all(feature = "cloud-sync", feature = "plugin-install"))]
+#[cfg(all(
+    feature = "cloud-sync",
+    feature = "persistence",
+    feature = "plugin-install"
+))]
 mod v2_seed;
-#[cfg(all(feature = "cloud-sync", feature = "plugin-install"))]
+#[cfg(all(
+    feature = "cloud-sync",
+    feature = "persistence",
+    feature = "plugin-install"
+))]
 mod v2_variables_sync;
 use tiktools_plugin_api::MediaPickerOptions;
 
