@@ -60,3 +60,44 @@ macro_rules! journal_record {
     };
 }
 pub(crate) use journal_record;
+
+/// Defines the receipt a journal returns for a succeeded entry. Every receipt
+/// starts with the ledger `revision`; `$field: $ty` are the journal's own
+/// fields. Unknown fields are rejected so a drifting host fails closed.
+macro_rules! journal_receipt {
+    ($name:ident { $($field:ident: $ty:ty),* $(,)? }) => {
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            Eq,
+            serde::Serialize,
+            serde::Deserialize,
+            schemars::JsonSchema,
+        )]
+        #[serde(rename_all = "camelCase", deny_unknown_fields)]
+        pub struct $name {
+            pub revision: String,
+            $(pub $field: $ty,)*
+        }
+    };
+}
+pub(crate) use journal_receipt;
+
+/// Defines the state a journal exposes: the host identity, the entry waiting
+/// for a decision and the most recent finished records.
+macro_rules! journal_state {
+    ($name:ident { intent: $intent:ty, record: $record:ty }) => {
+        #[derive(
+            Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+        )]
+        #[serde(rename_all = "camelCase", deny_unknown_fields)]
+        pub struct $name {
+            pub host_id: String,
+            pub host_instance_id: String,
+            pub pending: Option<$intent>,
+            pub recent: Vec<$record>,
+        }
+    };
+}
+pub(crate) use journal_state;

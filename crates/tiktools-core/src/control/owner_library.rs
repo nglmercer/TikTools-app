@@ -200,15 +200,12 @@ pub struct OwnerLibraryIntent {
 
 super::owner_outcome::journal_outcome!(OwnerLibraryOutcome);
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct OwnerLibraryReceipt {
-    pub revision: String,
-    pub catalog_digest: String,
-    pub definition_digest: String,
-    pub versions_digest: String,
-    pub affected_resources: u32,
-}
+super::owner_outcome::journal_receipt!(OwnerLibraryReceipt {
+    catalog_digest: String,
+    definition_digest: String,
+    versions_digest: String,
+    affected_resources: u32,
+});
 
 super::owner_outcome::journal_record!(OwnerLibraryRecord {
     intent: OwnerLibraryIntent,
@@ -216,14 +213,10 @@ super::owner_outcome::journal_record!(OwnerLibraryRecord {
     receipt: Option<OwnerLibraryReceipt>
 });
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct OwnerLibraryState {
-    pub host_id: String,
-    pub host_instance_id: String,
-    pub pending: Option<OwnerLibraryIntent>,
-    pub recent: Vec<OwnerLibraryRecord>,
-}
+super::owner_outcome::journal_state!(OwnerLibraryState {
+    intent: OwnerLibraryIntent,
+    record: OwnerLibraryRecord
+});
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

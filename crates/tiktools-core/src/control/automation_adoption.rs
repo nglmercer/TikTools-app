@@ -21,14 +21,10 @@ super::owner_outcome::journal_record!(OwnerAdoptionRecord {
     outcome: OwnerAdoptionOutcome,
     revision: Option<String>
 });
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct OwnerAdoptionState {
-    pub host_id: String,
-    pub host_instance_id: String,
-    pub pending: Option<OwnerAdoptionIntent>,
-    pub recent: Vec<OwnerAdoptionRecord>,
-}
+super::owner_outcome::journal_state!(OwnerAdoptionState {
+    intent: OwnerAdoptionIntent,
+    record: OwnerAdoptionRecord
+});
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OwnerAdoptionSubmit {

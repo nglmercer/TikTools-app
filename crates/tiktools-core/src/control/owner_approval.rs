@@ -25,27 +25,20 @@ pub struct OwnerApprovalIntent {
     pub created_at: i64,
 }
 super::owner_outcome::journal_outcome!(OwnerApprovalOutcome);
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct OwnerApprovalReceipt {
-    pub revision: String,
-    pub approval_generation: String,
-    pub policy_version: Option<u32>,
-    pub manifest_digest: Option<String>,
-}
+super::owner_outcome::journal_receipt!(OwnerApprovalReceipt {
+    approval_generation: String,
+    policy_version: Option<u32>,
+    manifest_digest: Option<String>,
+});
 super::owner_outcome::journal_record!(OwnerApprovalRecord {
     intent: OwnerApprovalIntent,
     outcome: OwnerApprovalOutcome,
     receipt: Option<OwnerApprovalReceipt>
 });
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct OwnerApprovalState {
-    pub host_id: String,
-    pub host_instance_id: String,
-    pub pending: Option<OwnerApprovalIntent>,
-    pub recent: Vec<OwnerApprovalRecord>,
-}
+super::owner_outcome::journal_state!(OwnerApprovalState {
+    intent: OwnerApprovalIntent,
+    record: OwnerApprovalRecord
+});
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(
     tag = "operation",

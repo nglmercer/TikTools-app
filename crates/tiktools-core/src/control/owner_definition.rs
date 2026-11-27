@@ -34,15 +34,12 @@ pub struct OwnerDefinitionIntent {
 
 super::owner_outcome::journal_outcome!(OwnerDefinitionOutcome);
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct OwnerDefinitionReceipt {
-    pub revision: String,
-    pub record_digest: Option<String>,
-    pub enabled: Option<bool>,
-    pub deleted: Option<bool>,
-    pub affected_resources: u32,
-}
+super::owner_outcome::journal_receipt!(OwnerDefinitionReceipt {
+    record_digest: Option<String>,
+    enabled: Option<bool>,
+    deleted: Option<bool>,
+    affected_resources: u32,
+});
 
 super::owner_outcome::journal_record!(OwnerDefinitionRecord {
     intent: OwnerDefinitionIntent,
@@ -50,14 +47,10 @@ super::owner_outcome::journal_record!(OwnerDefinitionRecord {
     receipt: Option<OwnerDefinitionReceipt>
 });
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct OwnerDefinitionState {
-    pub host_id: String,
-    pub host_instance_id: String,
-    pub pending: Option<OwnerDefinitionIntent>,
-    pub recent: Vec<OwnerDefinitionRecord>,
-}
+super::owner_outcome::journal_state!(OwnerDefinitionState {
+    intent: OwnerDefinitionIntent,
+    record: OwnerDefinitionRecord
+});
 
 /// Returned only by the original successful submission. Recovery surfaces
 /// contain metadata, so they cannot silently replace an editor's newer draft.
