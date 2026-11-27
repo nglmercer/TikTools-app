@@ -1,6 +1,7 @@
 import type { ControlTransport } from '@/shared/api/control-transport.ts';
 import type { RequestMetadata, ResponseMetadata } from '@/shared/api/control-contracts.ts';
 import { isResponseMetadata } from '@/shared/api/control-wire.ts';
+import { maxPayloadSize } from '../storage.ts';
 
 export class DemoRpcError extends Error {
   constructor(readonly code: string, message: string, readonly data?: unknown) { super(message); }
@@ -51,7 +52,7 @@ export function createDemoTransport(definitions: Readonly<Record<string, DemoMet
   let delivered = 0;
   const encoder = new TextEncoder();
   const limit = 128;
-  const maxMessageBytes = 2 * 1024 * 1024;
+  const maxMessageBytes = maxPayloadSize;
   const maxQueueBytes = 4 * 1024 * 1024;
 
   function flush(): void {

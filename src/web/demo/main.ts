@@ -2,6 +2,7 @@ import { parseDemoOptions } from './scenarios.ts';
 import { applyAppTheme, isAppTheme, systemTheme } from '@/shared/lib/app-theme.ts';
 import { installDemoStorage, memoryStorage } from './storage.ts';
 import { contextInstance, contextName } from './context-instance.ts';
+import { DEMO_STORAGE_PREFIX, demoParam, demoRootData, showcaseMode } from './contract.ts';
 import './demo.css';
 
 // Storage is configured BEFORE importing modules that cache preferences or journals.
@@ -9,20 +10,21 @@ try {
   const options = parseDemoOptions(location.search);
   options.instance = contextInstance(options.instance, window.name, () => crypto.randomUUID());
   window.name = contextName(options.instance);
-  const url = new URL(location.href); url.searchParams.set('instance', options.instance); url.searchParams.set('locale', options.locale);
+  const url = new URL(location.href); url.searchParams.set(demoParam.instance, options.instance); url.searchParams.set(demoParam.locale, options.locale);
   history.replaceState(history.state, '', url);
   // A framed demo follows the docs theme passed in the URL; a standalone one
   // starts from the OS preference. Later changes arrive over the frame bridge.
-  const requestedTheme = new URLSearchParams(location.search).get('theme');
+  const requestedTheme = new URLSearchParams(location.search).get(demoParam.theme);
   applyAppTheme(isAppTheme(requestedTheme) ? requestedTheme : systemTheme());
   let backing: { local: Storage; session: Storage };
-  try { backing = { local: localStorage, session: sessionStorage }; backing.session.setItem(`tiktools.demo.${options.instance}.probe`, '1'); backing.session.removeItem(`tiktools.demo.${options.instance}.probe`); }
+  const probe = `${DEMO_STORAGE_PREFIX}${options.instance}.probe`;
+  try { backing = { local: localStorage, session: sessionStorage }; backing.session.setItem(probe, '1'); backing.session.removeItem(probe); }
   catch { backing = { local: memoryStorage(), session: memoryStorage() }; }
   const storage = installDemoStorage(options.instance, backing);
   document.documentElement.lang = options.locale;
-  if (options.embed) document.documentElement.dataset.demoPanel = options.embed;
-  if (options.framed) document.documentElement.dataset.demoFrame = 'true';
-  if (options.showcase) document.documentElement.dataset.demoShowcase = options.record ? 'record' : 'true';
+  if (options.embed) document.documentElement.dataset[demoRootData.panel] = options.embed;
+  if (options.framed) document.documentElement.dataset[demoRootData.frame] = 'true';
+  if (options.showcase) document.documentElement.dataset[demoRootData.showcase] = options.record ? showcaseMode.record : showcaseMode.live;
   const { bootDemo } = await import('./mount-demo.ts');
   await bootDemo(options, storage);
 } catch (error) {

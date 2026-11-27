@@ -1,4 +1,5 @@
 import type { ShowcaseStep } from './script.ts';
+import { abortError, isAbortError } from './dom.ts';
 
 export interface ShowcaseState { step: number; count: number; paused: boolean; done: boolean }
 
@@ -42,8 +43,6 @@ export interface ShowcaseDirector {
   dispose(): void;
 }
 
-const isAbort = (error: unknown) => error instanceof DOMException && error.name === 'AbortError';
-
 export function createShowcaseDirector(steps: readonly ShowcaseStep[], env: ShowcaseEnv, options: ShowcaseOptions): ShowcaseDirector {
   let index = 0;
   let paused = true;
@@ -53,7 +52,7 @@ export function createShowcaseDirector(steps: readonly ShowcaseStep[], env: Show
   let route: string | undefined;
   const snapshot = (): ShowcaseState => ({ step: index, count: steps.length, paused, done });
   const emit = () => { if (!disposed) env.changed(snapshot()); };
-  const aborted = (signal: AbortSignal) => { if (signal.aborted) throw new DOMException('Showcase step interrupted.', 'AbortError'); };
+  const aborted = (signal: AbortSignal) => { if (signal.aborted) throw abortError(); };
 
   async function playStep(step: ShowcaseStep, signal: AbortSignal) {
     // A new view removes the old target, so drop its spotlight instead of leaving it on empty space.
@@ -110,7 +109,7 @@ export function createShowcaseDirector(steps: readonly ShowcaseStep[], env: Show
         } else index += 1;
       }
     } catch (error) {
-      if (!isAbort(error)) { paused = true; emit(); throw error; }
+      if (!isAbortError(error)) { paused = true; emit(); throw error; }
     }
   }
   const run = (continuous: boolean) => { void drive(continuous).catch(() => undefined); };

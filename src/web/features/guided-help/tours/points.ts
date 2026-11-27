@@ -1,10 +1,11 @@
 import { defineTour } from '../model/define-tour.ts';
+import { guideScope } from '../model/guide-vocabulary.ts';
 
 export default defineTour({
   id: 'points',
   version: 1,
   route: '/points',
-  scope: 'points',
+  scope: guideScope.points,
   task: 'points.reviewed',
   tags: ['points'],
   icon: 'coins',

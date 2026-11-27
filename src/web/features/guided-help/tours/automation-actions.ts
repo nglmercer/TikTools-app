@@ -1,17 +1,18 @@
-import { defineTour } from '../model/define-tour.ts';
+import { automationSelector, defineTour } from '../model/define-tour.ts';
+import { guideAction, guideScope } from '../model/guide-vocabulary.ts';
 
 export default defineTour({
   id: 'automationActions',
   version: 2,
   route: '/automations',
-  scope: 'automations',
+  scope: guideScope.automations,
   tags: ['actions'],
   icon: 'play',
   shape: 'custom',
   layout: [
-    { id: 'actionsTab', target: 'automation-tab-actions', policy: 'cancel', prepare: ['[data-guide="automation-editor-close"]'], prepareActions: ['automation.selectActions'], version: 2 },
-    { id: 'actions', target: 'automation-actions', policy: 'skip', prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-actions"]'], prepareActions: ['automation.selectActions'], version: 2 },
-    { id: 'editor', target: 'automation-editor', policy: 'skip', prepare: ['[data-guide="automation-actions"] tbody tr'], prepareActions: ['automation.openAction'], version: 2 },
+    { id: 'actionsTab', target: 'automation-tab-actions', policy: 'cancel', prepare: [automationSelector.editorClose], prepareActions: [guideAction.automation.selectActions], version: 2 },
+    { id: 'actions', target: 'automation-actions', policy: 'skip', prepare: [automationSelector.editorClose, automationSelector.tabActions], prepareActions: [guideAction.automation.selectActions], version: 2 },
+    { id: 'editor', target: 'automation-editor', policy: 'skip', prepare: [automationSelector.firstActionRow], prepareActions: [guideAction.automation.openAction], version: 2 },
     { id: 'templates', target: 'automation-templates', policy: 'skip' },
   ],
   steps: {

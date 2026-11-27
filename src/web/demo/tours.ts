@@ -1,7 +1,8 @@
 import { tourRegistry } from '@/features/guided-help/model/registry.ts';
 import { tourModules, type TourModuleId } from '@/features/guided-help/tours/index.ts';
 import type { TourId } from '@/features/guided-help/model/types.ts';
-import { scenarios, type ScenarioId } from './scenarios.ts';
+import { cloudRoute, demoRoute, scenarios, type ScenarioId } from './scenarios.ts';
+import { demoParam } from './contract.ts';
 
 type TourModule = (typeof tourModules)[number];
 type InternalTourId = TourModuleId<Extract<TourModule, { lifecycle: 'internal' }>>;
@@ -46,11 +47,13 @@ export function scenarioTour(scenario: ScenarioId): DemoTourId {
   return demoTutorialIds.find((id) => demoTourScenarios[id] === scenario) ?? 'connection';
 }
 
+const cloudQuery = cloudRoute.split('?')[1] ?? '';
+
 /** Recommend the tour for the section the reader is actually looking at. */
 export function tourForRoute(fullPath: string, scenario: ScenarioId): DemoTourId {
   const [pathAndQuery] = fullPath.split('#');
   const [path = '', query = ''] = (pathAndQuery ?? '').split('?');
-  if (path === '/automations') return query.includes('view=variables') ? 'automationVariables' : 'automationEvents';
+  if (path === demoRoute.automations) return query.includes(cloudQuery) ? 'automationVariables' : 'automationEvents';
   return demoTutorialIds.find((id) => {
     const tourPath = tourRegistry[id].route.split('?')[0] ?? '';
     return path === tourPath || path.startsWith(`${tourPath}/`);
@@ -61,9 +64,9 @@ export function tourForRoute(fullPath: string, scenario: ScenarioId): DemoTourId
 export function demoTourUrl(current: string, id: DemoTourId): string {
   const url = new URL(current);
   const scenario = demoTourScenarios[id];
-  url.searchParams.set('scenario', scenario);
-  url.searchParams.set('tour', id);
-  url.searchParams.delete('route');
+  url.searchParams.set(demoParam.scenario, scenario);
+  url.searchParams.set(demoParam.tour, id);
+  url.searchParams.delete(demoParam.route);
   url.hash = scenarios[scenario].route;
   return url.href;
 }

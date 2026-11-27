@@ -1,3 +1,6 @@
+import { demoRoute } from '../scenarios.ts';
+import { guideAction, guideScope } from '@/features/guided-help/model/guide-vocabulary.ts';
+
 /**
  * The showcase walks the real demo UI. Every operation is either a simulated
  * live event or a named guide action registered by the page that owns the
@@ -10,7 +13,7 @@ export type ShowcaseOp =
   | { kind: 'guide'; action: string; cursor?: string };
 
 export interface ShowcaseStep {
-  id: 'feed' | 'inspector' | 'automations' | 'overlays' | 'points';
+  id: 'feed' | 'inspector' | 'automation' | 'overlays' | 'points';
   route: string;
   /** Guide scope that owns `kind: 'guide'` operations for this view. */
   scope: string;
@@ -26,13 +29,13 @@ export interface ShowcaseStep {
 }
 
 export const showcaseSteps: readonly ShowcaseStep[] = [
-  { id: 'feed', route: '/feed', scope: 'feed', target: 'feed-stage', focusFirst: true, tip: 'bottom', ops: [{ kind: 'events', count: 6, gap: 520 }], dwell: 1400 },
-  { id: 'inspector', route: '/feed', scope: 'feed', target: 'feed-inspector-profile', focusFirst: false, tip: 'bottom',
-    ops: [{ kind: 'guide', action: 'feed.showViewer', cursor: 'feed-inspector-tab-user' }], dwell: 2600 },
-  { id: 'automations', route: '/automations', scope: 'automations', target: 'automation-editor', focusFirst: false, tip: 'bottom',
-    ops: [{ kind: 'guide', action: 'automation.openEvent', cursor: 'automation-library' }], dwell: 2800 },
-  { id: 'overlays', route: '/overlays', scope: 'overlays', target: 'overlay-preview', focusFirst: true, tip: 'top', ops: [], dwell: 3600 },
-  { id: 'points', route: '/points', scope: 'points', target: 'points-leaderboard', focusFirst: true, tip: 'bottom', ops: [{ kind: 'events', count: 3, gap: 700 }], dwell: 2200 },
+  { id: 'feed', route: demoRoute.feed, scope: guideScope.feed, target: 'feed-stage', focusFirst: true, tip: 'bottom', ops: [{ kind: 'events', count: 6, gap: 520 }], dwell: 1400 },
+  { id: 'inspector', route: demoRoute.feed, scope: guideScope.feed, target: 'feed-inspector-profile', focusFirst: false, tip: 'bottom',
+    ops: [{ kind: 'guide', action: guideAction.feed.showViewer, cursor: 'feed-inspector-tab-user' }], dwell: 2600 },
+  { id: 'automation', route: demoRoute.automations, scope: guideScope.automations, target: 'automation-editor', focusFirst: false, tip: 'bottom',
+    ops: [{ kind: 'guide', action: guideAction.automation.openEvent, cursor: 'automation-library' }], dwell: 2800 },
+  { id: 'overlays', route: demoRoute.overlays, scope: guideScope.overlays, target: 'overlay-preview', focusFirst: true, tip: 'top', ops: [], dwell: 3600 },
+  { id: 'points', route: demoRoute.points, scope: guideScope.points, target: 'points-leaderboard', focusFirst: true, tip: 'bottom', ops: [{ kind: 'events', count: 3, gap: 700 }], dwell: 2200 },
 ];
 
 export type ShowcaseStepId = ShowcaseStep['id'];

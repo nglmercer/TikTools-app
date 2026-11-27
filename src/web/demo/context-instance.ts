@@ -1,4 +1,6 @@
-const marker = 'tiktools.demo.context:';
+import { DEMO_STORAGE_PREFIX } from './contract.ts';
+
+const marker = `${DEMO_STORAGE_PREFIX}context:`;
 /** URL instance names can be copied into another tab. Bind storage to the
  * browsing context too, while retaining the identifier over an iframe reload. */
 export function contextInstance(requested: string, windowName: string, nonce: () => string): string {

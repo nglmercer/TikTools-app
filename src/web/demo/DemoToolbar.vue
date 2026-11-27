@@ -22,6 +22,7 @@ import { demoTutorialIds, type DemoTourId } from './tours.ts';
 import type { DemoLocale, EmbeddedPanel } from './scenarios.ts';
 import { demoPreviewUrl as buildDemoPreviewUrl } from './preview-url.ts';
 import { toolbarCopy } from './toolbar-copy.ts';
+import { demoTestId } from './test-ids.ts';
 import { experienceCopy } from '../../../docs/experience/copy.ts';
 
 const props = defineProps<{
@@ -120,7 +121,7 @@ function demoPreviewUrl(id: string): string {
           :title="t.more"
           aria-haspopup="menu"
           :aria-expanded="moreOpen"
-          data-testid="demo-more"
+          :data-testid="demoTestId.more"
           @click="openMenu"
         >
           <template #icon>
@@ -134,7 +135,7 @@ function demoPreviewUrl(id: string): string {
       v-if="!controlsOpen"
       class="demo-dock__trigger"
       variant="primary"
-      data-testid="demo-open-controls"
+      :data-testid="demoTestId.openControls"
       :aria-label="t.openControls"
       @click="controlsOpen = true"
     >
@@ -146,14 +147,14 @@ function demoPreviewUrl(id: string): string {
     <BasePanel
       v-else
       class="demo-dock"
-      data-testid="demo-controls-panel"
+      :data-testid="demoTestId.controlsPanel"
       :title="t.controls"
       header-layout="inline"
     >
       <template #actions>
         <BaseButton
           variant="ghost"
-          data-testid="demo-close-controls"
+          :data-testid="demoTestId.closeControls"
           :aria-label="t.closeControls"
           :title="t.closeControls"
           @click="controlsOpen = false"
@@ -181,7 +182,7 @@ function demoPreviewUrl(id: string): string {
         >
           <BaseButton
             variant="primary"
-            data-testid="demo-play"
+            :data-testid="demoTestId.play"
             :disabled="playbackDisabled"
             :pressed="!paused"
             @click="emit('play')"
@@ -192,7 +193,7 @@ function demoPreviewUrl(id: string): string {
           </BaseButton>
           <BaseButton
             v-if="showStep"
-            data-testid="demo-step"
+            :data-testid="demoTestId.step"
             :disabled="playbackDisabled"
             @click="emit('step')"
           >
@@ -202,7 +203,7 @@ function demoPreviewUrl(id: string): string {
           </BaseButton>
           <BaseButton
             variant="ghost"
-            data-testid="demo-reset"
+            :data-testid="demoTestId.reset"
             :aria-label="t.reset"
             :title="t.reset"
             @click="emit('reset')"
@@ -221,7 +222,7 @@ function demoPreviewUrl(id: string): string {
             <strong>{{ recommendedTitle }}</strong>
           </p>
           <BaseButton
-            data-testid="demo-guide"
+            :data-testid="demoTestId.guide"
             :disabled="!ready"
             @click="catalogOpen = true"
           >
@@ -230,7 +231,7 @@ function demoPreviewUrl(id: string): string {
           <BaseButton
             v-if="['preparing', 'active'].includes(guideState)"
             variant="ghost"
-            data-testid="demo-close-guide"
+            :data-testid="demoTestId.closeGuide"
             :aria-label="t.closeGuide"
             @click="emit('cancelGuide')"
           >
@@ -244,23 +245,23 @@ function demoPreviewUrl(id: string): string {
         aria-live="polite"
       >
         <span
-          data-testid="demo-playback-status"
+          :data-testid="demoTestId.playbackStatus"
           :data-status="status"
         >{{ playbackLabel }}</span>
         <span
           v-if="guideLabel"
-          data-testid="demo-guide-status"
+          :data-testid="demoTestId.guideStatus"
           :data-status="guideState"
         >{{ guideLabel }}</span>
       </div>
     </BasePanel>
     <output
-      data-testid="demo-event-count"
+      :data-testid="demoTestId.eventCount"
       aria-live="off"
       hidden
     >{{ events }} / 300</output>
     <output
-      data-testid="demo-metrics"
+      :data-testid="demoTestId.metrics"
       aria-live="off"
       hidden
     >{{ metrics }}</output>

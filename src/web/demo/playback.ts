@@ -1,5 +1,6 @@
 import type { ControlClient } from '@/shared/api/control-client.ts';
 import type { createDemoHost } from './runtime/host.ts';
+import { demoLimits } from './contract.ts';
 
 export type PlaybackStatus = 'ready' | 'connecting' | 'playing' | 'paused' | 'disconnected' | 'limit' | 'error';
 export interface PlaybackState { paused: boolean; busy: boolean; events: number; status: PlaybackStatus }
@@ -13,7 +14,7 @@ export function createDemoPlayback(host: ReturnType<typeof createDemoHost>, clie
     currentStatus = status;
     if (!disposed) changed({ paused: host.paused, busy, events: host.diagnostics().ticks, status });
   }
-  function pause() { host.setPaused(true); publish(host.diagnostics().ticks >= 300 ? 'limit' : 'paused'); }
+  function pause() { host.setPaused(true); publish(host.diagnostics().ticks >= demoLimits.maxTicks ? 'limit' : 'paused'); }
   async function advance(autoplay: boolean) {
     if (disposed || busy) return;
     busy = true;
@@ -25,8 +26,8 @@ export function createDemoPlayback(host: ReturnType<typeof createDemoHost>, clie
       if (disposed) return;
       host.setPaused(!autoplay);
       const advanced = host.step();
-      if (!advanced || host.diagnostics().ticks >= 300) host.setPaused(true);
-      publish(host.diagnostics().ticks >= 300 ? 'limit' : advanced ? autoplay ? 'playing' : 'paused' : 'disconnected');
+      if (!advanced || host.diagnostics().ticks >= demoLimits.maxTicks) host.setPaused(true);
+      publish(host.diagnostics().ticks >= demoLimits.maxTicks ? 'limit' : advanced ? autoplay ? 'playing' : 'paused' : 'disconnected');
     } catch {
       host.setPaused(true);
       publish('error');
@@ -42,8 +43,8 @@ export function createDemoPlayback(host: ReturnType<typeof createDemoHost>, clie
     tick() {
       if (disposed || busy || host.paused) return;
       const advanced = host.tick();
-      if (!advanced || host.diagnostics().ticks >= 300) host.setPaused(true);
-      publish(host.diagnostics().ticks >= 300 ? 'limit' : advanced ? 'playing' : 'disconnected');
+      if (!advanced || host.diagnostics().ticks >= demoLimits.maxTicks) host.setPaused(true);
+      publish(host.diagnostics().ticks >= demoLimits.maxTicks ? 'limit' : advanced ? 'playing' : 'disconnected');
     },
     dispose() { disposed = true; host.setPaused(true); },
   };

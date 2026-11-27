@@ -6,6 +6,8 @@ import { createShowcaseDirector, type ShowcaseDirector, type ShowcaseState } fro
 import { createShowcaseStage } from './stage.ts';
 import { abortableSleep, prefersReducedMotion, waitForTarget } from './dom.ts';
 import { showcaseSteps } from './script.ts';
+import { demoRootData } from '../contract.ts';
+import { viewEnterMs } from './constants.ts';
 
 export interface ShowcaseHandle extends ShowcaseDirector {
   readonly reducedMotion: boolean;
@@ -38,8 +40,8 @@ export function mountShowcase(options: ShowcaseMountOptions): ShowcaseHandle {
         await go();
         if (!reducedMotion) {
           const root = document.documentElement;
-          root.dataset.showcaseEntering = 'true';
-          setTimeout(() => { delete root.dataset.showcaseEntering; }, 420);
+          root.dataset[demoRootData.showcaseEntering] = 'true';
+          setTimeout(() => { delete root.dataset[demoRootData.showcaseEntering]; }, viewEnterMs);
         }
       }
     },
@@ -48,7 +50,7 @@ export function mountShowcase(options: ShowcaseMountOptions): ShowcaseHandle {
     guide: (scope, action, target) => runGuideAction(document, scope, action, target),
     sleep: abortableSleep,
     changed(state) {
-      if (options.record && state.done) document.documentElement.dataset.showcaseDone = 'true';
+      if (options.record && state.done) document.documentElement.dataset[demoRootData.showcaseDone] = 'true';
       options.changed(state);
     },
   }, { loop: !options.record, autoplay: !reducedMotion });

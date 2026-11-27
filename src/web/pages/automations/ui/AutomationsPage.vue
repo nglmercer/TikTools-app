@@ -20,6 +20,7 @@ import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import GuideCatalogButton from '@/features/guided-help/ui/GuideCatalogButton.vue';
 import { registerGuideActions } from '@/features/guided-help/model/guide-actions.ts';
+import { guideAction, guideScope as guideScopeNames } from '@/features/guided-help/model/guide-vocabulary.ts';
 import {
   isRecordSort,
   type RecordSort,
@@ -260,23 +261,23 @@ function revealGuideActionField(target: string, scope: Element | Document): bool
 }
 
 onMounted(() => {
-  unregisterGuideActions = registerGuideActions('automations', {
-    'automation.selectEvents': () => {
+  unregisterGuideActions = registerGuideActions(guideScopeNames.automations, {
+    [guideAction.automation.selectEvents]: () => {
       if (editor.dirty.value || (!editing.value && area.value === 'events')) return false;
       libraryTab.value = 'events';
       return true;
     },
-    'automation.selectActions': () => {
+    [guideAction.automation.selectActions]: () => {
       if (editor.dirty.value || (!editing.value && area.value === 'actions')) return false;
       libraryTab.value = 'actions';
       return true;
     },
-    'automation.selectVariables': () => {
+    [guideAction.automation.selectVariables]: () => {
       if (editor.dirty.value || (!editing.value && area.value === 'variables')) return false;
       libraryTab.value = 'variables';
       return true;
     },
-    'automation.openEvent': () => {
+    [guideAction.automation.openEvent]: () => {
       if (editor.dirty.value || editing.value?.kind === 'event') return false;
       if (editing.value) { closeEditor(); return true; }
       if (area.value !== 'events') { libraryTab.value = 'events'; return true; }
@@ -287,7 +288,7 @@ onMounted(() => {
       librarySelected.value = first.id;
       return true;
     },
-    'automation.openAction': () => {
+    [guideAction.automation.openAction]: () => {
       if (editor.dirty.value || editing.value?.kind === 'action') return false;
       if (editing.value) { closeEditor(); return true; }
       if (area.value !== 'actions') { libraryTab.value = 'actions'; return true; }
@@ -307,7 +308,7 @@ onMounted(() => {
     },
     'automation.createActionType:*': ({ action }) => createGuideActionType(guideActionTypeId(action, 'automation.createActionType:')),
     'automation.openOrCreateActionType:*': ({ action }) => openOrCreateGuideActionType(guideActionTypeId(action, 'automation.openOrCreateActionType:')),
-    'automation.revealActionField': ({ target, scope }) => revealGuideActionField(target, scope),
+    [guideAction.automation.revealActionField]: ({ target, scope }) => revealGuideActionField(target, scope),
   }, guideScope.value ?? undefined);
   openRequestedTrigger();
   void automation.loadCustomTemplates();

@@ -1,13 +1,15 @@
 import type { DemoLocale } from '../scenarios.ts';
 import type { ShowcaseStage } from './director.ts';
 import { showcaseCopy } from './copy.ts';
+import {
+  clickPressMs, clickSettleMs, cursorHideMs, cursorTravel, easeOut, glideEasing, layerData,
+  rippleMs, spotlightFollowMs, spotlightSettleMs,
+} from './constants.ts';
 import './showcase.css';
 
 export interface StageOptions { locale: DemoLocale; reducedMotion: boolean }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const SETTLE_MS = 560;
-const easing = 'cubic-bezier(0.22, 1, 0.36, 1)';
 
 function cursorElement() {
   const svg = document.createElementNS(SVG_NS, 'svg');
@@ -30,7 +32,7 @@ export function createShowcaseStage(options: StageOptions): ShowcaseStage & { di
   const ripple = document.createElement('div'); ripple.className = 'showcase__ripple';
   root.append(spot, tip, ripple, cursor);
   document.body.append(root);
-  if (options.reducedMotion) root.dataset.still = 'true';
+  if (options.reducedMotion) root.dataset[layerData.still] = 'true';
 
   let focused: HTMLElement | null = null;
   let pointer = { x: innerWidth * 0.7, y: innerHeight * 0.85 };
@@ -68,10 +70,10 @@ export function createShowcaseStage(options: StageOptions): ShowcaseStage & { di
     const from = pointer;
     pointer = { x, y };
     const distance = Math.hypot(x - from.x, y - from.y);
-    const duration = options.reducedMotion ? 0 : Math.min(1100, 380 + distance * 0.9);
+    const duration = options.reducedMotion ? 0 : Math.min(cursorTravel.maxMs, cursorTravel.baseMs + distance * cursorTravel.perPx);
     const frames = [{ transform: `translate(${from.x - 4}px, ${from.y - 2}px)` }, { transform: `translate(${x - 4}px, ${y - 2}px)` }];
-    const animation = cursor.animate(frames, { duration, easing, fill: 'forwards' });
-    cursor.dataset.visible = 'true';
+    const animation = cursor.animate(frames, { duration, easing: glideEasing, fill: 'forwards' });
+    cursor.dataset[layerData.visible] = 'true';
     await animation.finished.catch(() => undefined);
   }
 
@@ -80,11 +82,11 @@ export function createShowcaseStage(options: StageOptions): ShowcaseStage & { di
       focused = element;
       side = step.tip;
       tip.textContent = showcaseCopy[options.locale][step.id];
-      root.dataset.on = 'true';
+      root.dataset[layerData.on] = 'true';
       observer?.disconnect();
       if (typeof ResizeObserver === 'function') { observer = new ResizeObserver(place); observer.observe(element); }
-      follow(performance.now() + SETTLE_MS + 400);
-      await settle(SETTLE_MS);
+      follow(performance.now() + spotlightSettleMs + spotlightFollowMs);
+      await settle(spotlightSettleMs);
     },
     async pointAt(element) {
       const rect = element.getBoundingClientRect();
@@ -93,19 +95,19 @@ export function createShowcaseStage(options: StageOptions): ShowcaseStage & { di
     async click() {
       ripple.style.transform = `translate(${pointer.x}px, ${pointer.y}px)`;
       if (!options.reducedMotion) {
-        cursor.animate([{ scale: '1' }, { scale: '0.82' }, { scale: '1' }], { duration: 260, easing: 'ease-out' });
-        ripple.animate([{ opacity: 0.9, scale: '0.3' }, { opacity: 0, scale: '1.8' }], { duration: 520, easing: 'ease-out' });
+        cursor.animate([{ scale: '1' }, { scale: '0.82' }, { scale: '1' }], { duration: clickPressMs, easing: easeOut });
+        ripple.animate([{ opacity: 0.9, scale: '0.3' }, { opacity: 0, scale: '1.8' }], { duration: rippleMs, easing: easeOut });
       }
-      await settle(220);
+      await settle(clickSettleMs);
       // The cursor only exists to show a click; it leaves once the result is visible.
       clearTimeout(hideTimer);
-      hideTimer = setTimeout(() => { delete cursor.dataset.visible; }, 900);
+      hideTimer = setTimeout(() => { delete cursor.dataset[layerData.visible]; }, cursorHideMs);
     },
-    release() { delete root.dataset.on; },
+    release() { delete root.dataset[layerData.on]; },
     clear() {
       clearTimeout(hideTimer);
-      delete root.dataset.on;
-      delete cursor.dataset.visible;
+      delete root.dataset[layerData.on];
+      delete cursor.dataset[layerData.visible];
       focused = null;
       observer?.disconnect();
       cancelAnimationFrame(frame);

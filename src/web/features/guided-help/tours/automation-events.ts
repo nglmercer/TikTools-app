@@ -1,19 +1,20 @@
-import { defineTour } from '../model/define-tour.ts';
+import { automationSelector, defineTour } from '../model/define-tour.ts';
+import { guideAction, guideScope } from '../model/guide-vocabulary.ts';
 
 export default defineTour({
   id: 'automationEvents',
   version: 2,
   route: '/automations',
-  scope: 'automations',
+  scope: guideScope.automations,
   task: 'automation.saved',
   tags: ['events'],
   icon: 'zap',
   shape: 'custom',
   layout: [
     { id: 'profiles', target: 'automation-profiles', policy: 'cancel' },
-    { id: 'eventsTab', target: 'automation-tab-events', policy: 'cancel', prepare: ['[data-guide="automation-editor-close"]'], prepareActions: ['automation.selectEvents'], version: 2 },
-    { id: 'events', target: 'automation-events', policy: 'skip', prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]'], prepareActions: ['automation.selectEvents'], version: 2 },
-    { id: 'editor', target: 'automation-editor', policy: 'skip', prepare: ['[data-guide="automation-events"] tbody tr'], prepareActions: ['automation.openEvent'], version: 2 },
+    { id: 'eventsTab', target: 'automation-tab-events', policy: 'cancel', prepare: [automationSelector.editorClose], prepareActions: [guideAction.automation.selectEvents], version: 2 },
+    { id: 'events', target: 'automation-events', policy: 'skip', prepare: [automationSelector.editorClose, automationSelector.tabEvents], prepareActions: [guideAction.automation.selectEvents], version: 2 },
+    { id: 'editor', target: 'automation-editor', policy: 'skip', prepare: [automationSelector.firstEventRow], prepareActions: [guideAction.automation.openEvent], version: 2 },
     { id: 'runs', target: 'automation-runs', policy: 'skip' },
   ],
   steps: {

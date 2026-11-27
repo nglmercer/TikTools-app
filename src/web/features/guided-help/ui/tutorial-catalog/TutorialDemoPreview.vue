@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { isTourId, tourRegistry } from '../../model/registry.ts';
 import { guideTargetMetadata, type GuideLayoutZone } from '../../model/guide-targets.ts';
+import { guideTargetSelector } from '../../model/guide-dom.ts';
 import type { TourDefinition } from '../../model/types.ts';
 
 type DemoZone = GuideLayoutZone;
@@ -120,7 +121,7 @@ async function synchronizeFrame(): Promise<void> {
   clearHighlights(doc);
   const app = await waitForVisible(doc, '.app-layout', generation, 2500);
   if (!app || generation !== syncGeneration) return;
-  const targetSelector = `[data-guide="${step.target}"]`;
+  const targetSelector = guideTargetSelector(step.target);
   let element = await waitForVisible(doc, targetSelector, generation, 500);
   for (const selector of step.prepareClick ?? []) {
     if (element || generation !== syncGeneration) break;

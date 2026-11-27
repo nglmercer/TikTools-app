@@ -1,19 +1,18 @@
-const visibleElement = (element: Element | null): element is HTMLElement => {
-  if (!(element instanceof HTMLElement) || !element.isConnected || element.closest('[hidden], [inert], [aria-hidden="true"]')) return false;
-  for (let ancestor: HTMLElement | null = element; ancestor; ancestor = ancestor.parentElement) {
-    const style = getComputedStyle(ancestor);
-    if (style.display === 'none' || style.visibility === 'hidden' || Number.parseFloat(style.opacity) <= 0) return false;
-  }
-  return Array.from(element.getClientRects()).some((rect) => rect.width > 0 && rect.height > 0);
-};
+import { guideTargetSelector, isRendered } from '@/features/guided-help/model/guide-dom.ts';
+import { targetWaitMs } from './constants.ts';
 
-/** Poll for the visible element carrying `data-guide="name"`; null when it never shows up. */
-export function waitForTarget(name: string, timeoutMs = 4000, root: ParentNode = document): Promise<HTMLElement | null> {
-  const selector = `[data-guide="${CSS.escape(name)}"]`;
+const interruptedMessage = 'Showcase step interrupted.';
+/** The rejection a superseded, paused or disposed step carries. */
+export const abortError = (): DOMException => new DOMException(interruptedMessage, 'AbortError');
+export const isAbortError = (error: unknown): boolean => error instanceof DOMException && error.name === 'AbortError';
+
+/** Poll for the rendered element carrying `data-guide="name"`; null when it never shows up. */
+export function waitForTarget(name: string, timeoutMs = targetWaitMs, root: ParentNode = document): Promise<HTMLElement | null> {
+  const selector = guideTargetSelector(name);
   return new Promise((resolve) => {
     const started = performance.now();
     const check = () => {
-      const found = Array.from(root.querySelectorAll(selector)).find(visibleElement) ?? null;
+      const found = Array.from(root.querySelectorAll(selector)).find(isRendered) ?? null;
       if (found || performance.now() - started >= timeoutMs) resolve(found);
       else requestAnimationFrame(check);
     };
@@ -23,9 +22,9 @@ export function waitForTarget(name: string, timeoutMs = 4000, root: ParentNode =
 
 export function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (signal.aborted) { reject(new DOMException('Showcase step interrupted.', 'AbortError')); return; }
+    if (signal.aborted) { reject(abortError()); return; }
     const timer = setTimeout(() => { signal.removeEventListener('abort', onAbort); resolve(); }, ms);
-    const onAbort = () => { clearTimeout(timer); reject(new DOMException('Showcase step interrupted.', 'AbortError')); };
+    const onAbort = () => { clearTimeout(timer); reject(abortError()); };
     signal.addEventListener('abort', onAbort, { once: true });
   });
 }

@@ -1,16 +1,17 @@
-import { defineTour } from '../model/define-tour.ts';
+import { automationSelector, defineTour } from '../model/define-tour.ts';
+import { guideAction, guideScope } from '../model/guide-vocabulary.ts';
 
 export default defineTour({
   id: 'automationVariables',
   version: 2,
   route: '/automations?view=variables',
-  scope: 'automations',
+  scope: guideScope.automations,
   tags: ['variables'],
   icon: 'hash',
   shape: 'custom',
   layout: [
-    { id: 'variablesTab', target: 'automation-tab-variables', policy: 'cancel', prepareActions: ['automation.selectVariables'] },
-    { id: 'values', target: 'automation-variables', policy: 'skip', prepareActions: ['automation.selectVariables'], prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-variables"]'], version: 2 },
+    { id: 'variablesTab', target: 'automation-tab-variables', policy: 'cancel', prepareActions: [guideAction.automation.selectVariables] },
+    { id: 'values', target: 'automation-variables', policy: 'skip', prepareActions: [guideAction.automation.selectVariables], prepare: [automationSelector.editorClose, '[data-guide="automation-tab-variables"]'], version: 2 },
     { id: 'review', target: 'changes', policy: 'skip' },
   ],
   steps: {

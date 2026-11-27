@@ -5,6 +5,7 @@ import { useConnectionStore } from '@/entities/connection/model/connection-store
 import { useLiveFeedStore } from '@/entities/live-event/model/live-feed-store.ts';
 import { usePointsStore } from '@/entities/points/model/points-store.ts';
 import { registerGuideActions } from '@/features/guided-help/model/guide-actions.ts';
+import { guideAction, guideScope as guideScopeNames } from '@/features/guided-help/model/guide-vocabulary.ts';
 import { enrichViewer, sameHandle, type ViewerIdentity } from '@/entities/viewer/lib/viewer-profile.ts';
 import { loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import type { DisplayEvent } from '@/types.ts';
@@ -79,19 +80,19 @@ function onKeydown(event: KeyboardEvent): void {
 const guideScope = useTemplateRef<HTMLElement>('guideScope');
 let unregisterGuideActions: (() => void) | undefined;
 onMounted(() => {
-  unregisterGuideActions = registerGuideActions('feed', {
-    'feed.openInspector': () => {
+  unregisterGuideActions = registerGuideActions(guideScopeNames.feed, {
+    [guideAction.feed.openInspector]: () => {
       if (inspectorOpen.value) return false;
       inspectorOpen.value = true;
       return true;
     },
-    'feed.showViewers': () => {
+    [guideAction.feed.showViewers]: () => {
       if (!inspectorOpen.value) { inspectorOpen.value = true; return true; }
       if (tab.value === 'viewers') return false;
       tab.value = 'viewers';
       return true;
     },
-    'feed.showEvent': () => {
+    [guideAction.feed.showEvent]: () => {
       if (!inspectorOpen.value) { inspectorOpen.value = true; return true; }
       if (!selectedEvent.value) {
         const first = events.value[0];
@@ -103,7 +104,7 @@ onMounted(() => {
       tab.value = 'event';
       return true;
     },
-    'feed.showViewer': () => {
+    [guideAction.feed.showViewer]: () => {
       if (!inspectorOpen.value) { inspectorOpen.value = true; return true; }
       if (!viewer.value) {
         const top = topViewers.value[0] ?? likeLeaders.value[0];

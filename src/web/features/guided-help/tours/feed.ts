@@ -1,10 +1,11 @@
 import { defineTour } from '../model/define-tour.ts';
+import { guideScope } from '../model/guide-vocabulary.ts';
 
 export default defineTour({
   id: 'feed',
   version: 2,
   route: '/feed',
-  scope: 'feed',
+  scope: guideScope.feed,
   tags: ['feed'],
   icon: 'chat',
   shape: 'custom',

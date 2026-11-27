@@ -9,6 +9,7 @@ import type { Localized } from '../../../../shared/localized.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
 import type { TourDefinition, TourRequirementSnapshot, TourStepDefinition } from './types.ts';
 import { automationActionTypeAvailable } from './tour-requirements.ts';
+import { guideAction, guideScope } from './guide-vocabulary.ts';
 
 export interface DynamicTourDefinition {
   definition: TourDefinition;
@@ -133,7 +134,7 @@ export function pluginGuideTour(guide: PluginGuideContribution): DynamicTourDefi
     texts[titleKey] = localizedText(step.title);
     texts[descriptionKey] = localizedText(step.description);
     const prepareActions = [openAction(guide)];
-    if (step.target.kind === 'field') prepareActions.push('automation.revealActionField');
+    if (step.target.kind === 'field') prepareActions.push(guideAction.automation.revealActionField);
     return {
       id: step.id,
       version: 1,
@@ -152,7 +153,7 @@ export function pluginGuideTour(guide: PluginGuideContribution): DynamicTourDefi
       id: guide.id,
       version: 1,
       route: '/automations',
-      scope: 'automations',
+      scope: guideScope.automations,
       requirements: {
         automationActionType: { typeId: guide.actionType },
         ...(guide.mode === 'edit' ? { automationActionExample: { typeId: guide.actionType } } : {}),

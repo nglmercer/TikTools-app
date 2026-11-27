@@ -1,10 +1,11 @@
 import { defineTour } from '../model/define-tour.ts';
+import { guideScope } from '../model/guide-vocabulary.ts';
 
 export default defineTour({
   id: 'overlayObs',
   version: 1,
   route: '/overlays',
-  scope: 'overlays',
+  scope: guideScope.overlays,
   tags: ['overlays'],
   icon: 'video',
   shape: 'custom',

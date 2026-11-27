@@ -1,19 +1,20 @@
 import { defineTour } from '../model/define-tour.ts';
+import { guideAction, guideScope } from '../model/guide-vocabulary.ts';
 
 export default defineTour({
   id: 'feedInspector',
   version: 1,
   route: '/feed',
-  scope: 'feed',
+  scope: guideScope.feed,
   tags: ['feed'],
   icon: 'eye',
   shape: 'custom',
   layout: [
     { id: 'controls', target: 'feed-controls', policy: 'cancel' },
-    { id: 'panel', target: 'feed-inspector', policy: 'skip', prepare: ['[data-guide="feed-inspector-toggle"]'], prepareActions: ['feed.openInspector'] },
-    { id: 'viewers', target: 'feed-inspector-viewers', policy: 'skip', prepare: ['[data-guide="feed-inspector-tab-viewers"]'], prepareActions: ['feed.showViewers'] },
-    { id: 'details', target: 'feed-inspector-details', policy: 'skip', prepare: ['[data-guide="feed-inspector-tab-event"]'], prepareActions: ['feed.showEvent'] },
-    { id: 'profile', target: 'feed-inspector-profile', policy: 'skip', prepare: ['[data-guide="feed-inspector-tab-user"]'], prepareActions: ['feed.showViewer'] },
+    { id: 'panel', target: 'feed-inspector', policy: 'skip', prepare: ['[data-guide="feed-inspector-toggle"]'], prepareActions: [guideAction.feed.openInspector] },
+    { id: 'viewers', target: 'feed-inspector-viewers', policy: 'skip', prepare: ['[data-guide="feed-inspector-tab-viewers"]'], prepareActions: [guideAction.feed.showViewers] },
+    { id: 'details', target: 'feed-inspector-details', policy: 'skip', prepare: ['[data-guide="feed-inspector-tab-event"]'], prepareActions: [guideAction.feed.showEvent] },
+    { id: 'profile', target: 'feed-inspector-profile', policy: 'skip', prepare: ['[data-guide="feed-inspector-tab-user"]'], prepareActions: [guideAction.feed.showViewer] },
   ],
   steps: {
     controls: {

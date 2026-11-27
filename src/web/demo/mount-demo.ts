@@ -6,7 +6,8 @@ import DemoToolbar from './DemoToolbar.vue';
 import { createControlClient } from '@/shared/api/control-client.ts';
 import { mountWorkspace } from '@/app/mount-workspace.ts';
 import { createDemoHost } from './runtime/host.ts';
-import { validDemoRoute, type parseDemoOptions, type DemoLocale } from './scenarios.ts';
+import { demoRoute, validDemoRoute, type parseDemoOptions, type DemoLocale } from './scenarios.ts';
+import { demoParam, demoTiming, frameMessageType } from './contract.ts';
 import '@/app/styles/tokens.css';
 import '@/app/styles/base.css';
 import '@/app/styles/responsive.css';
@@ -26,21 +27,24 @@ import { parseFrameCommand, type ConnectionCase, type DemoFrameState } from './f
 import { demoPreviewUrl } from './preview-url.ts';
 import { mountShowcase, type ShowcaseHandle } from './showcase/mount-showcase.ts';
 import type { ShowcaseFrameState } from './frame-messages.ts';
+/** Guide states in which a tour owns the demo; playback and frame commands wait for them to end. */
+const GUIDE_BUSY_STATES: readonly string[] = ['preparing', 'active'];
+const isGuideBusy = (guideState: string) => GUIDE_BUSY_STATES.includes(guideState);
 export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, storage: { clear(): void }) {
   const host = createDemoHost(options.scenario, options.locale);
-  configureAppClock(() => DEMO_AT + host.diagnostics().ticks * 1000);
+  configureAppClock(() => DEMO_AT + host.diagnostics().ticks * demoTiming.tickMs);
   const client = createControlClient({ transport: host.transport });
   if (options.embed || !validDemoRoute(location.hash.slice(1))) location.hash = options.route;
   const recordFailure = () => diagnosticLog.record({ source: 'integrations', level: 'error', code: 'demo.simulated_action_failure', message: ({ en: 'Simulated action failed. Inspect the run result, then retry or reset.', es: 'Falló una acción simulada. Revisa el resultado y reintenta o reinicia.', pt: 'Uma ação simulada falhou. Confira o resultado e tente novamente ou reinicie.', fr: 'Une action simulée a échoué. Consultez le résultat, puis réessayez ou réinitialisez.', zh: '模拟操作失败。请检查执行结果，然后重试或重置。', ja: 'サンプルのアクションが失敗しました。実行結果を確認し、再試行するかリセットしてください。' })[options.locale], requestId: 'demo-request' });
   if (options.scenario === 'diagnostics') recordFailure();
   const toolbar = document.querySelector('#demo-controls')!;
-  const toolbarState = reactive({ paused: host.paused, busy: false, events: 0, status: 'ready' as PlaybackState['status'], guideState: 'idle', failure: false, ready: false, metrics: '', connectionCase: 'normal' as 'normal' | 'offline' | 'auth', recommendedTour: scenarioTour(options.scenario), showStep: options.scenario === 'feed', showCases: options.scenario === 'connection' });
+  const toolbarState = reactive({ paused: host.paused, busy: false, events: 0, status: 'ready' as PlaybackState['status'], guideState: 'idle', failure: false, ready: false, metrics: '', connectionCase: 'normal' as ConnectionCase, recommendedTour: scenarioTour(options.scenario), showStep: options.scenario === 'feed', showCases: options.scenario === 'connection' });
   let showcaseState: ShowcaseFrameState | undefined;
   let showcase: ShowcaseHandle | undefined;
   function publishFrameState() {
     if (!options.framed || window.parent === window) return;
-    const state: DemoFrameState = { type: 'tiktools.demo.state', instance: options.instance, ready: toolbarState.ready,
-      paused: toolbarState.paused, busy: toolbarState.busy || ['preparing', 'active'].includes(toolbarState.guideState),
+    const state: DemoFrameState = { type: frameMessageType.state, instance: options.instance, ready: toolbarState.ready,
+      paused: toolbarState.paused, busy: toolbarState.busy || isGuideBusy(toolbarState.guideState),
       events: toolbarState.events, status: toolbarState.status, connectionCase: toolbarState.connectionCase, ...(showcaseState ? { showcase: showcaseState } : {}) };
     window.parent.postMessage(state, location.origin);
   }
@@ -54,7 +58,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
     publishFrameState();
   }
   const tourActions: { start?: (id: string, trigger?: HTMLElement) => void; stop?: () => void } = {};
-  const onLocale = (locale: DemoLocale) => { const url = new URL(location.href); url.searchParams.set('locale', locale); location.assign(url.href); };
+  const onLocale = (locale: DemoLocale) => { const url = new URL(location.href); url.searchParams.set(demoParam.locale, locale); location.assign(url.href); };
   const toolbarApp = createApp({ setup: () => () => h(DemoToolbar, {
     ...toolbarState, locale: options.locale, embed: options.embed,
     docsUrl: new URL(`../${options.locale}/`, location.href).href,
@@ -62,7 +66,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
     onPlay: () => { void playback.play(); },
     onStep: () => { void playback.step(); }, onReset: resetDemo,
     onFailure: () => { toolbarState.failure = !toolbarState.failure; host.simulateError(toolbarState.failure); if (toolbarState.failure) recordFailure(); },
-    onCatalog: () => { location.hash = '/components/buttons'; },
+    onCatalog: () => { location.hash = `${demoRoute.components}/buttons`; },
     onGuide: (id: string, trigger?: HTMLElement) => tourActions.start?.(id, trigger),
     onCancelGuide: () => tourActions.stop?.(),
     onConnectionCase: changeConnectionCase,
@@ -79,7 +83,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
     });
     const router = app.config.globalProperties.$router as Router;
     workspaceRouter = router;
-    router.beforeEach((to) => options.embed && to.path !== options.route && to.path !== '/debug' ? false : validDemoRoute(to.fullPath) ? true : '/feed');
+    router.beforeEach((to) => options.embed && to.path !== options.route && to.path !== demoRoute.debug ? false : validDemoRoute(to.fullPath) ? true : demoRoute.feed);
     if (options.embed) {
       // Real connection actions normally open the feed. A focused lesson keeps
       // its panel visible so successes and failures can be inspected in place.
@@ -97,8 +101,8 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
       if (!router) return;
       toolbarState.recommendedTour = tourForRoute(router.currentRoute.value.fullPath, options.scenario);
       const path = router.currentRoute.value.path;
-      toolbarState.showStep = path === '/feed';
-      toolbarState.showCases = path === '/connections';
+      toolbarState.showStep = path === demoRoute.feed;
+      toolbarState.showCases = path === demoRoute.connections;
     };
     refreshRecommendation();
     const stopRecommendation = workspaceRouter.afterEach(refreshRecommendation);
@@ -159,16 +163,16 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
     else if (command.action === 'reset') resetDemo();
     else if (command.action === 'theme') applyAppTheme(command.value);
     else if (command.action === 'connection-case') void changeConnectionCase(command.value);
-    else if (!toolbarState.busy && !['preparing', 'active'].includes(toolbarState.guideState)) {
+    else if (!toolbarState.busy && !isGuideBusy(toolbarState.guideState)) {
       if (command.action === 'play') void playback.play();
       else void playback.step();
     }
   }
   if (options.framed) window.addEventListener('message', onFrameCommand);
   publishFrameState();
-  const timer = setInterval(() => playback.tick(), 2000);
+  const timer = setInterval(() => playback.tick(), demoTiming.autoplayMs);
   // Observable state has no mutators or test-only globals, and is useful for support diagnostics.
-  const metricsTimer = setInterval(() => { toolbarState.paused = host.paused; toolbarState.metrics = JSON.stringify({ host: host.diagnostics(), client: client.diagnostics?.() }); publishFrameState(); }, 500);
+  const metricsTimer = setInterval(() => { toolbarState.paused = host.paused; toolbarState.metrics = JSON.stringify({ host: host.diagnostics(), client: client.diagnostics?.() }); publishFrameState(); }, demoTiming.metricsMs);
   let disposed = false;
   function cleanup() { if (disposed) return; disposed = true; showcase?.dispose(); tour?.stop('disposed'); stopTour(); playback.dispose(); clearInterval(timer); clearInterval(metricsTimer); toolbarApp.unmount(); client.detach(); host.dispose(); configureAppClock(undefined); window.removeEventListener('message', onFrameCommand); window.removeEventListener('pagehide', onPageHide); window.removeEventListener('pageshow', restore); }
   function dispose() { if (disposed) return; cleanup(); app.unmount(); }

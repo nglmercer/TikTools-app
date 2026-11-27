@@ -7,14 +7,14 @@ import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseDisclosure from '@/shared/ui/disclosure/BaseDisclosure.vue';
 import { exampleText, familyTitle } from '../../../../docs/examples/text.ts';
 import { catalogCopy } from './copy.ts';
-import { demoLocales, type DemoLocale } from '../scenarios.ts';
+import { demoLocales, demoRoute, type DemoLocale } from '../scenarios.ts';
 const examples = import.meta.glob('../../../../docs/examples/*.vue');
 const components = Object.fromEntries(Object.entries(examples).map(([path, loader]) => [path.split('/').at(-1)!.replace('.vue', ''), defineAsyncComponent(loader as Parameters<typeof defineAsyncComponent>[0])]));
 const source = import.meta.glob('../../../../docs/examples/*.vue', { query: '?raw', import: 'default', eager: true });
 const route = useRoute(); const router = useRouter(); const { locale } = useI18n();
 const t = computed(() => exampleText(locale.value));
 const copy = computed(() => catalogCopy[demoLocales.includes(locale.value as DemoLocale) ? locale.value as DemoLocale : 'en']);
-const selected = computed({ get: () => typeof route.params.family === 'string' && Object.hasOwn(components, route.params.family) ? route.params.family : 'buttons', set: (family: string) => { void router.replace(`/components/${family}`); } });
+const selected = computed({ get: () => typeof route.params.family === 'string' && Object.hasOwn(components, route.params.family) ? route.params.family : 'buttons', set: (family: string) => { void router.replace(`${demoRoute.components}/${family}`); } });
 const state = ref('normal');
 const text = computed(() => source[`../../../../docs/examples/${selected.value}.vue`]);
 const states = computed(() => ['normal', 'loading', 'empty', 'error', 'disabled', 'long', 'mobile'].map((value) => ({ value, label: ({ normal: t.value.ready, loading: t.value.loading, empty: t.value.empty, error: t.value.error, disabled: t.value.disabled, long: t.value.long, mobile: copy.value.mobile })[value]! })));
@@ -32,7 +32,7 @@ const guideUrl = computed(() => new URL(`../${locale.value}/developer/components
         </h1>
         <p>{{ copy.description }}</p>
       </div>
-      <BaseButton @click="router.push('/feed')">
+      <BaseButton @click="router.push(demoRoute.feed)">
         {{ t.back }}
       </BaseButton>
     </header>

@@ -11,6 +11,8 @@ import type { ScenarioId, DemoLocale } from '../scenarios.ts';
 import { scenarioState, DEMO_AT } from '../fixtures/scenario-state.ts';
 import { demoActivity } from '../fixtures/audience.ts';
 import { createDemoTransport, demoMethod, DemoRpcError, objectParams, stringParam, type DemoMethod } from './transport.ts';
+import { demoLimits, demoTiming } from '../contract.ts';
+import type { ConnectionCase } from '../frame-messages.ts';
 
 const clone = <T>(value: T): T => structuredClone(value);
 const bounded = (value: unknown, name: string, max = 512) => stringParam(value, name, max);
@@ -29,7 +31,7 @@ export function createDemoHost(scenario: ScenarioId, locale: DemoLocale = 'en') 
   let disposed = false;
   let signedIn = true;
   let logError = false;
-  let connectionExample: { kind: 'normal' | 'offline' | 'auth'; message: string } = { kind: 'normal', message: '' };
+  let connectionExample: { kind: ConnectionCase; message: string } = { kind: 'normal', message: '' };
   let runSequence = 0;
   let overlaySequence = 1;
   const sum = (key: string) => state.leaderboard.reduce((total, viewer) => total + safeNumber(viewer[key]), 0);
@@ -93,7 +95,7 @@ export function createDemoHost(scenario: ScenarioId, locale: DemoLocale = 'en') 
   }, true);
   add('automation.runs', () => ({ runs: state.automationRuns }));
   function sample(type: AutomationEvent['type'] = 'tiktok.chat'): AutomationEvent {
-    return { id: `demo-message-${ticks}`, type, timestamp: DEMO_AT + ticks * 1000, user: { uniqueId: 'luna', nickname: 'Luna', secUid: 'demo', userId: '1', avatarUrl: null }, data: { comment: ticks % 2 ? '!hello' : 'Hello TikTools!', giftName: 'Rose', repeatCount: 1, diamondCount: 1 }, creator: { uniqueId: 'demo_creator', roomId: 'demo-room' } };
+    return { id: `demo-message-${ticks}`, type, timestamp: DEMO_AT + ticks * demoTiming.tickMs, user: { uniqueId: 'luna', nickname: 'Luna', secUid: 'demo', userId: '1', avatarUrl: null }, data: { comment: ticks % 2 ? '!hello' : 'Hello TikTools!', giftName: 'Rose', repeatCount: 1, diamondCount: 1 }, creator: { uniqueId: 'demo_creator', roomId: 'demo-room' } };
   }
   function runAction(action: LiveAction, eventId?: string, test = true, event = sample()): BehaviorRun {
     if (runSequence >= 10000) fail('Demo execution limit reached; reset the scenario.');
@@ -104,7 +106,7 @@ export function createDemoHost(scenario: ScenarioId, locale: DemoLocale = 'en') 
       const name = path.slice(8); const value = Object.hasOwn(state.typedGlobals ?? {}, name) ? state.typedGlobals![name] : undefined;
       return value ? value.type === 'secret' ? '••••••••' : variableText(value) : '';
     }) : logError && action.typeId === 'core.log' ? 'Demo: simulated action failure. Disable the failure simulation to retry.' : 'Demo: external effects and scripts are unavailable.';
-    const run: BehaviorRun = { id: `demo-run-${++runSequence}`, at: DEMO_AT + ticks * 1000, status: ok ? 'ok' : 'error', actionId: action.id, actionName: action.name, eventId, summary, durationMs: 1, test, logs: [summary], ...(ok ? {} : { error: summary }), eventSource: test ? 'sample' : 'live' };
+    const run: BehaviorRun = { id: `demo-run-${++runSequence}`, at: DEMO_AT + ticks * demoTiming.tickMs, status: ok ? 'ok' : 'error', actionId: action.id, actionName: action.name, eventId, summary, durationMs: 1, test, logs: [summary], ...(ok ? {} : { error: summary }), eventSource: test ? 'sample' : 'live' };
     state.automationRuns.push(run as unknown as Record<string, unknown>); if (state.automationRuns.length > 60) state.automationRuns.shift(); return run;
   }
   add('automation.test', (p) => {
@@ -211,7 +213,7 @@ export function createDemoHost(scenario: ScenarioId, locale: DemoLocale = 'en') 
   add('ui.feed.backfill', (p) => { const events = (state.feedJournal ?? []).filter((row) => row.cursor > safeNumber(p.after)).slice(0, 60); return { oldestCursor: state.feedJournal?.[0]?.cursor ?? 0, latestCursor: ticks, depth: state.feedJournal?.length ?? 0, gap: false, truncated: false, events }; });
   const wire = createDemoTransport(methods);
   function step(): boolean {
-    if (disposed || !state.liveStatus.connected || ticks >= 300 || wire.diagnostics().queuedResponses > 20) return false;
+    if (disposed || !state.liveStatus.connected || ticks >= demoLimits.maxTicks || wire.diagnostics().queuedResponses > 20) return false;
     if (ticks === 0) wire.emitTopic('live.connected', state.liveStatus);
     ticks += 1;
     const { event, data, type } = demoActivity(ticks, locale);
@@ -224,7 +226,7 @@ export function createDemoHost(scenario: ScenarioId, locale: DemoLocale = 'en') 
     const delta = Number((base * (1 + bonus)).toFixed(2));
     viewer.points = Number((Number(viewer.points) + delta).toFixed(2));
     viewer.level = Math.floor(Number(viewer.points) / Math.max(10, safeNumber(config.pointsPerLevel, 100))) + 1;
-    viewer.lastSeen = DEMO_AT + ticks * 1000;
+    viewer.lastSeen = DEMO_AT + ticks * demoTiming.tickMs;
     event.points = Number(viewer.points); event.pointsDelta = delta; event.level = Number(viewer.level);
     if (event.kind === 'chat') { totals.chats += 1; viewer.totalChats = Number(viewer.totalChats) + 1; }
     if (event.kind === 'gift') { totals.giftEvents += 1; totals.gifts += event.giftDetails!.count; totals.diamonds += units; viewer.totalCoins = Number(viewer.totalCoins) + units; }
@@ -245,7 +247,7 @@ export function createDemoHost(scenario: ScenarioId, locale: DemoLocale = 'en') 
     wire.emitTopic('live.likes-ranking', { creatorId: 'demo_creator', roomId: 'demo-room', leaders: [...sessionLikes].sort((left, right) => right[1] - left[1]).map(([uniqueId, score], index) => { const user = state.leaderboard.find((user) => user.uniqueId === uniqueId)!; return { rank: index + 1, score, uniqueId, nickname: user.nickname, userId: user.userId }; }) });
     const envelope: AutomationEvent = { id: event.msgId!, type, timestamp: Number(viewer.lastSeen), data, user: { uniqueId: event.author, nickname: event.nickname!, secUid: `demo-${event.author}`, userId: String(viewer.userId), avatarUrl: null }, points: { delta, total: event.points, level: event.level }, creator: { uniqueId: 'demo_creator', roomId: 'demo-room' } };
     for (const trigger of snapshot.events) {
-      const now = DEMO_AT + ticks * 1000;
+      const now = DEMO_AT + ticks * demoTiming.tickMs;
       if (!trigger.enabled || trigger.trigger !== envelope.type || !matchesAllFilters(trigger.filters, envelope) || now - (cooldowns.get(trigger.id) ?? 0) < trigger.cooldownMs) continue;
       cooldowns.set(trigger.id, now);
       const ids = trigger.runMode === 'random' ? trigger.actionIds.slice(ticks % Math.max(1, trigger.actionIds.length), ticks % Math.max(1, trigger.actionIds.length) + 1) : trigger.actionIds;
@@ -254,7 +256,7 @@ export function createDemoHost(scenario: ScenarioId, locale: DemoLocale = 'en') 
     return true;
   }
   return { ...wire, state, step, get paused() { return paused; }, setPaused(value: boolean) { paused = value; }, tick() { return !paused && step(); }, simulateError(value: boolean) { logError = value; },
-    setConnectionExample(kind: 'normal' | 'offline' | 'auth', message = '') { connectionExample = { kind, message }; },
+    setConnectionExample(kind: ConnectionCase, message = '') { connectionExample = { kind, message }; },
     diagnostics: () => ({ ...wire.diagnostics(), ticks, paused, disposed, calls: state.calls.length, events: state.feedJournal?.length ?? 0, runs: state.automationRuns.length }),
     wasSuccessful(method: string) { return committed.has(method); },
     pluginInstalled() { return snapshot.plugins.some((plugin) => plugin.installed); },

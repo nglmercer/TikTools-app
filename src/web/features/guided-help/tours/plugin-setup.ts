@@ -1,10 +1,11 @@
 import { defineTour } from '../model/define-tour.ts';
+import { guideScope } from '../model/guide-vocabulary.ts';
 
 export default defineTour({
   id: 'pluginSetup',
   version: 1,
   route: '/plugins',
-  scope: 'plugins',
+  scope: guideScope.plugins,
   tags: ['plugins'],
   icon: 'download',
   shape: 'custom',

@@ -1,4 +1,8 @@
 import { configureAppStorage } from '@/shared/lib/app-storage.ts';
+import { DEMO_STORAGE_PREFIX } from './contract.ts';
+
+/** Largest single message or stored value the demo accepts. The simulated wire imports the same limit. */
+export const maxPayloadSize = 2 * 1024 * 1024;
 
 export function memoryStorage(): Storage {
   const data = new Map<string, string>();
@@ -15,7 +19,7 @@ export function memoryStorage(): Storage {
 /** Same-origin frames share physical storage; each demo instance owns only its prefix. */
 export function namespacedStorage(storage: Storage, instance: string): Storage {
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(instance)) throw new Error('Invalid demo storage instance.');
-  const prefix = `tiktools.demo.${instance}.`;
+  const prefix = `${DEMO_STORAGE_PREFIX}${instance}.`;
   const keys = () => Array.from({ length: storage.length }, (_, index) => storage.key(index)).filter((key): key is string => key !== null && key.startsWith(prefix));
   return {
     get length() { return keys().length; },
@@ -24,7 +28,7 @@ export function namespacedStorage(storage: Storage, instance: string): Storage {
     key: (index) => keys()[index]?.slice(prefix.length) ?? null,
     removeItem: (key) => storage.removeItem(prefix + key),
     setItem: (key, value) => {
-      if (key.length > 512 || value.length > 2 * 1024 * 1024) throw new Error('Demo storage limit exceeded.');
+      if (key.length > 512 || value.length > maxPayloadSize) throw new Error('Demo storage limit exceeded.');
       const owned = keys();
       if ((!owned.includes(prefix + key) && owned.length >= 128) || owned.reduce((size, name) => size + (name === prefix + key ? 0 : storage.getItem(name)?.length ?? 0), value.length) > 4 * 1024 * 1024) throw new Error('Demo storage capacity exceeded.');
       storage.setItem(prefix + key, value);

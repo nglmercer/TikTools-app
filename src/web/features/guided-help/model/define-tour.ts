@@ -4,6 +4,8 @@
  * tours/index.ts assembles the same registry/catalog structures the
  * coordinator, catalog dialog and tests already consume.
  */
+import { guideTargetSelector } from './guide-dom.ts';
+import { guideAction } from './guide-vocabulary.ts';
 import { guideTargetMetadata } from './guide-targets.ts';
 import type { TourAvailability, TourDefinition, TourRequirements, TourStepDefinition } from './types.ts';
 import { automationActionExampleGuideAction } from './tour-requirements.ts';
@@ -18,17 +20,21 @@ export const controlCopy = {
   zh: { next: '下一步', previous: '上一步', done: '完成指南', close: '关闭指南', progress: '第 {{current}} 步，共 {{total}} 步' },
 } as const;
 
+// Catalog order, not supportedLocales order: built catalog key order follows it.
 export const tourLocales = ['es', 'en', 'pt', 'fr', 'ja', 'zh'] as const;
 export type TourCopyLocale = (typeof tourLocales)[number];
 
 /** [title, description] per locale. Tuples keep six-locale copy compact. */
 export type StepCopy = Readonly<Record<TourCopyLocale, readonly [string, string]>>;
 
-const CLOSE = '[data-guide="automation-editor-close"]';
-const TAB_EVENTS = '[data-guide="automation-tab-events"]';
-const TAB_ACTIONS = '[data-guide="automation-tab-actions"]';
-const FIRST_EVENT_ROW = '[data-guide="automation-events"] tbody tr';
-const FIRST_ACTION_ROW = '[data-guide="automation-actions"] tbody tr';
+/** Automation-editor selectors shared by the tour layouts and their tests. */
+export const automationSelector = {
+  editorClose: guideTargetSelector('automation-editor-close'),
+  tabEvents: guideTargetSelector('automation-tab-events'),
+  tabActions: guideTargetSelector('automation-tab-actions'),
+  firstEventRow: `${guideTargetSelector('automation-events')} tbody tr`,
+  firstActionRow: `${guideTargetSelector('automation-actions')} tbody tr`,
+} as const;
 
 interface LayoutStep {
   id: string;
@@ -42,18 +48,23 @@ interface LayoutStep {
 
 /** The shared skeleton for trigger-focused automation tours. */
 function eventShape(extra: readonly string[] = []): readonly LayoutStep[] {
+  const { editorClose, tabEvents, firstEventRow } = automationSelector;
+  const selectEventIds = [guideAction.automation.selectEvents];
+  const openEventIds = [guideAction.automation.openEvent];
+  const openEventPrepare = [editorClose, tabEvents, firstEventRow];
   const steps: LayoutStep[] = [
-    { id: 'eventsTab', target: 'automation-tab-events', policy: 'cancel', prepare: [CLOSE], prepareActions: ['automation.selectEvents'] },
-    { id: 'events', target: 'automation-events', policy: 'skip', prepare: [CLOSE, TAB_EVENTS], prepareActions: ['automation.selectEvents'] },
-    { id: 'trigger', target: 'event-editor-trigger', policy: 'skip', prepare: [CLOSE, TAB_EVENTS, FIRST_EVENT_ROW], prepareActions: ['automation.openEvent'] },
-    { id: 'conditions', target: 'event-editor-conditions', policy: 'skip', prepare: [CLOSE, TAB_EVENTS, FIRST_EVENT_ROW], prepareActions: ['automation.openEvent'] },
+    { id: 'eventsTab', target: 'automation-tab-events', policy: 'cancel', prepare: [editorClose], prepareActions: selectEventIds },
+    { id: 'events', target: 'automation-events', policy: 'skip', prepare: [editorClose, tabEvents], prepareActions: selectEventIds },
+    { id: 'trigger', target: 'event-editor-trigger', policy: 'skip', prepare: openEventPrepare, prepareActions: openEventIds },
+    { id: 'conditions', target: 'event-editor-conditions', policy: 'skip', prepare: openEventPrepare, prepareActions: openEventIds },
   ];
-  if (extra.includes('cooldown')) steps.push({ id: 'cooldown', target: 'event-editor-cooldown', policy: 'skip', prepare: [CLOSE, TAB_EVENTS, FIRST_EVENT_ROW], prepareActions: ['automation.openEvent'] });
+  if (extra.includes('cooldown')) steps.push({ id: 'cooldown', target: 'event-editor-cooldown', policy: 'skip', prepare: openEventPrepare, prepareActions: openEventIds });
   return steps;
 }
 
 /** The shared skeleton for effect-focused automation tours. */
 function actionShape(requirements?: TourRequirements): readonly LayoutStep[] {
+  const { editorClose, tabActions, firstActionRow } = automationSelector;
   const example = requirements?.automationActionExample;
   const type = requirements?.automationActionType;
   // Edit/example tours open an existing compatible record. Type-owned builtin
@@ -62,17 +73,19 @@ function actionShape(requirements?: TourRequirements): readonly LayoutStep[] {
   const openAction = example ? automationActionExampleGuideAction(example)
     : type?.typeId ? `automation.openOrCreateActionType:${type.typeId}`
     : type?.tag ? `automation.openActionTag:${type.tag}`
-    : 'automation.openAction';
+    : guideAction.automation.openAction;
   const specialized = !!(example || type);
   // A specialized tour must never select whichever first action happens to
   // exist. Only the generic actions overview keeps the first-row DOM fallback.
-  const openFallback = specialized ? [CLOSE, TAB_ACTIONS] : [CLOSE, TAB_ACTIONS, FIRST_ACTION_ROW];
+  const openFallback = specialized ? [editorClose, tabActions] : [editorClose, tabActions, firstActionRow];
   const editorPolicy = specialized ? 'cancel' as const : 'skip' as const;
+  const selectActionIds = [guideAction.automation.selectActions];
+  const openActionIds = [openAction];
   return [
-    { id: 'actionsTab', target: 'automation-tab-actions', policy: 'cancel', prepare: [CLOSE], prepareActions: ['automation.selectActions'] },
-    { id: 'actions', target: 'automation-actions', policy: 'skip', prepare: [CLOSE, TAB_ACTIONS], prepareActions: ['automation.selectActions'] },
-    { id: 'settings', target: 'action-editor-settings', policy: editorPolicy, prepare: openFallback, prepareActions: [openAction] },
-    { id: 'permissions', target: 'action-editor-permissions', policy: editorPolicy, prepare: openFallback, prepareActions: [openAction] },
+    { id: 'actionsTab', target: 'automation-tab-actions', policy: 'cancel', prepare: [editorClose], prepareActions: selectActionIds },
+    { id: 'actions', target: 'automation-actions', policy: 'skip', prepare: [editorClose, tabActions], prepareActions: selectActionIds },
+    { id: 'settings', target: 'action-editor-settings', policy: editorPolicy, prepare: openFallback, prepareActions: openActionIds },
+    { id: 'permissions', target: 'action-editor-permissions', policy: editorPolicy, prepare: openFallback, prepareActions: openActionIds },
   ];
 }
 

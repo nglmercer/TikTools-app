@@ -8,6 +8,8 @@ import { parseDemoOptions } from '../../../../src/web/demo/scenarios.ts';
 import { frameCopy } from '../../../experience/frame/index.ts';
 import { toolbarCopy } from '../../../../src/web/demo/toolbar-copy.ts';
 import { isDemoFrameState, type DemoFrameState, type FrameAction } from '../../../../src/web/demo/frame-messages.ts';
+import { demoParam, demoSearchParams, frameMessageType, frameOnlyParams } from '../../../../src/web/demo/contract.ts';
+import { frameTestId } from '../../../../src/web/demo/test-ids.ts';
 import IconPlay from '../../../../src/web/shared/ui/icon/icons/IconPlay.vue';
 import IconPause from '../../../../src/web/shared/ui/icon/icons/IconPause.vue';
 import IconRefresh from '../../../../src/web/shared/ui/icon/icons/IconRefresh.vue';
@@ -17,6 +19,13 @@ import BaseCompactSelect from '../../../../src/web/shared/ui/combo-box/BaseCompa
 
 const props = defineProps<{ scenario: string; locale?: string; route?: string; tour?: string; title: string; panel?: 'connection' | 'feed' | 'automation' | 'points' | 'overlays'; autoload?: boolean; minimal?: boolean; showcase?: boolean; initialEvents?: number; scale?: 0.25 | 0.5 | 0.75 | 1; viewportHeight?: number }>();
 const emit = defineEmits<{ state: [DemoFrameState] }>();
+/** Logical width of the demo document; the CSS below mirrors it with literal px. */
+const FRAME_WIDTH = 1280;
+/** Logical frame heights in px; measured content is clamped to min..max. */
+const logicalHeights = { showcase: 720, connection: 480, default: 800, min: 400, max: 1200 };
+const FIT_ZOOM = 'fit';
+/** Landing toolbar slot that DocsHome renders; the overlay is teleported there when minimal. */
+const chromeTargetSelector = '#product-stage-tools';
 const { lang, isDark } = useData();
 const ready = ref(false);
 const mounted = ref(false);
@@ -25,17 +34,19 @@ const root = ref<HTMLElement | null>(null);
 const iframe = ref<HTMLIFrameElement | null>(null);
 const measuredWidth = ref(0);
 const measuredHeight = ref(0);
-const zoom = ref(props.scale ? String(props.scale) : 'fit');
+const zoom = ref(props.scale ? String(props.scale) : FIT_ZOOM);
 const zoomLevels = [0.25, 0.5, 0.75, 1];
 const runtime = ref<DemoFrameState | null>(null);
 const logicalHeight = computed(() => {
   if (props.viewportHeight) return props.viewportHeight;
-  if (props.showcase) return 720;
-  if (!props.minimal && props.panel === 'connection') return 480;
-  if (props.minimal && measuredHeight.value) return Math.max(400, Math.min(1200, measuredHeight.value));
-  return 800;
+  if (props.showcase) return logicalHeights.showcase;
+  if (!props.minimal && props.panel === 'connection') return logicalHeights.connection;
+  if (props.minimal && measuredHeight.value) return Math.max(logicalHeights.min, Math.min(logicalHeights.max, measuredHeight.value));
+  return logicalHeights.default;
 });
-const effectiveScale = computed(() => zoom.value === 'fit' ? Math.min(1, (measuredWidth.value || 1280) / 1280) : Number(zoom.value));
+/** Scale that fits the measured width, capped at 1:1. */
+const fitScale = computed(() => Math.min(1, (measuredWidth.value || FRAME_WIDTH) / FRAME_WIDTH));
+const effectiveScale = computed(() => zoom.value === FIT_ZOOM ? fitScale.value : Number(zoom.value));
 const frameStyle = computed(() => ({ '--frame-scale': String(effectiveScale.value), '--frame-height': String(logicalHeight.value) }));
 const canRun = computed(() => runtime.value?.ready && !runtime.value.busy && runtime.value.status !== 'limit');
 let observer: ResizeObserver | undefined;
@@ -63,7 +74,7 @@ function measureHeight(): void {
   const chrome = (doc.querySelector('.app-menu-bar')?.getBoundingClientRect().height ?? 0)
     + (doc.querySelector('.app-status-bar')?.getBoundingClientRect().height ?? 0);
   const height = Math.ceil(natural + chrome);
-  if (height >= 400 && Math.abs(height - measuredHeight.value) > 8) measuredHeight.value = height;
+  if (height >= logicalHeights.min && Math.abs(height - measuredHeight.value) > 8) measuredHeight.value = height;
 }
 function receiveState(event: MessageEvent) {
   if (event.origin !== location.origin || event.source !== iframe.value?.contentWindow || !isDemoFrameState(event.data)) return;
@@ -73,42 +84,56 @@ function receiveState(event: MessageEvent) {
 }
 onMounted(() => {
   instance.value = `docs-${crypto.randomUUID()}`;
-  measuredWidth.value = root.value?.clientWidth ?? 1280;
-  observer = new ResizeObserver(entries => { measuredWidth.value = entries[0]?.contentRect.width ?? 1280; });
+  measuredWidth.value = root.value?.clientWidth ?? FRAME_WIDTH;
+  observer = new ResizeObserver(entries => { measuredWidth.value = entries[0]?.contentRect.width ?? FRAME_WIDTH; });
   if (root.value) observer.observe(root.value);
   window.addEventListener('message', receiveState);
-  chromeTarget.value = Boolean(document.querySelector('#product-stage-tools'));
+  chromeTarget.value = Boolean(document.querySelector(chromeTargetSelector));
   mounted.value = true;
 });
 onBeforeUnmount(() => { observer?.disconnect(); window.removeEventListener('message', receiveState); });
 const articleLocale = computed(() => documentLocale(lang.value));
 const t = computed(() => docCopy[articleLocale.value]);
-const copy = computed(() => experienceCopy[documentLocale(props.locale ?? lang.value)]);
-const labels = computed(() => frameCopy[documentLocale(props.locale ?? lang.value)]);
-const fitPercent = computed(() => `${Math.round(Math.min(1, (measuredWidth.value || 1280) / 1280) * 100)}%`);
+// Locale for chrome and copy. The iframe URL uses the raw prop instead (see `url`).
+const frameLocale = computed(() => documentLocale(props.locale ?? lang.value));
+const copy = computed(() => experienceCopy[frameLocale.value]);
+const labels = computed(() => frameCopy[frameLocale.value]);
+const fitPercent = computed(() => `${Math.round(fitScale.value * 100)}%`);
 const zoomOptions = computed(() => [
-  { value: 'fit', label: `${labels.value.fit} (${fitPercent.value})`, short: fitPercent.value },
+  { value: FIT_ZOOM, label: `${labels.value.fit} (${fitPercent.value})`, short: fitPercent.value },
   ...zoomLevels.map((level) => ({ value: String(level), label: `${level * 100}%`, short: `${level * 100}%` })),
 ]);
-const player = computed(() => toolbarCopy[documentLocale(props.locale ?? lang.value)]);
+const player = computed(() => toolbarCopy[frameLocale.value]);
 const topic = computed<Topic>(() => ['automation', 'overlays', 'points'].includes(props.scenario) ? props.scenario as Topic : 'connection');
 // Snapshot only: changing the docs theme must not reload the iframe. Live
 // changes are forwarded through the bounded frame command bridge.
 const initialTheme = isDark.value ? 'dark' : 'light';
 const url = computed(() => {
-  const params = new URLSearchParams({ scenario: props.scenario, locale: props.locale ?? articleLocale.value, instance: instance.value, framed: '1', theme: initialTheme });
-  if (props.route) params.set('route', props.route);
-  if (props.tour) params.set('tour', props.tour);
-  if (props.panel) { params.set('embed', props.panel); params.delete('tour'); }
-  if (props.initialEvents !== undefined) params.set('events', String(props.initialEvents));
-  if (props.showcase) { params.set('showcase', '1'); params.delete('tour'); params.delete('embed'); params.delete('events'); }
+  // Showcase owns the frame, so tour, embed and events are dropped for it.
+  const params = demoSearchParams({
+    [demoParam.scenario]: props.scenario,
+    [demoParam.locale]: props.locale ?? articleLocale.value,
+    [demoParam.instance]: instance.value,
+    [demoParam.framed]: true,
+    [demoParam.theme]: initialTheme,
+    [demoParam.route]: props.route,
+    [demoParam.tour]: props.showcase || props.panel ? undefined : props.tour,
+    [demoParam.embed]: props.showcase ? undefined : props.panel,
+    [demoParam.events]: props.showcase ? undefined : props.initialEvents,
+    [demoParam.showcase]: props.showcase,
+  });
   const valid = parseDemoOptions(params.toString());
   return `${withBase('/demo/')}?${params}${valid.route ? `#${valid.route}` : ''}`;
 });
-const fullUrl = computed(() => { const value = url.value.split('#'); const clean = new URLSearchParams(value[0]!.split('?')[1]); clean.delete('embed'); clean.delete('showcase'); clean.delete('instance'); clean.delete('events'); clean.delete('framed'); clean.delete('theme'); return `${withBase('/demo/')}?${clean}${value[1] ? `#${value[1]}` : ''}`; });
+const fullUrl = computed(() => {
+  const [head = '', hash] = url.value.split('#');
+  const clean = new URLSearchParams(head.split('?')[1]);
+  for (const key of frameOnlyParams) clean.delete(key);
+  return `${withBase('/demo/')}?${clean}${hash ? `#${hash}` : ''}`;
+});
 function command(action: FrameAction) {
   if (!runtime.value?.ready) return;
-  iframe.value?.contentWindow?.postMessage({ type: 'tiktools.demo.command', instance: runtime.value.instance, ...action }, location.origin);
+  iframe.value?.contentWindow?.postMessage({ type: frameMessageType.command, instance: runtime.value.instance, ...action }, location.origin);
   if (action.action === 'reset') { ready.value = false; runtime.value = null; }
 }
 defineExpose({ command });
@@ -118,14 +143,14 @@ watch([() => runtime.value?.ready, isDark], ([frameReady, dark]) => {
 </script>
 
 <template>
-  <section ref="root" class="demo-frame" :class="{ 'demo-frame--focused': panel, 'demo-frame--minimal': minimal, 'demo-frame--fit': zoom === 'fit' }" :style="frameStyle" :data-panel="panel" :aria-label="title">
+  <section ref="root" class="demo-frame" :class="{ 'demo-frame--focused': panel, 'demo-frame--minimal': minimal, 'demo-frame--fit': zoom === FIT_ZOOM }" :style="frameStyle" :data-panel="panel" :aria-label="title">
     <div v-if="!minimal" class="demo-frame__bar">
       <span class="demo-frame__dot" />
       <strong class="demo-frame__title">{{ title }}<small class="demo-frame__demo-tag">demo:{{ props.scenario }}</small></strong>
       <div v-if="runtime" class="demo-frame__tools" role="group" :aria-label="copy.interactive">
-        <button type="button" data-testid="frame-play" :aria-label="runtime?.paused === false ? player.pause : player.play" :title="runtime?.paused === false ? player.pause : player.play" :aria-pressed="runtime?.paused === false" :disabled="!canRun" @click="command({ action:'play' })"><IconPause v-if="runtime?.paused === false" /><IconPlay v-else /></button>
-        <button type="button" data-testid="frame-step" :aria-label="player.step" :title="player.step" :disabled="!canRun" @click="command({ action:'step' })"><IconChevronRight /></button>
-        <button type="button" data-testid="frame-reset" :aria-label="copy.reset" :title="copy.reset" :disabled="!runtime?.ready" @click="command({ action:'reset' })"><IconRefresh /></button>
+        <button type="button" :data-testid="frameTestId.play" :aria-label="runtime?.paused === false ? player.pause : player.play" :title="runtime?.paused === false ? player.pause : player.play" :aria-pressed="runtime?.paused === false" :disabled="!canRun" @click="command({ action:'play' })"><IconPause v-if="runtime?.paused === false" /><IconPlay v-else /></button>
+        <button type="button" :data-testid="frameTestId.step" :aria-label="player.step" :title="player.step" :disabled="!canRun" @click="command({ action:'step' })"><IconChevronRight /></button>
+        <button type="button" :data-testid="frameTestId.reset" :aria-label="copy.reset" :title="copy.reset" :disabled="!runtime?.ready" @click="command({ action:'reset' })"><IconRefresh /></button>
         <output v-if="runtime" class="demo-frame__count" :aria-label="player.events">{{ runtime.events }}</output>
         <select v-if="panel === 'connection'" class="demo-frame__case" :aria-label="copy.connectionStates.label" :value="runtime?.connectionCase ?? 'normal'" :disabled="!runtime?.ready" @change="command({ action:'connection-case', value:($event.target as HTMLSelectElement).value as 'normal' | 'offline' | 'auth' })"><option value="normal">{{ copy.connectionStates.normal }}</option><option value="offline">{{ copy.connectionStates.offline }}</option><option value="auth">{{ copy.connectionStates.auth }}</option></select>
       </div>
@@ -136,7 +161,7 @@ watch([() => runtime.value?.ready, isDark], ([frameReady, dark]) => {
       <div class="demo-frame__viewport">
         <p v-if="!ready" class="demo-frame__loading" role="status">{{ copy.loading }}</p>
         <Teleport
-          to="#product-stage-tools"
+          :to="chromeTargetSelector"
           :disabled="!minimal || !chromeTarget"
         >
           <div
@@ -156,7 +181,7 @@ watch([() => runtime.value?.ready, isDark], ([frameReady, dark]) => {
               :options="zoomOptions"
               :ariaLabel="labels.zoom"
               :title="labels.desktop"
-              test-id="frame-zoom"
+              :test-id="frameTestId.zoom"
             />
           </div>
         </Teleport>
@@ -193,6 +218,7 @@ watch([() => runtime.value?.ready, isDark], ([frameReady, dark]) => {
 .demo-frame__overlay a { display:inline-flex; align-items:center; gap:6px; padding:5px 8px; border:1px solid var(--vp-c-divider); border-radius:6px; background:var(--vp-c-bg); color:var(--vp-c-text-1); text-decoration:none; }
 .demo-frame__overlay svg { width:14px; height:14px; }
 .demo-frame__overlay-label { color:var(--vp-c-text-3); font:10px var(--vp-font-family-mono); transition:opacity .15s; }
+/* Literal 1280px values below mirror FRAME_WIDTH in the script. */
 .demo-frame__canvas { position:relative; width:calc(1280px * var(--frame-scale)); height:calc(var(--frame-height) * 1px * var(--frame-scale)); margin-inline:auto; }
 .demo-frame--fit .demo-frame__canvas { width:min(100%,1280px); height:auto; aspect-ratio:1280 / var(--frame-height); }
 .demo-frame iframe { position:absolute; top:0; left:0; display:block; width:1280px; max-width:none; height:calc(var(--frame-height) * 1px); border:0; transform:scale(var(--frame-scale)); transform-origin:top left; }

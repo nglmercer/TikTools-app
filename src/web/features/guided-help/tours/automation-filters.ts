@@ -1,18 +1,19 @@
-import { defineTour } from '../model/define-tour.ts';
+import { automationSelector, defineTour } from '../model/define-tour.ts';
+import { guideAction, guideScope } from '../model/guide-vocabulary.ts';
 
 export default defineTour({
   id: 'automationFilters',
   version: 1,
   route: '/automations',
-  scope: 'automations',
+  scope: guideScope.automations,
   tags: ['events'],
   icon: 'filter',
   shape: 'custom',
   layout: [
-    { id: 'eventsTab', target: 'automation-tab-events', policy: 'cancel', prepareActions: ['automation.selectEvents'], prepare: ['[data-guide="automation-editor-close"]'] },
-    { id: 'operators', target: 'event-editor-conditions', policy: 'skip', prepareActions: ['automation.openEvent'], prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-events"] tbody tr'] },
-    { id: 'quantifiers', target: 'event-editor-run', policy: 'skip', prepareActions: ['automation.openEvent'], prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-events"] tbody tr'] },
-    { id: 'verify', target: 'automation-runs', policy: 'skip', prepare: ['[data-guide="automation-editor-close"]'] },
+    { id: 'eventsTab', target: 'automation-tab-events', policy: 'cancel', prepareActions: [guideAction.automation.selectEvents], prepare: [automationSelector.editorClose] },
+    { id: 'operators', target: 'event-editor-conditions', policy: 'skip', prepareActions: [guideAction.automation.openEvent], prepare: [automationSelector.editorClose, automationSelector.tabEvents, automationSelector.firstEventRow] },
+    { id: 'quantifiers', target: 'event-editor-run', policy: 'skip', prepareActions: [guideAction.automation.openEvent], prepare: [automationSelector.editorClose, automationSelector.tabEvents, automationSelector.firstEventRow] },
+    { id: 'verify', target: 'automation-runs', policy: 'skip', prepare: [automationSelector.editorClose] },
   ],
   steps: {
     eventsTab: {

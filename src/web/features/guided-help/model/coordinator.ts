@@ -7,6 +7,7 @@ import { tourCatalogs, type TourCatalog } from '../catalogs/index.ts';
 import { isTourId, tourRegistry } from './registry.ts';
 import { readTourProgress, writeTourProgress } from './progress.ts';
 import { hasGuideAction, runGuideAction } from './guide-actions.ts';
+import { guideScopeSelector, guideTargetSelector, isVisible, queryGuide } from './guide-dom.ts';
 import { automationActionExampleAvailable, automationActionTypeAvailable } from './tour-requirements.ts';
 import type { GuideOutcome, GuideSession, GuideStep, StartTourOptions, TourDefinition, TourLocale, TourStepDefinition, TourTaskState } from './types.ts';
 
@@ -42,23 +43,6 @@ export const MAX_GUIDE_WAIT_MS = 5_000;
 const DEFAULT_WAIT_MS = 2_000;
 const escaped = (value: string) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
 const modalOpen = () => document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]');
-
-function visible(element: Element | null): element is HTMLElement {
-  if (!(element instanceof HTMLElement) || !element.isConnected ||
-      element.closest('[hidden], [inert], [aria-hidden="true"]') ||
-      element.matches(':disabled, [aria-disabled="true"]')) return false;
-  for (let ancestor: HTMLElement | null = element; ancestor; ancestor = ancestor.parentElement) {
-    const style = getComputedStyle(ancestor);
-    if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse' || Number.parseFloat(style.opacity) <= 0) return false;
-  }
-  // Offscreen targets can be scrolled into view; unlaid-out/zero-area targets cannot be highlighted.
-  return Array.from(element.getClientRects()).some((rect) => rect.width > 0 && rect.height > 0);
-}
-
-function query(scope: Element | Document, selector: string): Element | null {
-  try { return scope instanceof Element && scope.matches(selector) ? scope : scope.querySelector(selector); }
-  catch { return null; }
-}
 
 /** One observer, one deadline and one abort listener per wait, all removed on every exit. */
 function waitFor<T>(read: () => T | undefined, signal: AbortSignal, timeout: number): Promise<T | undefined> {
@@ -193,8 +177,8 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
     }
     function target(step: GuideStep): HTMLElement | undefined {
       if (!scope || (scope instanceof Element && !scope.isConnected)) return;
-      const element = query(scope, step.selector);
-      return visible(element) ? element : undefined;
+      const element = queryGuide(scope, step.selector);
+      return isVisible(element) ? element : undefined;
     }
     function savedStep(steps: readonly GuideStep[]): string {
       if (options.version !== undefined) return readTourProgress(progressStorage, options.id, options.version, steps.map((step) => step.id))?.stepId ?? '';
@@ -213,7 +197,7 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
         if (options.version === undefined && taskComplete()) { finish('task-completed'); return; }
         if (scope instanceof Element && !scope.isConnected) { finish('unavailable'); return; }
         const element = engine?.getActiveElement?.();
-        if (element && !visible(element)) handleMissing();
+        if (element && !isVisible(element)) handleMissing();
       });
       observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['open', 'hidden', 'disabled', 'aria-hidden', 'aria-disabled', 'aria-modal', 'inert', 'style', 'class'] });
     }
@@ -303,8 +287,8 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
             const semanticOwner = (step.prepareActions ?? []).some((action) => hasGuideAction(options.scopeName, action, scope));
             if (!acted && !semanticOwner) {
               for (const selector of step.prepareClick ?? []) {
-                const trigger = query(scope, selector);
-                if (visible(trigger)) { trigger.click(); acted = true; break; }
+                const trigger = queryGuide(scope, selector);
+                if (isVisible(trigger)) { trigger.click(); acted = true; break; }
               }
             }
             if (!acted) break;
@@ -373,7 +357,7 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
         }
         scope = await waitFor(() => {
           if (!options.scopeName) return options.scope?.isConnected ? options.scope : options.scope ? undefined : document;
-          const found = query(options.scope ?? document, `[data-guide-scope="${options.scopeName}"]`);
+          const found = queryGuide(options.scope ?? document, guideScopeSelector(options.scopeName));
           return found?.isConnected ? found : undefined;
         }, abort.signal, waitMs);
         if (!scope || finished) { finish('unavailable'); return; }
@@ -400,7 +384,7 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
     textAt: (key: string) => string,
     options: StartTourOptions,
   ): GuideSession {
-    const existingScope = options.scope && query(options.scope, `[data-guide-scope="${definition.scope}"]`);
+    const existingScope = options.scope && queryGuide(options.scope, guideScopeSelector(definition.scope));
     const accountAvailable = () => definition.availability?.account !== 'signed-in'
       || (typeof options.signedIn === 'function' ? options.signedIn() : options.signedIn) === true;
     const snapshot = () => typeof options.automationSnapshot === 'function' ? options.automationSnapshot() : options.automationSnapshot;
@@ -417,7 +401,7 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
       ...options, id: definition.id, version: definition.version, route: existingScope?.isConnected ? undefined : definition.route, scopeName: definition.scope, task: definition.task,
       labels: controls,
       steps: () => (definition.steps as readonly TourStepDefinition[]).map((step) => ({
-        id: step.id, version: step.version, selector: `[data-guide="${step.target}"]`,
+        id: step.id, version: step.version, selector: guideTargetSelector(step.target),
         title: textAt(step.titleKey), description: textAt(step.descriptionKey), missingTargetPolicy: step.missingTargetPolicy, prepareClick: step.prepareClick, prepareActions: step.prepareActions,
         popoverSide: step.popoverSide, popoverAlign: step.popoverAlign,
         available: () => accountAvailable() && requirementsAvailable() && step.requiredCapabilities.every((method) => !options.capabilities || ('supports' in options.capabilities ? options.capabilities.supports(method) !== false : options.capabilities.includes(method))),
