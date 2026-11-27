@@ -381,6 +381,19 @@ fn coordinator(root: &Path, server: &Server, account: &str) -> WorkspaceCoordina
 }
 // These low-level tests supply a trusted product fixture directly, without
 // running the separate protocol cutover transaction.
+/// The product decision staged by the upload tests: plugin `acme.plugin`,
+/// consent 42, source generation 7, for account `account-a`.
+fn standard_decision(server: &Server) -> crate::V2ProductDecision {
+    crate::V2ProductDecision {
+        origin: server.origin.clone(),
+        account_id: "account-a".into(),
+        config_generation: 42,
+        source_generation: 7,
+        plugin_id: "acme.plugin".into(),
+        selection: Some(selection()),
+    }
+}
+
 /// Bootstraps `coordinator`, guards it for product uploads and stages the
 /// standard decision (plugin `acme.plugin`, consent 42, source generation 7).
 fn stage_product_fixture(
@@ -390,14 +403,7 @@ fn stage_product_fixture(
     coordinator.bootstrap(&[], None).unwrap();
     guard_product_fixture(coordinator);
     let target = key("plugin-selections", "acme.plugin");
-    let decision = crate::V2ProductDecision {
-        origin: server.origin.clone(),
-        account_id: "account-a".into(),
-        config_generation: 42,
-        source_generation: 7,
-        plugin_id: "acme.plugin".into(),
-        selection: Some(selection()),
-    };
+    let decision = standard_decision(&server);
     coordinator
         .stage_product_decision(
             target.clone(),
@@ -1331,14 +1337,7 @@ async fn product_upload_requires_exact_receipt_source_and_current_eligibility() 
         .await
         .is_err());
     assert_eq!(server.remote.lock().unwrap().writes(), 0);
-    let decision = crate::V2ProductDecision {
-        origin: server.origin.clone(),
-        account_id: "account-a".into(),
-        config_generation: 42,
-        source_generation: 7,
-        plugin_id: "acme.plugin".into(),
-        selection: Some(selection()),
-    };
+    let decision = standard_decision(&server);
     coordinator
         .stage_product_decision(target.clone(), edit.clone(), 7, &decision.digest().unwrap())
         .unwrap();
