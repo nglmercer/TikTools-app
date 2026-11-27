@@ -486,6 +486,29 @@ async fn interrupt_keep_local(sync: &SyncCoordinator, outbox: &mut ProductOutbox
         .is_err());
 }
 
+/// Starts `sync_now` and returns once the server has committed the write but
+/// not yet answered, so the test can change local state before releasing it
+/// with `mock.held_write.release.notify_one()`.
+async fn hold_write(
+    mock: &MockSync,
+    sync: &SyncCoordinator,
+) -> tokio::task::JoinHandle<Result<crate::SyncOutcome, SyncCoordError>> {
+    mock.held_write
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let run = {
+        let sync = sync.clone();
+        tokio::spawn(async move { sync.sync_now().await })
+    };
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        mock.held_write.committed.notified(),
+    )
+    .await
+    .unwrap();
+    run
+}
+
 /// Holds the next export response: arms the gate, starts `operation` and returns
 /// once the server has the request, so the test can change state while it waits.
 /// Release it with `mock.held_export.release.notify_one()`.
@@ -2022,19 +2045,7 @@ async fn v1_logout_after_dispatched_write_preserves_uncertain_marker() {
     login(&auth, "v1-write-before").await;
     sync.record_local_change("acme.held", "1.0.0", true)
         .unwrap();
-    mock.held_write
-        .armed
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    let running = {
-        let sync = sync.clone();
-        tokio::spawn(async move { sync.sync_now().await })
-    };
-    tokio::time::timeout(
-        Duration::from_secs(10),
-        mock.held_write.committed.notified(),
-    )
-    .await
-    .unwrap();
+    let running = hold_write(&mock, &sync).await;
     auth.logout().await.unwrap();
     login(&auth, "v1-write-after").await;
     mock.held_write.release.notify_one();
@@ -4198,19 +4209,7 @@ async fn held_v1_ack_preserves_newer_stage_and_frozen_original_on_cas_conflict()
     login(&auth, "code-held").await;
     sync.record_local_change("acme.held", "1.0.0", false)
         .unwrap();
-    mock.held_write
-        .armed
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    let run = {
-        let sync = sync.clone();
-        tokio::spawn(async move { sync.sync_now().await })
-    };
-    tokio::time::timeout(
-        Duration::from_secs(10),
-        mock.held_write.committed.notified(),
-    )
-    .await
-    .unwrap();
+    let run = hold_write(&mock, &sync).await;
     sync.record_local_change("acme.held", "2.0.0", true)
         .unwrap();
     mock.held_write.release.notify_one();
@@ -4258,19 +4257,7 @@ async fn cancelled_v1_write_leaves_durable_original_and_releases_cutover_lease()
     assert_eq!(sync.sync_now().await.unwrap().pushed, 1);
     sync.record_local_change("acme.write", "1.2.3", true)
         .unwrap();
-    mock.held_write
-        .armed
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    let run = {
-        let sync = sync.clone();
-        tokio::spawn(async move { sync.sync_now().await })
-    };
-    tokio::time::timeout(
-        Duration::from_secs(10),
-        mock.held_write.committed.notified(),
-    )
-    .await
-    .unwrap();
+    let run = hold_write(&mock, &sync).await;
     let fence = crate::ProtocolFence::open(dir.join("a-sync")).unwrap();
     assert!(matches!(
         fence.try_cutover(),
@@ -4325,19 +4312,7 @@ async fn uncertain_take_cloud_is_fail_closed_until_product_apply_is_durable() {
     login(&auth, "code-recovery").await;
     sync.record_local_change("acme.recovery", "1.2.3", true)
         .unwrap();
-    mock.held_write
-        .armed
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    let run = {
-        let sync = sync.clone();
-        tokio::spawn(async move { sync.sync_now().await })
-    };
-    tokio::time::timeout(
-        Duration::from_secs(10),
-        mock.held_write.committed.notified(),
-    )
-    .await
-    .unwrap();
+    let run = hold_write(&mock, &sync).await;
     run.abort();
     assert!(run.await.unwrap_err().is_cancelled());
     mock.held_write.release.notify_one();
@@ -4428,19 +4403,7 @@ async fn uncertain_review_and_resolution_do_not_block_local_staging_during_cloud
     login(&auth, "code-recovery-held").await;
     sync.record_local_change("acme.recovery", "1.0.0", false)
         .unwrap();
-    mock.held_write
-        .armed
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    let run = {
-        let sync = sync.clone();
-        tokio::spawn(async move { sync.sync_now().await })
-    };
-    tokio::time::timeout(
-        Duration::from_secs(10),
-        mock.held_write.committed.notified(),
-    )
-    .await
-    .unwrap();
+    let run = hold_write(&mock, &sync).await;
     run.abort();
     assert!(run.await.unwrap_err().is_cancelled());
     mock.held_write.release.notify_one();
@@ -4503,19 +4466,7 @@ async fn uncertain_review_discards_cloud_response_after_logout() {
     login(&auth, "code-recovery-logout").await;
     sync.record_local_change("acme.recovery", "1.0.0", false)
         .unwrap();
-    mock.held_write
-        .armed
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    let run = {
-        let sync = sync.clone();
-        tokio::spawn(async move { sync.sync_now().await })
-    };
-    tokio::time::timeout(
-        Duration::from_secs(10),
-        mock.held_write.committed.notified(),
-    )
-    .await
-    .unwrap();
+    let run = hold_write(&mock, &sync).await;
     run.abort();
     assert!(run.await.unwrap_err().is_cancelled());
     mock.held_write.release.notify_one();
@@ -4550,19 +4501,7 @@ async fn completed_first_v1_write_is_saved_before_second_reply_is_lost() {
     mock.held_write
         .skip
         .store(1, std::sync::atomic::Ordering::SeqCst);
-    mock.held_write
-        .armed
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    let run = {
-        let sync = sync.clone();
-        tokio::spawn(async move { sync.sync_now().await })
-    };
-    tokio::time::timeout(
-        Duration::from_secs(10),
-        mock.held_write.committed.notified(),
-    )
-    .await
-    .unwrap();
+    let run = hold_write(&mock, &sync).await;
     run.abort();
     assert!(run.await.unwrap_err().is_cancelled());
     let state = cloud_client::StateStore::open(dir.join("a-sync"))
@@ -4605,19 +4544,7 @@ async fn switched_account_preserves_uncertain_and_other_queued_legacy_edits() {
     login(&auth, "account-a-code").await;
     sync.record_local_change("acme.a", "1.0.0", false).unwrap();
     sync.record_local_change("acme.z", "2.0.0", true).unwrap();
-    mock.held_write
-        .armed
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    let run = {
-        let sync = sync.clone();
-        tokio::spawn(async move { sync.sync_now().await })
-    };
-    tokio::time::timeout(
-        Duration::from_secs(10),
-        mock.held_write.committed.notified(),
-    )
-    .await
-    .unwrap();
+    let run = hold_write(&mock, &sync).await;
     run.abort();
     assert!(run.await.unwrap_err().is_cancelled());
     let root = dir.join("a-sync");
