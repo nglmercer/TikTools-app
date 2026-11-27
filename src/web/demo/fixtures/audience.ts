@@ -1,7 +1,7 @@
 import type { GiftCatalogEntry, UiEvent, ViewerRecord } from '../../../shared/messages.ts';
 import type { AutomationEvent, JsonObject } from '../../../automation/types.ts';
 import type { DemoLocale } from '../scenarios.ts';
-import roseUrl from '../assets/rose.png';
+import roseUrl from '../assets/rose-128.png';
 
 // All identities and activity are fictional and repeat deterministically.
 const audience = [

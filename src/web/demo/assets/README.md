@@ -1,6 +1,6 @@
 # Demo gift artwork
 
-`rose.png` is original fictional gift artwork generated with the built-in `image_gen` tool on 2026-11-13. It is bundled locally with the public demo; it is not an official TikTok gift image. The original transparent PNG is preserved.
+`rose.png` is original fictional gift artwork generated with the built-in `image_gen` tool on 2026-11-13. It is bundled locally with the public demo; it is not an official TikTok gift image. The original transparent PNG is preserved. `rose-128.png` is a 128 px derivative of it that the demo actually loads (the gift is drawn at 18-22 px), made with `ffmpeg -i rose.png -vf scale=128:128:flags=lanczos rose-128.png`.
 
 Generation prompt:
 

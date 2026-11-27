@@ -169,6 +169,12 @@ describe('showcase options and frame bridge', () => {
     for (const search of ['?showcase=2', '?showcase=1&embed=feed', '?showcase=1&preview=1', '?showcase=1&scenario=points', '?record=1', '?showcase=1&record=yes']) expect(() => parseDemoOptions(search), search).toThrow();
   });
 
+  it('accepts a bounded showcase pace and rejects it everywhere else', () => {
+    expect(parseDemoOptions('?showcase=1').pace).toBe(1);
+    expect(parseDemoOptions('?showcase=1&pace=4').pace).toBe(4);
+    for (const search of ['?pace=2', '?showcase=1&pace=0', '?showcase=1&pace=9', '?showcase=1&pace=1.5', '?showcase=1&pace=fast', '?showcase=1&pace=']) expect(() => parseDemoOptions(search), search).toThrow();
+  });
+
   it('accepts showcase commands with bounded indices and validates the reported state', () => {
     expect(parseFrameCommand(commandMessage('showcase-play'), 'frame-1')).toEqual({ action: 'showcase-play' });
     expect(parseFrameCommand(commandMessage('showcase-pause'), 'frame-1')).toEqual({ action: 'showcase-pause' });

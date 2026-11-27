@@ -63,6 +63,9 @@ export function parseDemoOptions(search: string) {
   const showcase = params.get(demoParam.showcase) === FLAG_ON;
   if (params.has(demoParam.record) && (params.get(demoParam.record) !== FLAG_ON || !showcase)) throw new Error('Recording requires the showcase.');
   const record = params.get(demoParam.record) === FLAG_ON;
+  const paceValue = params.get(demoParam.pace);
+  if (paceValue !== null && (!showcase || !new RegExp(`^[1-${demoLimits.maxShowcasePace}]$`).test(paceValue))) throw new Error('Showcase pace must be a whole number up to the limit and needs the showcase.');
+  const pace = paceValue === null ? 1 : Number(paceValue);
   const scenario = params.get(demoParam.scenario) ?? (showcase ? 'feed' : 'connection');
   const locale = normalizeLocale(params.get(demoParam.locale) ?? DEFAULT_DEMO_LOCALE);
   const embed = params.get(demoParam.embed);
@@ -77,5 +80,5 @@ export function parseDemoOptions(search: string) {
   if (!isScenario(scenario) || !locale || !validDemoRoute(route) || !/^[a-zA-Z0-9_-]{1,64}$/.test(instance) || (tour !== null && !Object.hasOwn(tourRegistry, tour))) throw new Error('Invalid demo parameters.');
   if (panel && (route !== embeddedPanels[panel] || tour)) throw new Error('Embedded panels require their focused route without a tour.');
   if (showcase && (panel || tour || preview || scenario !== 'feed')) throw new Error('The showcase runs on the feed scenario without a tour, panel or preview.');
-  return { scenario, locale, route, instance, tour, embed: panel, initialEvents, framed, preview, showcase, record };
+  return { scenario, locale, route, instance, tour, embed: panel, initialEvents, framed, preview, showcase, record, pace };
 }

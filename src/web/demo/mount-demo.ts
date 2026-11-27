@@ -146,7 +146,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   if (options.tour) launchTour(options.tour);
   if (options.showcase && workspaceRouter) {
     showcase = mountShowcase({
-      router: workspaceRouter, record: options.record, viewTransitions: !options.framed,
+      router: workspaceRouter, record: options.record, pace: options.pace, viewTransitions: !options.framed,
       stepEvent: () => playback.step(),
       locale: options.locale,
       changed(state) { showcaseState = state; publishFrameState(); },
@@ -172,7 +172,10 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   publishFrameState();
   const timer = setInterval(() => playback.tick(), demoTiming.autoplayMs);
   // Observable state has no mutators or test-only globals, and is useful for support diagnostics.
-  const metricsTimer = setInterval(() => { toolbarState.paused = host.paused; toolbarState.metrics = JSON.stringify({ host: host.diagnostics(), client: client.diagnostics?.() }); publishFrameState(); }, demoTiming.metricsMs);
+  const publishMetrics = () => { toolbarState.paused = host.paused; toolbarState.metrics = JSON.stringify({ host: host.diagnostics(), client: client.diagnostics?.() }); publishFrameState(); };
+  // Publish once now so the first sample does not wait a whole interval.
+  publishMetrics();
+  const metricsTimer = setInterval(publishMetrics, demoTiming.metricsMs);
   let disposed = false;
   function cleanup() { if (disposed) return; disposed = true; showcase?.dispose(); tour?.stop('disposed'); stopTour(); playback.dispose(); clearInterval(timer); clearInterval(metricsTimer); toolbarApp.unmount(); client.detach(); host.dispose(); configureAppClock(undefined); window.removeEventListener('message', onFrameCommand); window.removeEventListener('pagehide', onPageHide); window.removeEventListener('pageshow', restore); }
   function dispose() { if (disposed) return; cleanup(); app.unmount(); }

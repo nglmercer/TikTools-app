@@ -4,7 +4,7 @@
  */
 export const demoParam = {
   scenario: 'scenario', locale: 'locale', instance: 'instance', route: 'route', theme: 'theme',
-  embed: 'embed', tour: 'tour', events: 'events', framed: 'framed', preview: 'preview', showcase: 'showcase', record: 'record',
+  embed: 'embed', tour: 'tour', events: 'events', framed: 'framed', preview: 'preview', showcase: 'showcase', record: 'record', pace: 'pace',
 } as const;
 export type DemoParam = typeof demoParam[keyof typeof demoParam];
 /** Boolean URL flags are exactly `1`; anything else is rejected by the parser. */
@@ -24,6 +24,8 @@ export const demoLimits = {
   maxTicks: 300,
   maxInitialEvents: 12,
   maxShowcaseSteps: 12,
+  /** Speed-up factor accepted by `?showcase=1&pace=N` (1 = real time). Tests use it to finish the tour sooner. */
+  maxShowcasePace: 8,
   /** Hard cap for any value that is echoed back in a state message. */
   maxMessageEvents: 300,
 } as const;

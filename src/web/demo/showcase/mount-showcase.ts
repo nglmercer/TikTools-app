@@ -19,6 +19,8 @@ export interface ShowcaseMountOptions {
   locale: DemoLocale;
   /** Recording mode plays once and flags the end on `<html data-showcase-done>`. */
   record: boolean;
+  /** Speed-up factor; every wait and animation is divided by it. */
+  pace: number;
   /** Cross-fade views with the View Transitions API. */
   viewTransitions: boolean;
   changed(state: ShowcaseState): void;
@@ -26,7 +28,7 @@ export interface ShowcaseMountOptions {
 
 export function mountShowcase(options: ShowcaseMountOptions): ShowcaseHandle {
   const reducedMotion = prefersReducedMotion();
-  const stage = createShowcaseStage({ locale: options.locale, reducedMotion });
+  const stage = createShowcaseStage({ locale: options.locale, reducedMotion, pace: options.pace });
   const director = createShowcaseDirector(showcaseSteps, {
     stage,
     async navigate(route) {
@@ -48,7 +50,7 @@ export function mountShowcase(options: ShowcaseMountOptions): ShowcaseHandle {
     target: (name) => waitForTarget(name),
     stepEvent: options.stepEvent,
     guide: (scope, action, target) => runGuideAction(document, scope, action, target),
-    sleep: abortableSleep,
+    sleep: (ms, signal) => abortableSleep(ms / options.pace, signal),
     changed(state) {
       if (options.record && state.done) document.documentElement.dataset[demoRootData.showcaseDone] = 'true';
       options.changed(state);

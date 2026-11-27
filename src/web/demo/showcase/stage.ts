@@ -7,7 +7,7 @@ import {
 } from './constants.ts';
 import './showcase.css';
 
-export interface StageOptions { locale: DemoLocale; reducedMotion: boolean }
+export interface StageOptions { locale: DemoLocale; reducedMotion: boolean; /** Speed-up factor (1 = real time). */ pace: number }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -62,7 +62,8 @@ export function createShowcaseStage(options: StageOptions): ShowcaseStage & { di
     const step = () => { place(); if (performance.now() < until) frame = requestAnimationFrame(step); };
     step();
   };
-  const settle = (ms: number) => options.reducedMotion || ms <= 0 ? Promise.resolve() : new Promise<void>((resolve) => { setTimeout(resolve, ms); });
+  const scaled = (ms: number) => ms / options.pace;
+  const settle = (ms: number) => options.reducedMotion || ms <= 0 ? Promise.resolve() : new Promise<void>((resolve) => { setTimeout(resolve, scaled(ms)); });
   const onResize = () => place();
   addEventListener('resize', onResize);
 
@@ -70,7 +71,7 @@ export function createShowcaseStage(options: StageOptions): ShowcaseStage & { di
     const from = pointer;
     pointer = { x, y };
     const distance = Math.hypot(x - from.x, y - from.y);
-    const duration = options.reducedMotion ? 0 : Math.min(cursorTravel.maxMs, cursorTravel.baseMs + distance * cursorTravel.perPx);
+    const duration = options.reducedMotion ? 0 : scaled(Math.min(cursorTravel.maxMs, cursorTravel.baseMs + distance * cursorTravel.perPx));
     const frames = [{ transform: `translate(${from.x - 4}px, ${from.y - 2}px)` }, { transform: `translate(${x - 4}px, ${y - 2}px)` }];
     const animation = cursor.animate(frames, { duration, easing: glideEasing, fill: 'forwards' });
     cursor.dataset[layerData.visible] = 'true';
@@ -85,7 +86,7 @@ export function createShowcaseStage(options: StageOptions): ShowcaseStage & { di
       root.dataset[layerData.on] = 'true';
       observer?.disconnect();
       if (typeof ResizeObserver === 'function') { observer = new ResizeObserver(place); observer.observe(element); }
-      follow(performance.now() + spotlightSettleMs + spotlightFollowMs);
+      follow(performance.now() + scaled(spotlightSettleMs) + spotlightFollowMs);
       await settle(spotlightSettleMs);
     },
     async pointAt(element) {
@@ -95,13 +96,13 @@ export function createShowcaseStage(options: StageOptions): ShowcaseStage & { di
     async click() {
       ripple.style.transform = `translate(${pointer.x}px, ${pointer.y}px)`;
       if (!options.reducedMotion) {
-        cursor.animate([{ scale: '1' }, { scale: '0.82' }, { scale: '1' }], { duration: clickPressMs, easing: easeOut });
-        ripple.animate([{ opacity: 0.9, scale: '0.3' }, { opacity: 0, scale: '1.8' }], { duration: rippleMs, easing: easeOut });
+        cursor.animate([{ scale: '1' }, { scale: '0.82' }, { scale: '1' }], { duration: scaled(clickPressMs), easing: easeOut });
+        ripple.animate([{ opacity: 0.9, scale: '0.3' }, { opacity: 0, scale: '1.8' }], { duration: scaled(rippleMs), easing: easeOut });
       }
       await settle(clickSettleMs);
       // The cursor only exists to show a click; it leaves once the result is visible.
       clearTimeout(hideTimer);
-      hideTimer = setTimeout(() => { delete cursor.dataset[layerData.visible]; }, cursorHideMs);
+      hideTimer = setTimeout(() => { delete cursor.dataset[layerData.visible]; }, scaled(cursorHideMs));
     },
     release() { delete root.dataset[layerData.on]; },
     clear() {
