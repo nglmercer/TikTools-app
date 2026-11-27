@@ -82,7 +82,7 @@ describe('guide contract', () => {
 
   it('requires both an active action type and an existing matching record', () => {
     const fetchType = { id: ACTION_TYPE.coreFetch, tag: 'fetch', title: { default: 'Call a URL', i18key: '' }, source: { kind: 'builtin' as const } };
-    const ttsType = { id: 'demo.tts', tag: 'tts', title: { default: 'Speak', i18key: '' }, source: { kind: 'plugin' as const, pluginId: 'demo.audio' } };
+    const ttsType = { id: ACTION_TYPE.demoTts, tag: 'tts', title: { default: 'Speak', i18key: '' }, source: { kind: 'plugin' as const, pluginId: 'demo.audio' } };
     const plugin = { installed: true, enabled: true, descriptor: { id: 'demo.audio' } };
     expect(automationActionExampleAvailable({ typeId: ACTION_TYPE.coreFetch }, {
       actions: [{ typeId: ACTION_TYPE.coreFetch }], actionTypes: [fetchType], plugins: [],
@@ -91,10 +91,10 @@ describe('guide contract', () => {
       actions: [{ typeId: ACTION_TYPE.coreLog }], actionTypes: [fetchType], plugins: [],
     })).toBe(false);
     expect(automationActionExampleAvailable({ tag: 'tts' }, {
-      actions: [{ typeId: 'demo.tts' }], actionTypes: [ttsType], plugins: [plugin],
+      actions: [{ typeId: ACTION_TYPE.demoTts }], actionTypes: [ttsType], plugins: [plugin],
     })).toBe(true);
     expect(automationActionExampleAvailable({ tag: 'tts' }, {
-      actions: [{ typeId: 'demo.tts' }], actionTypes: [ttsType], plugins: [{ ...plugin, enabled: false }],
+      actions: [{ typeId: ACTION_TYPE.demoTts }], actionTypes: [ttsType], plugins: [{ ...plugin, enabled: false }],
     })).toBe(false);
   });
 

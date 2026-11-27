@@ -91,6 +91,6 @@ test('creates a leaderboard challenge without options', async ({ page }) => {
   await page.getByRole('button', { name: t('competitionsPanel.form.create') }).click();
 
   await expect(page.getByText(t('competitionsPanel.form.created'))).toBeVisible();
-  const [created] = await calls(page, 'competitions.create');
+  const [created] = await calls(page, RPC.competitionsCreate);
   expect(created).toMatchObject({ id: 'challenge', kind: 'leaderboard_challenge', rankingId: 'top-gifts', options: [], targetScore: 500, selectionMode: 'highest_score' });
 });

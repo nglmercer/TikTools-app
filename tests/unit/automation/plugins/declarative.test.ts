@@ -22,13 +22,13 @@ import {
   toPluginPageDescriptor,
   isSecretField,
 } from '../../../../src/automation/plugins/declarative.ts';
-import { EVENT_KIND, PLUGIN_ID } from '../../../shared/index.ts';
+import { EVENT_KIND, PLUGIN_ID, PLUGIN_SOURCE } from '../../../shared/index.ts';
 
 test('option source ids round-trip', () => {
   expect(optionSourceId(PLUGIN_ID.sonicboomServerSpeak, 'voice')).toBe(
-    'plugin-action-options:sonicboom.server.speak:voice',
+    PLUGIN_SOURCE.sonicboomVoices,
   );
-  expect(parseOptionSourceId('plugin-action-options:sonicboom.server.speak:voice')).toEqual({
+  expect(parseOptionSourceId(PLUGIN_SOURCE.sonicboomVoices)).toEqual({
     actionType: PLUGIN_ID.sonicboomServerSpeak,
     field: 'voice',
   });
@@ -105,7 +105,7 @@ test('page descriptors enforce the fixed widget set', () => {
       { kind: 'form' },
       { kind: 'connection' },
       { kind: 'list', optionsFrom: 'plugin-action-options:a.b:c' },
-      { kind: 'tts', actionType: PLUGIN_ID.sonicboomServerSpeak, voicesFrom: 'plugin-action-options:sonicboom.server.speak:voice' },
+      { kind: 'tts', actionType: PLUGIN_ID.sonicboomServerSpeak, voicesFrom: PLUGIN_SOURCE.sonicboomVoices },
     ],
     source: { kind: 'plugin', pluginId: PLUGIN_ID.sonicboomServer },
   };
@@ -210,7 +210,7 @@ test('tts outputs source stays optional and never drops the panel', () => {
   const section = {
     kind: 'tts',
     actionType: PLUGIN_ID.sonicboomServerSpeak,
-    voicesFrom: 'plugin-action-options:sonicboom.server.speak:voice',
+    voicesFrom: PLUGIN_SOURCE.sonicboomVoices,
   };
   const page = (entry: JsonValue) => ({
     id: 'tts',

@@ -34,6 +34,6 @@ describe('cloud overlay live fields', () => {
   });
 
   it('returns nothing for an envelope it does not understand', () => {
-    expect(liveFieldsFrom({ topic: 'event.gap', data: {} })).toEqual({});
+    expect(liveFieldsFrom({ topic: TOPIC.eventGap, data: {} })).toEqual({});
   });
 });

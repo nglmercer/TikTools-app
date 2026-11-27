@@ -1,6 +1,6 @@
 import { t, mountPage, buttonByLabel, goBack, documentButton, selectRow, it, expect, vi, nextTick, libraryJournal, flushPromises, afterEach, beforeEach, resetResolutionPreference } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
 import { runGuideAction } from '../../../../../../src/web/features/guided-help/model/guide-actions.ts';
-import { ACTION_TYPE, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, LIBRARY_OPERATION, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
 
 beforeEach(() => { localStorage.clear(); resetResolutionPreference('manual'); });
 afterEach(() => resetResolutionPreference('automatic'));
@@ -34,7 +34,7 @@ it('blocks profile and template changes until the initial coherent library is re
     documentButton(t('automations.profile.createConfirm')).click(); await flushPromises();
     const library = libraryJournal(f.client);
     expect(library.draft.value?.context.definitions.actions[0]?.name).toBe('Log gift');
-    expect(library.draft.value?.mutation).toMatchObject({ operation: 'create-profile', name: 'Ready profile' });
+    expect(library.draft.value?.mutation).toMatchObject({ operation: LIBRARY_OPERATION.createProfile, name: 'Ready profile' });
     library.dismiss(); await flushPromises();
     f.automation.dispose();
   });

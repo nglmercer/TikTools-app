@@ -31,7 +31,7 @@ test('Variables preserves explicit types and keeps local secrets masked', async 
   await expect.poll(async () => (await readHostState(page)).typedGlobals?.commandPort).toEqual({ type: 'number', value: 46665 });
   await expect(page.getByRole('button', { name: t('globals.save') })).toBeDisabled();
   expect(await countCalls(page, 'sync.v2.stageVariables')).toBe(0);
-  expect(await countCalls(page, 'sync.v2.now')).toBe(0);
+  expect(await countCalls(page, RPC.syncV2Now)).toBe(0);
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('local-browser-test-private');
   await page.screenshot({ path: testInfo.outputPath('runtime-variables.png') });
   consoleCapture.assertClean();
@@ -59,7 +59,7 @@ test('Variables Changes adopts a reviewed value and withdraws a secret without r
   await expect(panel).toBeVisible();
   await openChange(panel, 'port');
   await panel.getByRole('button', { name: t('syncChanges.applyCloud'), exact: true }).click();
-  await expect.poll(() => countCalls(page, 'sync.v2.variables.apply')).toBe(0);
+  await expect.poll(() => countCalls(page, RPC.syncV2VariablesApply)).toBe(0);
   await panel.getByRole('alertdialog').getByRole('button', { name: t('syncChanges.confirm'), exact: true }).click();
   await expect.poll(async () => (await readHostState(page)).typedGlobals?.port).toEqual({ type: 'number', value: 46665 });
   await openChange(panel, 'ordinary');
@@ -68,11 +68,11 @@ test('Variables Changes adopts a reviewed value and withdraws a secret without r
   await expect(panel.getByRole('checkbox')).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('variables-changes-secret.png') });
   await panel.getByRole('button', { name: t('syncChanges.withdraw'), exact: true }).click();
-  expect(await countCalls(page, 'sync.v2.variables.withdraw')).toBe(0);
+  expect(await countCalls(page, RPC.syncV2VariablesWithdraw)).toBe(0);
   await panel.getByRole('alertdialog').getByRole('button', { name: t('syncChanges.confirm'), exact: true }).click();
-  await expect.poll(() => countCalls(page, 'sync.v2.variables.withdraw')).toBe(1);
+  await expect.poll(() => countCalls(page, RPC.syncV2VariablesWithdraw)).toBe(1);
   expect((await readHostState(page)).typedGlobals?.ordinary).toEqual({ type: 'secret', value: 'local-browser-private-value' });
-  expect(await countCalls(page, 'sync.v2.now')).toBe(0);
+  expect(await countCalls(page, RPC.syncV2Now)).toBe(0);
   expect(await countCalls(page, RPC.globalsTypedReplace)).toBe(0);
   capture.assertClean();
 });

@@ -121,7 +121,7 @@ describe('native Owner definition journal', () => {
       if (method !== RPC.automationDefinitionSubmit) return result;
       const submission = result as { state: DefinitionState; acknowledgement: unknown };
       const success = submission.state.recent[0]!;
-      submission.state.recent.push({ ...success, intent: { ...success.intent, commandId: `owner-definition-${'f'.repeat(32)}` }, outcome: 'rejected', receipt: null, errorCode: 'revision_conflict' });
+      submission.state.recent.push({ ...success, intent: { ...success.intent, commandId: `owner-definition-${'f'.repeat(32)}` }, outcome: 'rejected', receipt: null, errorCode: ERROR_CODE.revisionConflict });
       return { state: submission.state, acknowledgement: null };
     });
     const journal = definitionJournal(transport.client);
@@ -133,7 +133,7 @@ describe('native Owner definition journal', () => {
 
   test('recovery never archives a changed pending identity or consent invalidated during the read', async () => {
     const f = fixture();
-    const pending = { commandId: `owner-definition-${'f'.repeat(32)}`, operation: 'update' as const, kind: 'action' as const, id: 'saved', expectedRevision: '1', hostInstanceId: 'instance-a', recordDigest: 'a'.repeat(64), createdAt: 1 };
+    const pending = { commandId: `owner-definition-${'f'.repeat(32)}`, operation: 'update' as const, kind: 'action' as const, id: 'saved', expectedRevision: '1', hostInstanceId: FIXTURE_ID.instanceA, recordDigest: 'a'.repeat(64), createdAt: 1 };
     f.native.replaceState({ ...f.native.state(), pending }); await f.journal.refresh();
     await f.journal.reviewUnknown(pending.commandId, () => false);
     expect(f.native.state().pending?.commandId).toBe(pending.commandId);

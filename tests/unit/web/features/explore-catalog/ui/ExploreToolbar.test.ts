@@ -6,7 +6,7 @@ import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import ExploreToolbar from '../../../../../../src/web/features/explore-catalog/ui/ExploreToolbar.vue';
-import { RPC } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -19,7 +19,7 @@ async function mountToolbar() {
     return { items: [], nextCursor: null };
   });
   const stores = createStoreHarness(client);
-  await stores.use(() => useCapabilityStore()).refresh('test-host');
+  await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.testHost);
   const catalog = stores.use(() => useCatalogStore());
   const wrapper = mountWithPlugins(ExploreToolbar, { attachTo: document.body, global: { plugins: stores.plugins } });
   return { wrapper, calls, catalog };

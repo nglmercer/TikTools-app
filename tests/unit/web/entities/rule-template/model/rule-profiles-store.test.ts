@@ -8,7 +8,7 @@ import { useRuleProfilesStore } from '../../../../../../src/web/entities/rule-te
 import { useAutomationEditor } from '@/features/edit-automation-record/model/automation-editor.ts';
 import { libraryJournal } from '../../../../../../src/web/entities/rule-template/model/library-journal.ts';
 import { flushPromises } from '@vue/test-utils';
-import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, LIBRARY_OPERATION, RPC } from '../../../../../shared/index.ts';
 
 test('a delayed saved action adopts into the originating profile, independently of same-ID event membership', async () => {
   const snapshot: BehaviorSnapshot = { plugins: [], actions: [], actionTypes: [], translations: {}, events: [{
@@ -53,7 +53,7 @@ test('a delayed saved action adopts into the originating profile, independently 
   await expect(profiles.switchProfile('b')).rejects.toMatchObject({ code: ERROR_CODE.commandPending });
   finish(); await saving;
   const library = libraryJournal(client);
-  expect(library.draft.value?.mutation).toMatchObject({ operation: 'assign-record', kind: 'action', id: 'same', profileId: 'a' });
+  expect(library.draft.value?.mutation).toMatchObject({ operation: LIBRARY_OPERATION.assignRecord, kind: 'action', id: 'same', profileId: 'a' });
   await library.confirm();
   expect(profiles.activeId).toBe('a');
   expect(profiles.packs.find((p) => p.id === 'a')?.actionIds).toEqual(['same']);
@@ -93,7 +93,7 @@ test('a profile assignment failure reports the saved definition separately and n
   await editor.save();
   expect(writes).toBe(1); expect(editor.state.value?.revision).toBe('1'); expect(editor.state.value?.reviewRequired).toBe(false);
   expect(editor.state.value?.create).toBe(false);
-  const library = libraryJournal(client); expect(library.draft.value?.mutation.operation).toBe('assign-record');
+  const library = libraryJournal(client); expect(library.draft.value?.mutation.operation).toBe(LIBRARY_OPERATION.assignRecord);
   await library.confirm(); library.dismiss(); await flushPromises();
   expect(profiles.error).toBeTruthy();
   expect(profiles.error).toContain('profile assignment offline');
@@ -136,18 +136,18 @@ test.each([false, true])('membership review binds a fresh saved record after a s
   await flushPromises(); expect(held).toHaveLength(1);
   action.name = 'Newer unsaved name';
   const library = libraryJournal(fake.client);
-  const otherReview = newerReview ? library.request({ operation: 'create-profile', id: 'newer-review', name: 'Newer review', description: '' }) : null;
+  const otherReview = newerReview ? library.request({ operation: LIBRARY_OPERATION.createProfile, id: 'newer-review', name: 'Newer review', description: '' }) : null;
   const background = automation.refresh(); await flushPromises(); expect(held).toHaveLength(2);
   held[0]!(); const result = await saving;
   expect(result.revision).toBe('1');
   expect(result.record?.name).toBe('Known saved action'); expect(action.name).toBe('Newer unsaved name');
   if (newerReview) {
-    expect(library.draft.value?.mutation).toMatchObject({ operation: 'create-profile', id: 'newer-review', name: 'Newer review' });
+    expect(library.draft.value?.mutation).toMatchObject({ operation: LIBRARY_OPERATION.createProfile, id: 'newer-review', name: 'Newer review' });
     expect(profiles.error).toBeTruthy();
   } else {
     expect(library.draft.value?.context.definitions.actions).toEqual([{ ...action, name: 'Known saved action' }]);
     expect(library.draft.value?.context.resourceVersions).toContainEqual({ kind: 'automation', scope: 'action', id: action.id, revision: '1' });
-    expect(library.draft.value?.mutation).toMatchObject({ operation: 'assign-record', id: action.id, profileId: 'a' });
+    expect(library.draft.value?.mutation).toMatchObject({ operation: LIBRARY_OPERATION.assignRecord, id: action.id, profileId: 'a' });
   }
   held[1]!(); await background;
   if (otherReview) {

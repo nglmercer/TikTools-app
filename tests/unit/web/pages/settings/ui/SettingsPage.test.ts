@@ -8,7 +8,7 @@ import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testin
 import { activateLocale, i18n } from '@/shared/i18n/i18n.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import SettingsPage from '../../../../../../src/web/pages/settings/ui/SettingsPage.vue';
-import { RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -27,7 +27,7 @@ async function mountPage(query = '', announce: string[] = []) {
     return { globals: { commandPort: '46665' } };
   });
   const stores = createStoreHarness(client);
-  if (announce.length > 0) await stores.use(() => useCapabilityStore()).refresh('test-host');
+  if (announce.length > 0) await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.testHost);
   const wrapper = mountWithPlugins(SettingsPage, {
     attachTo: document.body,
     global: { plugins: [router, ...stores.plugins] },

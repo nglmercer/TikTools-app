@@ -87,7 +87,7 @@ describe('event parser', () => {
   test('parses event.gap frames', () => {
     expect(parseEventGap(makeTestGapEnvelope(4))).toEqual({ lost: 4, resync: true });
     expect(parseEventGap(makeTestFollowEnvelope())).toBeNull();
-    expect(parseEventGap({ topic: 'event.gap', data: { lost: 'many' } })).toBeNull();
+    expect(parseEventGap({ topic: TOPIC.eventGap, data: { lost: 'many' } })).toBeNull();
   });
 
   test('display name falls back nickname -> uniqueId -> Viewer', () => {

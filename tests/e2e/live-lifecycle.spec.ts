@@ -6,9 +6,10 @@ import { createWriteStream } from 'node:fs';
 import { assertNoUnhandledCalls, installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
 import { SEL } from './support/selectors.ts';
+import { PAUSE_MS, TEST_BUDGET_MS } from './support/timeouts.ts';
 
 test('100 actual Vue root remounts return listeners, timers and DOM to baseline', async ({ page }, testInfo) => {
-  test.setTimeout(120_000);
+  test.setTimeout(TEST_BUDGET_MS.lifecycle);
   const capture = await installFakeHost(page, emptyState());
   await page.goto('/');
   await waitForFrontend(page);
@@ -17,7 +18,7 @@ test('100 actual Vue root remounts return listeners, timers and DOM to baseline'
   const snapshot = async (name: string): Promise<void> => {
     // Disposed RPC chains need a browser turn to settle; fixture call
     // history is deliberately removed from retained-heap measurements.
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(PAUSE_MS.heapSettle);
     await page.evaluate(() => {
       const scope = window as unknown as { __TIKTOOLS_E2E_STATE__: { calls: unknown[] } };
       scope.__TIKTOOLS_E2E_STATE__.calls = [];
@@ -69,7 +70,7 @@ test('100 actual Vue root remounts return listeners, timers and DOM to baseline'
 });
 
 test('100 Feed to Plugins navigation cycles actually mount both views and release presentation work', async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(TEST_BUDGET_MS.lifecycle);
   const capture = await installFakeHost(page, emptyState());
   await page.goto('/');
   await waitForFrontend(page);

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { callWithMeta, createControlClient } from '../../../../../src/web/shared/api/control-client.ts';
-import { ACCOUNT_STATE, ERROR_CODE, RPC, TOPIC } from '../../../../shared/index.ts';
+import { ACCOUNT_STATE, ERROR_CODE, MESSAGE_TYPE, RPC, TOPIC } from '../../../../shared/index.ts';
 
 type MockIpc = {
   sent: string[];
@@ -45,7 +45,7 @@ function hostMessage(): (raw: string) => void {
 }
 
 function respond(id: string, payload: { result?: unknown; error?: unknown; meta?: unknown }): void {
-  hostMessage()(JSON.stringify({ type: 'rpc-response', response: { id, ...payload } }));
+  hostMessage()(JSON.stringify({ type: MESSAGE_TYPE.rpcResponse, response: { id, ...payload } }));
 }
 
 afterEach(() => {
@@ -280,15 +280,15 @@ describe('createControlClient', () => {
       const unsubscribe = control.onGap((lost) => seen.push(lost));
       control.onTopic(TOPIC.pointsChanged, (data) => topics.push(data));
       const receive = hostMessage();
-      receive(JSON.stringify({ jsonrpc: '2.0', method: 'event.gap', params: { lost: 12, resync: true } }));
+      receive(JSON.stringify({ jsonrpc: '2.0', method: TOPIC.eventGap, params: { lost: 12, resync: true } }));
       expect(seen).toEqual([12]);
       expect(topics).toEqual([]);
       receive(JSON.stringify({ method: 'event', params: { topic: TOPIC.pointsChanged, data: { uniqueId: 'alice' } } }));
       expect(topics).toEqual([{ uniqueId: 'alice' }]);
-      receive(JSON.stringify({ method: 'event.gap', params: { resync: true } }));
+      receive(JSON.stringify({ method: TOPIC.eventGap, params: { resync: true } }));
       expect(seen).toEqual([12, 0]);
       unsubscribe();
-      receive(JSON.stringify({ method: 'event.gap', params: { lost: 3, resync: true } }));
+      receive(JSON.stringify({ method: TOPIC.eventGap, params: { lost: 3, resync: true } }));
       expect(seen).toEqual([12, 0]);
       control.detach();
     });
@@ -312,7 +312,7 @@ describe('createControlClient', () => {
       installMockIpc();
       const target = hostWindow();
       target.__tiktools_host_message_queue__ = [
-        JSON.stringify({ type: 'rpc-response', response: { id: 7, result: { ok: true } } }),
+        JSON.stringify({ type: MESSAGE_TYPE.rpcResponse, response: { id: 7, result: { ok: true } } }),
       ];
       const control = createControlClient();
       const pending = control.call('system.ping');
@@ -430,7 +430,7 @@ it('uses the browser transport without native globals and resynchronizes after r
   expect(control.setPresentation).toBeUndefined();
   const pending = control.call(RPC.systemInfo);
   const id = (JSON.parse(sent[0]!) as { id: string }).id;
-  receive(JSON.stringify({ type: 'rpc-response', response: { id, result: { platform: 'AndroidTermux' } } }));
+  receive(JSON.stringify({ type: MESSAGE_TYPE.rpcResponse, response: { id, result: { platform: 'AndroidTermux' } } }));
   await expect(pending).resolves.toEqual({ platform: 'AndroidTermux' });
   const mutation = control.call(RPC.globalsSet, { key: 'test', value: 'value' });
   const rejection = expect(mutation).rejects.toMatchObject({ code: 'transport' });

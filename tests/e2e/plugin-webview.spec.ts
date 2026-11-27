@@ -15,7 +15,7 @@ import { SONICBOOM_ID, SPEAK_ACTION } from './fixtures/plugins.ts';
 import { installPluginUiOverride, routePluginFixture } from './fixtures/plugin-frame.ts';
 import { ttsPageState, webviewPageState } from './fixtures/states.ts';
 import { SEL, PLUGIN_TITLE } from './support/selectors.ts';
-import { WAIT_MS } from './support/timeouts.ts';
+import { PAUSE_MS, WAIT_MS } from './support/timeouts.ts';
 import { TOPIC } from '../shared/index.ts';
 
 async function openTts(page: Parameters<typeof installFakeHost>[0]) {
@@ -73,7 +73,7 @@ test('plugin UI renders inline and round-trips through the broker', async ({ pag
   await emitTopic(page, TOPIC.pluginEvent, { pluginId: SONICBOOM_ID, eventType: 'speech.state' });
   await expect(frame.locator('#events')).toContainText('speech.state', { timeout: WAIT_MS.short });
   await emitTopic(page, TOPIC.pluginEvent, { pluginId: 'someone.else', eventType: 'intruder' });
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(PAUSE_MS.foreignEvent);
   await expect(frame.locator('#events')).not.toContainText('intruder');
 
   await assertNoUnhandledCalls(page);

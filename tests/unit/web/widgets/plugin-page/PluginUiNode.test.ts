@@ -6,6 +6,7 @@ import type { PluginUiContext } from '@/entities/plugin/model/plugin-ui-context.
 import type { PluginActionOutcome } from '@/entities/plugin/model/plugins-state.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import PluginUiNode from '@/widgets/plugin-page/ui/PluginUiNode.vue';
+import { NODE_TYPE } from '../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 
@@ -78,18 +79,18 @@ describe('PluginUiNode', () => {
           type: 'button',
           label: { default: 'Connect', i18key: '' },
           variant: 'primary',
-          action: { type: 'plugin-action', actionType: 'tiktools.twitch.connect' },
+          action: { type: NODE_TYPE.pluginAction, actionType: 'tiktools.twitch.connect' },
         },
         {
           type: 'button',
           label: { default: 'Disconnect', i18key: '' },
           variant: 'danger',
-          action: { type: 'plugin-action', actionType: 'tiktools.twitch.disconnect' },
+          action: { type: NODE_TYPE.pluginAction, actionType: 'tiktools.twitch.disconnect' },
         },
         {
           type: 'button',
           label: { default: 'Refresh status', i18key: '' },
-          action: { type: 'plugin-action', actionType: 'tiktools.twitch.status' },
+          action: { type: NODE_TYPE.pluginAction, actionType: 'tiktools.twitch.status' },
         },
       ],
     };
@@ -111,8 +112,8 @@ describe('PluginUiNode', () => {
 
   test('renders structured action status from the plugin outcome', async () => {
     const node: PluginUiNodeContract = {
-      type: 'action-status',
-      action: { type: 'plugin-action', actionType: 'tiktools.twitch.status' },
+      type: NODE_TYPE.actionStatus,
+      action: { type: NODE_TYPE.pluginAction, actionType: 'tiktools.twitch.status' },
       pollMs: 60_000,
     };
     const wrapper = mountWithPlugins(PluginUiNode, {
@@ -133,7 +134,7 @@ describe('PluginUiNode', () => {
     const node: PluginUiNodeContract = {
       type: 'button',
       label: { default: 'Connect', i18key: '' },
-      action: { type: 'plugin-action', actionType: 'tiktools.twitch.connect' },
+      action: { type: NODE_TYPE.pluginAction, actionType: 'tiktools.twitch.connect' },
       disabledWhen: { bind: 'local.connectionPhase', values: ['connected', 'connecting'] },
     };
     const wrapper = mountWithPlugins(PluginUiNode, {
@@ -154,7 +155,7 @@ describe('PluginUiNode', () => {
     const node: PluginUiNodeContract = {
       type: 'button',
       label: { default: 'Connect', i18key: '' },
-      action: { type: 'plugin-action', actionType: 'tiktools.twitch.connect' },
+      action: { type: NODE_TYPE.pluginAction, actionType: 'tiktools.twitch.connect' },
     };
     const wrapper = mountWithPlugins(PluginUiNode, {
       props: { node, context: context(execute), nodeKey: 's0' },

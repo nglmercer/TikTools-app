@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ActionTypeDefinition, LiveAction, PluginStatus } from '../../../../../../src/automation/behavior/types.ts';
 import { catalogPlugins, matchesPluginQuery, pluginActionUsage, pluginTags } from '../../../../../../src/web/entities/plugin/lib/plugin-catalog.ts';
+import { ACTION_TYPE } from '../../../../../shared/index.ts';
 
 const text = (value: string) => ({ default: value, i18key: '' });
 const localize = (value: unknown) => (value as { default: string }).default;
@@ -19,7 +20,7 @@ function plugin(id: string, overrides: Partial<PluginStatus> = {}, tags?: string
       dependency: text(''),
       permissions: [],
       actionTypeIds: [`${id}.run`, `${id}.stop`],
-      eventTypeIds: id === 'deck' ? ['deck.scene'] : [],
+      eventTypeIds: id === 'deck' ? [ACTION_TYPE.deckScene] : [],
       tags,
     },
   };

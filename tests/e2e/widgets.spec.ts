@@ -7,6 +7,7 @@ import { assertNoUnhandledCalls, installFakeHost, readHostState, waitForFrontend
 import { emptyState } from './fixtures/states.ts';
 import { SEL } from './support/selectors.ts';
 import { RPC } from '../shared/index.ts';
+import { PAUSE_MS } from './support/timeouts.ts';
 
 async function openOverlays(page: Page) {
   const capture = await installFakeHost(page, emptyState(), { theme: 'dark' });
@@ -135,10 +136,10 @@ test('rapid replay and tab changes never place alert cards side by side', async 
     await expect(page.locator('.widget-host [role="alert"]')).toBeVisible();
     for (let index = 0; index < 3; index++) {
       await page.getByRole('button', { name: t('overlays.preview.replay') }).click();
-      await page.waitForTimeout(150);
+      await page.waitForTimeout(PAUSE_MS.replayGap);
     }
   }
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(PAUSE_MS.transitionEnd);
   const violations = await page.evaluate(() => {
     const target = window as unknown as { widgetTransitionViolations: string[]; stopWidgetMonitor: () => void };
     target.stopWidgetMonitor();
@@ -173,7 +174,7 @@ test('all widget previews render locally without a gateway and replay', async ({
     await expect(page.locator(SEL.widgetHost)).toHaveCount(1);
   }
   // The sample must remain visible beyond the normal subscription duration.
-  await page.waitForTimeout(5500);
+  await page.waitForTimeout(PAUSE_MS.pastSubscriptionAlert);
   await expect(page.locator(SEL.subscribeCard)).toBeVisible();
   await expect(page.locator('.overlay-preview__canvas iframe')).toHaveCount(0);
   expect(gatewayRequests).toEqual([]);

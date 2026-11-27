@@ -47,7 +47,7 @@ describe('PluginsPage catalog', () => {
       releaseRef: kind === 'plugin' ? { type: 'pluginRelease', version: '1.2.0' } : { type: 'documentRevision', revision: 3, sha256: 'a'.repeat(64) },
       publication: { yanked: false },
     });
-    const cloudItems = [wire('plugin', PLUGIN_ID.acmeTts, 'Acme TTS'), wire('template', FIXTURE_ID.tpl1, 'Gift alert'), wire('profile', 'prof-1', 'Starter pack')];
+    const cloudItems = [wire('plugin', PLUGIN_ID.acmeTts, 'Acme TTS'), wire('template', FIXTURE_ID.tpl1, 'Gift alert'), wire('profile', FIXTURE_ID.prof1, 'Starter pack')];
     const explore = (handle?: Parameters<typeof mountPage>[6], announce: string[] = [RPC.catalogItems]) =>
       mountPage(undefined, undefined, undefined, announce, [], '', handle ?? ((method) => (method === RPC.catalogItems ? { items: cloudItems, nextCursor: null } : undefined)));
     const names = (wrapper: VueWrapper) => wrapper.findAll('.explore-list__row').map((item) => item.get('.explore-list__name').text());

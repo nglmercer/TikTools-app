@@ -14,7 +14,7 @@ function host(announced: string[], rows: unknown[] = []) {
   const { client, calls } = createFakeControlClient((method) => {
     if (method === RPC.rpcDiscover) return { methods: announced.map((name) => ({ name })) };
     if (method === RPC.integrationsConnections) return { items: rows };
-    if (method === 'integrations.connect') return { connectionId: id, provider: 'webhook', label: 'Alerts', secret, deliveryPath: `/api/v3/integrations/webhook/${id}/deliveries` };
+    if (method === RPC.integrationsConnect) return { connectionId: id, provider: 'webhook', label: 'Alerts', secret, deliveryPath: `/api/v3/integrations/webhook/${id}/deliveries` };
     if (method === RPC.integrationsDisconnect) return { id, status: 'revoked' };
     if (method === 'integrations.events') return { items: [], truncated: false };
     throw new Error(`unexpected ${method}`);

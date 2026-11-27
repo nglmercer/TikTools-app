@@ -12,7 +12,7 @@ enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key); afterEach(() => activateLocale('en'));
 test('profile aggregate failure stays in the import dialog with its staged file and editable parameters', async () => {
   const template = { templateVersion: 1, id: 'bounded-template', title: 'Bounded', params: { type: 'object', properties: { value: { type: 'string', title: 'Valor', default: 'small' } } },
-    actions: Array.from({ length: 4 }, (_, index) => ({ name: `Log ${index}`, typeId: 'core.log', config: { message: '{{ params.value }}' } })), event: { name: 'Chat', trigger: 'tiktok.chat' } };
+    actions: Array.from({ length: 4 }, (_, index) => ({ name: `Log ${index}`, typeId: ACTION_TYPE.coreLog, config: { message: '{{ params.value }}' } })), event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat } };
   const source = JSON.stringify({ profileVersion: 1, id: 'bounded-profile', name: 'Perfil conservado', description: '', params: {}, templates: Array.from({ length: 32 }, () => ({ template, params: {} })) });
   const wrapper = mountWithPlugins(ProfileImportDialog, { props: { open: true }, attachTo: document.body });
   wrapper.getComponent(BaseFileDrop).vm.$emit('content', source, 'perfil.tikprofile.json'); await flushPromises();

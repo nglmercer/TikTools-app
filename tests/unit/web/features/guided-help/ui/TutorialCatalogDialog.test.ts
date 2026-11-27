@@ -205,7 +205,7 @@ it('shows action example requirements and blocks starting when the workspace lac
       initialTour: 'automationActionTts',
       automationSnapshot: {
         actions: [{ typeId: ACTION_TYPE.coreLog }],
-        actionTypes: [{ id: 'demo.tts', tag: 'tts', title: { default: 'Speak', i18key: '' }, source: { kind: 'plugin', pluginId: 'demo.audio' } }],
+        actionTypes: [{ id: ACTION_TYPE.demoTts, tag: 'tts', title: { default: 'Speak', i18key: '' }, source: { kind: 'plugin', pluginId: 'demo.audio' } }],
         plugins: [{ installed: true, enabled: true, descriptor: { id: 'demo.audio' } }],
       },
     },
@@ -222,8 +222,8 @@ it('shows action example requirements and blocks starting when the workspace lac
       open: true,
       initialTour: 'automationActionTts',
       automationSnapshot: {
-        actions: [{ typeId: 'demo.tts' }],
-        actionTypes: [{ id: 'demo.tts', tag: 'tts', title: { default: 'Speak', i18key: '' }, source: { kind: 'plugin', pluginId: 'demo.audio' } }],
+        actions: [{ typeId: ACTION_TYPE.demoTts }],
+        actionTypes: [{ id: ACTION_TYPE.demoTts, tag: 'tts', title: { default: 'Speak', i18key: '' }, source: { kind: 'plugin', pluginId: 'demo.audio' } }],
         plugins: [{ installed: true, enabled: true, descriptor: { id: 'demo.audio' } }],
       },
     },

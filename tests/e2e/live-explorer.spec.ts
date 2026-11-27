@@ -41,7 +41,7 @@ test('the explorer stays inert until opened, then connects only the chosen room'
   await openConnections(page);
 
   // Closed by default: nothing has queried TikTok yet.
-  expect(await discoveryCalls(page, 'live.channels')).toHaveLength(0);
+  expect(await discoveryCalls(page, RPC.liveChannels)).toHaveLength(0);
 
   await page.getByRole('button', { name: 'Explore', exact: true }).first().click();
   await expect(page.getByText('@creator_one')).toBeVisible();

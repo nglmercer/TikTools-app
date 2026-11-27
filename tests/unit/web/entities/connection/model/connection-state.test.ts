@@ -4,7 +4,7 @@ import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import { useConnection } from '../../../../../../src/web/entities/connection/model/connection-state.ts';
 import { getSavedUsername } from '../../../../../../src/web/entities/connection/lib/creator-preferences.ts';
-import { RPC, TOPIC } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, RPC, TOPIC } from '../../../../../shared/index.ts';
 
 function stubControl(overrides?: Partial<ControlClient>): ControlClient & {
   calls: Array<{ method: string; params?: RpcParams }>;
@@ -114,7 +114,7 @@ describe('useConnection pick-live', () => {
     await flushPromises();
 
     expect(control.calls).toHaveLength(1);
-    expect(control.calls[0]?.method).toBe('live.pick');
+    expect(control.calls[0]?.method).toBe(RPC.livePick);
     expect(control.calls[0]?.params).toEqual({ sessionCookie: '' });
     // Unconnected results also restore the pill instead of stranding it.
     expect(connection.activeCreator.value).not.toBe('connection.searchingRooms');
@@ -127,7 +127,7 @@ describe('useConnection pick-live', () => {
           connected: true,
           uniqueId: '@picked_creator',
           roomId: '123',
-          connectionId: 'connection-1',
+          connectionId: FIXTURE_ID.connection1,
           native: true,
         } as T),
     });
@@ -166,7 +166,7 @@ describe('useConnection creator/input sync', () => {
           connected: true,
           uniqueId: 'alice',
           roomId: '123',
-          connectionId: 'connection-1',
+          connectionId: FIXTURE_ID.connection1,
           native: true,
         } as T),
     });
@@ -205,7 +205,7 @@ describe('useConnection creator/input sync', () => {
           connected: true,
           uniqueId: '@resync_creator',
           roomId: '123',
-          connectionId: 'connection-1',
+          connectionId: FIXTURE_ID.connection1,
           native: true,
         } as T),
     });
@@ -228,7 +228,7 @@ describe('useConnection refreshStatus', () => {
           connected: true,
           uniqueId: '@resync_creator',
           roomId: '123',
-          connectionId: 'connection-1',
+          connectionId: FIXTURE_ID.connection1,
           native: true,
         } as T);
       },
@@ -405,7 +405,7 @@ describe('useConnection reconnect vs creator switch', () => {
 });
 
 describe('useConnection cancellation', () => {
-  test.each([RPC.liveConnect, 'live.pick'])('ignores a late result from a cancelled %s', async (method) => {
+  test.each([RPC.liveConnect, RPC.livePick])('ignores a late result from a cancelled %s', async (method) => {
     let finish: ((value: unknown) => void) | undefined;
     const control = stubControl({
       call: <T,>(requested: string): Promise<T> => {
@@ -417,7 +417,7 @@ describe('useConnection cancellation', () => {
     });
     const connection = useConnection(control, callbacks);
     connection.noteCreatorSeen('alice', false);
-    if (method === 'live.pick') connection.handlePickLive();
+    if (method === RPC.livePick) connection.handlePickLive();
     else connection.handleConnect('alice');
     expect(connection.status.value).toBe('connecting');
     connection.handleDisconnect();

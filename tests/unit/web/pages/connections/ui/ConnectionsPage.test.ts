@@ -10,7 +10,7 @@ import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testin
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import type { ConnectionStatus, LiveChannel } from '@/types.ts';
 import ConnectionsPage from '../../../../../../src/web/pages/connections/ui/ConnectionsPage.vue';
-import { RPC } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -29,12 +29,12 @@ async function mountPage(status: ConnectionStatus = 'idle', announce: string[] =
     if (method === RPC.rpcDiscover) return { methods: announce.map((name) => ({ name })) };
     if (method === RPC.integrationsConnections) return { items: [] };
     if (method === RPC.liveChannels) return { rooms, fetchedAt: Date.now(), source: t('automations.runs.testBadge') };
-    if (method === RPC.liveConnect || method === 'live.pick') return { connected: true, uniqueId: 'luna', roomId: '1', connectionId: 'c', native: true };
+    if (method === RPC.liveConnect || method === RPC.livePick) return { connected: true, uniqueId: 'luna', roomId: '1', connectionId: 'c', native: true };
     return {};
   });
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:any(.*)*', component: { render: () => null } }] });
   const stores = createStoreHarness(client);
-  if (announce.length > 0) await stores.use(() => useCapabilityStore()).refresh('test-host');
+  if (announce.length > 0) await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.testHost);
   const wrapper = mountWithPlugins(ConnectionsPage, { attachTo: document.body, global: { plugins: [router, ...stores.plugins] } });
   const connection = useConnectionStore();
   connection.status = status;
@@ -73,7 +73,7 @@ describe('ConnectionsPage', () => {
     await nextTick();
     await wrapper.get('button[aria-label="Connect to a random LIVE"]').trigger('click');
     await flushPromises();
-    expect(calls.some((call) => call.method === 'live.pick')).toBe(true);
+    expect(calls.some((call) => call.method === RPC.livePick)).toBe(true);
   });
 
   it('reveals the cookie field on demand', async () => {

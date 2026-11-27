@@ -5,7 +5,7 @@ import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testin
 import type { RuleTemplate } from '../../../../../../src/web/entities/rule-template/lib/rule-templates.ts';
 import { libraryJournal } from '../../../../../../src/web/entities/rule-template/model/library-journal.ts';
 import { useRuleTemplatesStore } from '../../../../../../src/web/entities/rule-template/model/rule-templates-store.ts';
-import { ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, EVENT_KIND, LIBRARY_OPERATION, RPC } from '../../../../../shared/index.ts';
 
 
 function hostTemplateDocument(id: string): RuleTemplate {
@@ -34,12 +34,12 @@ test('template gallery imports freeze collision IDs across uncertainty and never
   const journal = libraryJournal(fake.client); const documents = [hostTemplateDocument('host-gift-log')];
   native.library.loseNextReply();
   const importing = templates.importTemplates(documents); const original = journal.draft.value?.mutation;
-  expect(original?.operation).toBe('import-templates');
-  const id = original?.operation === 'import-templates' ? original.templates[0]!.id : '';
+  expect(original?.operation).toBe(LIBRARY_OPERATION.importTemplates);
+  const id = original?.operation === LIBRARY_OPERATION.importTemplates ? original.templates[0]!.id : '';
   expect(id).not.toBe(documents[0]!.id);
   await journal.confirm(); journal.dismiss(); expect(await importing).toBe(0);
   const retry = templates.importTemplates(documents);
-  expect(journal.draft.value?.mutation).toMatchObject({ operation: 'import-templates', templates: [{ id }] });
+  expect(journal.draft.value?.mutation).toMatchObject({ operation: LIBRARY_OPERATION.importTemplates, templates: [{ id }] });
   journal.dismiss(); expect(await retry).toBe(0);
   expect(fake.calls.filter((call) => call.method === RPC.automationLibrarySubmit)).toHaveLength(1);
   expect(fake.calls.some((call) => call.method === RPC.appStateSet)).toBe(false);
@@ -53,7 +53,7 @@ test('retained raw template catalogs normalize UI defaults without rewriting sou
     if (method === RPC.automationSnapshot) { options?.onMetadata?.({ resourceVersions: [] }); return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} }; }
     throw new Error(`Unexpected fallback ${method}`);
   });
-  const documents = Array.from({ length: 35 }, (_, index) => ({ templateVersion: 1, id: `retained-${index}`, title: 'Retained', actions: [{ name: 'Log', typeId: 'core.log', config: { message: index === 0 ? 'x'.repeat(100_000) : 'message' } }], event: { name: 'Chat', trigger: 'tiktok.chat' } }));
+  const documents = Array.from({ length: 35 }, (_, index) => ({ templateVersion: 1, id: `retained-${index}`, title: 'Retained', actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: { message: index === 0 ? 'x'.repeat(100_000) : 'message' } }], event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat } }));
   native.library.setCatalog({ packs: [], activeId: 'default', templates: documents as never });
   const fake = createFakeControlClient(native.handle); const harness = createStoreHarness(fake.client);
   const automation = harness.use(() => useAutomationStore()); const templates = harness.use(() => useRuleTemplatesStore());

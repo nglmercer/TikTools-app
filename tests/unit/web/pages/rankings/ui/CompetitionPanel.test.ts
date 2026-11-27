@@ -15,8 +15,8 @@ async function setup() {
   const { client, calls } = createFakeControlClient((method) => {
     if (method === RPC.automationList) return { actions: [{ id: 'tnt', name: 'TNT', enabled: true }] };
     if (method === RPC.competitionsList) return { competitions: [poll] };
-    if (method === 'competitions.state') return { lifecycle: 'draft', generation: 0, deadlineMs: null, remainingMs: null };
-    if (method === 'competitions.results') return { results: [] };
+    if (method === RPC.competitionsState) return { lifecycle: 'draft', generation: 0, deadlineMs: null, remainingMs: null };
+    if (method === RPC.competitionsResults) return { results: [] };
     return { ok: true };
   });
   const wrapper = mountWithPlugins(CompetitionPanel, { props: { rankings: [ranking] }, global: { plugins: storePlugins(client) } });
@@ -99,8 +99,8 @@ describe('competition controls', () => {
     const { client, calls } = createFakeControlClient((method) => {
       if (method === RPC.automationList) return { actions: [{ id: 'tnt', name: 'TNT', enabled: true }] };
       if (method === RPC.competitionsList) return { competitions: [draft] };
-      if (method === 'competitions.state') return { lifecycle: 'draft', generation: 0, deadlineMs: null, remainingMs: null };
-      if (method === 'competitions.results') return { results: [] };
+      if (method === RPC.competitionsState) return { lifecycle: 'draft', generation: 0, deadlineMs: null, remainingMs: null };
+      if (method === RPC.competitionsResults) return { results: [] };
       return { ok: true };
     });
     const wrapper = mountWithPlugins(CompetitionPanel, { props: { rankings: [ranking] }, global: { plugins: storePlugins(client) } });
@@ -132,8 +132,8 @@ describe('competition controls', () => {
     const { client, calls } = createFakeControlClient((method) => {
       if (method === RPC.automationList) return { actions: [] };
       if (method === RPC.competitionsList) return { competitions: [{ ...poll, tiePolicy: 'manual' }] };
-      if (method === 'competitions.state') return { lifecycle: 'finalizing', generation: 3, deadlineMs: null, remainingMs: null };
-      if (method === 'competitions.results') return { results: [] };
+      if (method === RPC.competitionsState) return { lifecycle: 'finalizing', generation: 3, deadlineMs: null, remainingMs: null };
+      if (method === RPC.competitionsResults) return { results: [] };
       if (method === 'competitions.action') return { action: null };
       if (method === 'competitions.candidates') return { generation: 3, candidates: [{ key: 'a', label: 'Alpha', score: 5 }, { key: 'b', label: 'Beta', score: 5 }] };
       return { ok: true };
@@ -150,8 +150,8 @@ describe('competition controls', () => {
     const { client, calls } = createFakeControlClient((method) => {
       if (method === RPC.automationList) return { actions: [] };
       if (method === RPC.competitionsList) return { competitions: [poll] };
-      if (method === 'competitions.state') return { lifecycle: 'finished', generation: 1, deadlineMs: null, remainingMs: null };
-      if (method === 'competitions.results') return { results: [] };
+      if (method === RPC.competitionsState) return { lifecycle: 'finished', generation: 1, deadlineMs: null, remainingMs: null };
+      if (method === RPC.competitionsResults) return { results: [] };
       if (method === 'competitions.action') return { action: { generation: 1, actionId: 'tnt', status: 'uncertain', reason: 'execution_failed' } };
       return { ok: true };
     });

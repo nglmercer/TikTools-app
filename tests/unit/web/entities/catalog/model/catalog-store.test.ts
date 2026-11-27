@@ -51,15 +51,15 @@ describe('unified catalog store', () => {
       const cursor = (params as { cursor?: string }).cursor;
       return cursor
         ? { items: [item('b.two')], nextCursor: null }
-        : { items: [item('a.one')], nextCursor: 'c1' };
+        : { items: [item(FIXTURE_ID.aOne)], nextCursor: 'c1' };
     });
     await discover(stores);
     const catalog = stores.use(() => useCatalogStore());
     await catalog.refresh();
-    expect(catalog.items.map((i) => i.id)).toEqual(['a.one']);
+    expect(catalog.items.map((i) => i.id)).toEqual([FIXTURE_ID.aOne]);
     expect(catalog.hasMore).toBe(true);
     await catalog.loadMore();
-    expect(catalog.items.map((i) => i.id)).toEqual(['a.one', 'b.two']);
+    expect(catalog.items.map((i) => i.id)).toEqual([FIXTURE_ID.aOne, 'b.two']);
     expect(catalog.hasMore).toBe(false);
     expect(calls.at(-1)?.params).toMatchObject({ cursor: 'c1', limit: 25 });
   });
@@ -86,7 +86,7 @@ describe('unified catalog store', () => {
         if ((params as { id: string }).id === 'b.two') return item('b.two');
         throw new ControlCallError(ERROR_CODE.notFound, 'catalog item not found');
       }
-      return { items: [item('a.one')], nextCursor: null };
+      return { items: [item(FIXTURE_ID.aOne)], nextCursor: null };
     });
     await discover(stores);
     const catalog = stores.use(() => useCatalogStore());

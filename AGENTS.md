@@ -116,6 +116,9 @@
   imports, so literals stay there.
 - Typing: the tokens are `as const`. When a test needs a wider type (a mutable id, `.includes(method)` on a
   `string`), widen at the use site (`typeId: string = ...`, `[...] as string[]`), not in the token.
-- `bun scripts/test-literals.ts [--dir=tests/unit] [--threshold=5]` lists what is still repeated. i18n keys,
+- Named pauses and limits: `PAUSE_MS`, `TEST_BUDGET_MS` (`tests/e2e/support/timeouts.ts`) and `LIMIT`
+  (`tests/shared/limits.ts`, pinned to production by the token test). A real-time `waitForTimeout` needs a
+  named entry that says what it waits for.
+- `bun scripts/test-literals.ts [--dir=tests/unit] [--threshold=5] [--fail]` lists what is still repeated. i18n keys,
   DOM attribute names and the fixture data it names are ignored on purpose.
 

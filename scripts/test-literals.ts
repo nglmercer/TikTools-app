@@ -30,9 +30,11 @@ function flatKeys(tree: unknown, prefix = '', out = new Set<string>()): Set<stri
 }
 const MESSAGE_KEYS = flatKeys(en);
 /** Whole families that are DOM vocabulary or fixture data rather than shared identifiers. */
-const ALLOWED_PATTERN = /^(aria|data)-|^(is-true|starts-with|index\.html|tiktools-core|tiktools-desktop|plugin\.json|stable\.json)$/;
+const ALLOWED_PATTERN = /^(aria|data)-|^update:|^is-(true|false)$|^starts-with$|^(beta|stable)\.json(\.sig)?$|^(x86_64|aarch64)-[a-z-]+$|^win32-x64-msvc$|^(index\.html|tiktools-core|tiktools-desktop|plugin\.json)$/;
 /** Fixture data that tests assert on directly; extract it only if a second concept starts using it. */
-const FIXTURE_DATA = new Set(['host.gifts', 'acme.gift', 'demo.audio', 'b.two', 'evt-frozen', 'demo_creator', 'gift.diamonds', 'event.data.comment', 'event.intel.comment.tts.text', 'points-rules', 'points-leaderboard']);
+const FIXTURE_DATA = new Set(['host.gifts', 'acme.gift', 'demo.audio', 'b.two', 'evt-frozen', 'demo_creator', 'gift.diamonds', 'event.data.comment', 'event.intel.comment.tts.text', 'points-rules', 'points-leaderboard',
+  // Production names the tests assert on: guide targets, DOM ids, app-state keys, metrics and the locale storage key used inside page scripts.
+  'automation-editor', 'automation-events', 'plugin-settings', 'app-tooltip', 'widgets.design.follow', 'like.count', 'event.count', 'tiktok-live-locale', 'tiktok-live-view-state']);
 const IMPORT_LINE = /^\s*(import|export)\b.*\bfrom\b|^\s*import\s+['"]|require\(|vi\.mock\(|import\(/;
 const LITERAL = /'([a-z][a-z0-9]*(?:[.:_-][a-z0-9]+)+)'/g;
 

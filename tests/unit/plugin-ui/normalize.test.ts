@@ -5,7 +5,7 @@ import { expect, test } from 'vitest';
 
 import type { JsonValue } from '../../../src/shared/json.ts';
 import { collectOptionSources, normalizeNode, normalizePage, normalizeUiDescriptor } from '../../../src/plugin-ui/normalize.ts';
-import { PLUGIN_ID } from '../../shared/index.ts';
+import { NODE_TYPE, PLUGIN_ID, PLUGIN_SOURCE } from '../../shared/index.ts';
 
 const text = { default: 'Hello', i18key: '' };
 
@@ -23,14 +23,14 @@ test('normalizes a nested declarative page', () => {
           type: 'select',
           label: text,
           bind: 'settings.defaultVoice',
-          optionsFrom: 'plugin-action-options:sonicboom.server.speak:voice',
+          optionsFrom: PLUGIN_SOURCE.sonicboomVoices,
         },
         { type: 'range', label: text, bind: 'settings.volume', min: 0, max: 1, step: 0.01 },
         { type: 'checkbox', label: text, bind: 'settings.enabled' },
         {
           type: 'button',
           label: text,
-          action: { type: 'refresh-source', source: 'plugin-action-options:a:b' },
+          action: { type: NODE_TYPE.refreshSource, source: 'plugin-action-options:a:b' },
         },
         { type: 'list', optionsFrom: 'plugin-action-options:a:b' },
         { type: 'separator' },
@@ -78,12 +78,12 @@ test('rejects unknown node types, bad bindings, and over-deep trees', () => {
   expect(normalizeNode({ type: 'select', bind: 'eval(x)' })).toBeUndefined();
   expect(normalizeNode({ type: 'range', bind: 'settings.v', min: 5, max: 1 })).toBeUndefined();
   expect(normalizeNode({ type: 'button', action: { type: 'rpc' } })).toBeUndefined();
-  expect(normalizeNode({ type: 'action-status', action: { type: 'refresh-source', source: 'x' } })).toBeUndefined();
-  expect(normalizeNode({ type: 'action-status', action: { type: 'plugin-action', actionType: 'x.y' }, pollMs: 200 })).toBeUndefined();
-  expect(normalizeNode({ type: 'action-status', action: { type: 'plugin-action', actionType: 'x.y' }, pollMs: 2000, stateKey: 'phase' })).toBeDefined();
-  expect(normalizeNode({ type: 'action-status', action: { type: 'plugin-action', actionType: 'x.y' }, stateKey: 'bad key' })).toBeUndefined();
-  expect(normalizeNode({ type: 'button', action: { type: 'plugin-action', actionType: 'x.y' }, disabledWhen: { bind: 'local.phase', values: ['connected'] } })).toBeDefined();
-  expect(normalizeNode({ type: 'button', action: { type: 'plugin-action', actionType: 'x.y' }, disabledWhen: { bind: 'settings.phase', values: ['connected'] } })).toBeUndefined();
+  expect(normalizeNode({ type: NODE_TYPE.actionStatus, action: { type: NODE_TYPE.refreshSource, source: 'x' } })).toBeUndefined();
+  expect(normalizeNode({ type: NODE_TYPE.actionStatus, action: { type: NODE_TYPE.pluginAction, actionType: 'x.y' }, pollMs: 200 })).toBeUndefined();
+  expect(normalizeNode({ type: NODE_TYPE.actionStatus, action: { type: NODE_TYPE.pluginAction, actionType: 'x.y' }, pollMs: 2000, stateKey: 'phase' })).toBeDefined();
+  expect(normalizeNode({ type: NODE_TYPE.actionStatus, action: { type: NODE_TYPE.pluginAction, actionType: 'x.y' }, stateKey: 'bad key' })).toBeUndefined();
+  expect(normalizeNode({ type: 'button', action: { type: NODE_TYPE.pluginAction, actionType: 'x.y' }, disabledWhen: { bind: 'local.phase', values: ['connected'] } })).toBeDefined();
+  expect(normalizeNode({ type: 'button', action: { type: NODE_TYPE.pluginAction, actionType: 'x.y' }, disabledWhen: { bind: 'settings.phase', values: ['connected'] } })).toBeUndefined();
   expect(normalizeNode({ type: 'list' })).toBeUndefined();
   expect(normalizeNode({ type: 'stack', children: [] })).toBeUndefined();
   expect(
@@ -205,7 +205,7 @@ test('collects option sources from lists, selects, and refresh buttons', () => {
     children: [
       { type: 'list', optionsFrom: 'source-a' },
       { type: 'select', bind: 'settings.v', optionsFrom: 'source-b' },
-      { type: 'button', action: { type: 'refresh-source', source: 'source-a' } },
+      { type: 'button', action: { type: NODE_TYPE.refreshSource, source: 'source-a' } },
       { type: 'text', text },
     ],
   });

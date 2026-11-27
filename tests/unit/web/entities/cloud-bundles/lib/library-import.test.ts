@@ -6,7 +6,7 @@ import { libraryJournal } from '@/entities/rule-template/model/library-journal.t
 import { ControlCallError, type ControlClient } from '@/shared/api/control-client.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import { importLibraryDocument, readLibraryDocument, type LibraryImportEnvironment } from '../../../../../../src/web/entities/cloud-bundles/lib/library-import.ts';
-import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, FIXTURE_ID, LIBRARY_OPERATION, RPC } from '../../../../../shared/index.ts';
 
 const id = '00000000-0000-4000-8000-000000000001';
 const sha256 = 'a'.repeat(64);
@@ -50,7 +50,7 @@ describe('Cloud library import coordinator', () => {
     let settled = false;
     const outcome = importLibraryDocument(f.environment, 'template', { id, revision: 3 }).then(() => { settled = true; });
     await flushPromises();
-    expect(f.journal.draft.value?.mutation).toMatchObject({ operation: 'import-templates', templates: [{ id: 'cloud-template' }] });
+    expect(f.journal.draft.value?.mutation).toMatchObject({ operation: LIBRARY_OPERATION.importTemplates, templates: [{ id: 'cloud-template' }] });
     expect(f.journal.draft.value?.provenance).toEqual({ origin: 'https://cloud.example', accountId: 'alice', documentId: id, revision: '3', sha256 });
     expect(f.journal.draft.value?.context.hostId).toBe(FIXTURE_ID.hostA);
     expect(settled).toBe(false);

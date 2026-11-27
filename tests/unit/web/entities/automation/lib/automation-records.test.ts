@@ -25,7 +25,7 @@ const text = (value: string) => ({ default: value, i18key: '' });
 
 const types = [
   { id: ACTION_TYPE.coreLog, title: text('Log'), source: { kind: 'builtin' } },
-  { id: 'deck.scene', title: text('Scene'), source: { kind: 'plugin', pluginId: 'deck' } },
+  { id: ACTION_TYPE.deckScene, title: text('Scene'), source: { kind: 'plugin', pluginId: 'deck' } },
   { id: 'tts.say', title: text('Say'), source: { kind: 'plugin', pluginId: 'tts' } },
 ] as unknown as ActionTypeDefinition[];
 
@@ -54,7 +54,7 @@ describe('automation records', () => {
   });
 
   it('offers built-in types and those of enabled plugins', () => {
-    expect([...availableActionTypeIds(plugins, types)]).toEqual([ACTION_TYPE.coreLog, 'deck.scene']);
+    expect([...availableActionTypeIds(plugins, types)]).toEqual([ACTION_TYPE.coreLog, ACTION_TYPE.deckScene]);
   });
 
   it('creates new records with defaults', () => {
@@ -69,7 +69,7 @@ describe('automation records', () => {
       'POST hooks.example.com',
     );
     expect(describeAction(action('a', 'x', true, 'core.delay', { ms: 500 }))).toBe('500 ms');
-    expect(describeAction(action('a', 'x', true, 'deck.scene'))).toBe('deck.scene');
+    expect(describeAction(action('a', 'x', true, ACTION_TYPE.deckScene))).toBe(ACTION_TYPE.deckScene);
   });
 
   it('keeps the newest live run per action', () => {

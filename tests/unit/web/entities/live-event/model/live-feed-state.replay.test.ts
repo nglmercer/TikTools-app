@@ -162,7 +162,7 @@ it('keeps gifts when a chat flood exceeds the visible buffer', () => {
   const live = createLiveFeedState(harness.control, callbacks('system'));
   harness.emit(TOPIC.liveUiEvent, { event: { kind: 'gift', author: 'keeper', text: 'Rose', msgId: 'g1', giftDetails: { giftId: '7', name: 'Rose', count: 1, diamonds: 1 } } } as never);
   for (let i = 0; i < 400; i += 1) {
-    harness.emit('live.ui-event', { event: { kind: 'chat', author: `chatter-${i}`, text: `message ${i}`, msgId: `c${i}` } } as never);
+    harness.emit(TOPIC.liveUiEvent, { event: { kind: 'chat', author: `chatter-${i}`, text: `message ${i}`, msgId: `c${i}` } } as never);
   }
   expect(live.events.value.some((event) => event.kind === 'gift' && event.author === 'keeper')).toBe(true);
   expect(live.events.value.filter((event) => event.kind === 'gift')).toHaveLength(1);

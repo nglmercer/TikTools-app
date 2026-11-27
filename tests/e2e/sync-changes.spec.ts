@@ -93,7 +93,7 @@ test('Plugins send the whole pass and resolve a conflict through the v2 contract
   await panel.getByRole('button', { name: t('syncChanges.allCloud') }).click();
   await expect.poll(async () => (await readHostState(page)).sync?.resolved).toEqual(['takeCloud']);
   await panel.getByRole('button', { name: t('syncChanges.sync'), exact: true }).click();
-  await expect.poll(async () => (await readHostState(page)).calls.some((call) => call.method === 'sync.v2.section')).toBe(true);
+  await expect.poll(async () => (await readHostState(page)).calls.some((call) => call.method === RPC.syncV2Section)).toBe(true);
   capture.assertClean();
 });
 

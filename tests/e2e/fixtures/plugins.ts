@@ -3,10 +3,12 @@
  * plugin with connection + TTS pages, plus list/form page variants.
  */
 
-export const SONICBOOM_ID = 'sonicboom.server';
-export const SPEAK_ACTION = 'sonicboom.server.speak';
+import { PLUGIN_ID, PLUGIN_SOURCE } from '../../shared/index.ts';
+
+export const SONICBOOM_ID = PLUGIN_ID.sonicboomServer;
+export const SPEAK_ACTION = PLUGIN_ID.sonicboomServerSpeak;
 export const OUTPUT_ACTION = 'sonicboom.server.set-output-device';
-export const VOICES_SOURCE = 'plugin-action-options:sonicboom.server.speak:voice';
+export const VOICES_SOURCE = PLUGIN_SOURCE.sonicboomVoices;
 export const OUTPUTS_SOURCE = 'plugin-action-options:sonicboom.server.set-output-device:device';
 
 const text = (def: string) => ({ default: def, i18key: '' });

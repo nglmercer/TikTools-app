@@ -42,7 +42,7 @@ async function mountList(handler: Handler, installed: string[] = [], announce: s
     return handler(method, (params ?? {}) as Record<string, unknown>);
   });
   const stores = createStoreHarness(client);
-  if (announce) await stores.use(() => useCapabilityStore()).refresh('test-host');
+  if (announce) await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.testHost);
   const catalog = stores.use(() => useCatalogStore());
   const wrapper = mountWithPlugins(ExploreList, {
     props: { installedIds: new Set(installed) },
@@ -59,7 +59,7 @@ const rowTitles = (wrapper: Awaited<ReturnType<typeof mountList>>['wrapper']) =>
 describe('ExploreList', () => {
   it('renders plugins, templates and profiles as rows with their own action', async () => {
     const { wrapper, calls } = await mountList(() => ({
-      items: [wire('plugin', PLUGIN_ID.acmeTts, 'Acme TTS'), wire('template', FIXTURE_ID.tpl1, t('overlays.kinds.gift.name')), wire('profile', 'prof-1', 'Starter pack')],
+      items: [wire('plugin', PLUGIN_ID.acmeTts, 'Acme TTS'), wire('template', FIXTURE_ID.tpl1, t('overlays.kinds.gift.name')), wire('profile', FIXTURE_ID.prof1, 'Starter pack')],
       nextCursor: null,
     }));
     expect(calls.find((call) => call.method === RPC.catalogItems)?.params).toMatchObject({ limit: 25 });
@@ -106,14 +106,14 @@ describe('ExploreList', () => {
   it('imports a template or a profile through the single library import', async () => {
     imports.importTemplate.mockResolvedValue(undefined);
     imports.importProfile.mockResolvedValue(undefined);
-    const { wrapper } = await mountList(() => ({ items: [wire('template', FIXTURE_ID.tpl1, t('overlays.kinds.gift.name')), wire('profile', 'prof-1', 'Starter pack')], nextCursor: null }));
+    const { wrapper } = await mountList(() => ({ items: [wire('template', FIXTURE_ID.tpl1, t('overlays.kinds.gift.name')), wire('profile', FIXTURE_ID.prof1, 'Starter pack')], nextCursor: null }));
     await wrapper.get('button[aria-label="Import template Gift alert"]').trigger('click');
     await flushPromises();
     expect(imports.importTemplate).toHaveBeenCalledWith({ id: FIXTURE_ID.tpl1, revision: 3 });
     expect(wrapper.get('[role="status"]').text()).toContain('Imported');
     await wrapper.get('button[aria-label="Import profile Starter pack"]').trigger('click');
     await flushPromises();
-    expect(imports.importProfile).toHaveBeenCalledWith({ id: 'prof-1', revision: 3 });
+    expect(imports.importProfile).toHaveBeenCalledWith({ id: FIXTURE_ID.prof1, revision: 3 });
   });
 
   it('asks to sign in when the import needs an account', async () => {
@@ -191,7 +191,7 @@ describe('ExploreList', () => {
 
   it('loads the next page on demand', async () => {
     const { wrapper, calls } = await mountList((_method, params) =>
-      params.cursor ? { items: [wire('plugin', 'b.two', 'Two')], nextCursor: null } : { items: [wire('plugin', 'a.one', 'One')], nextCursor: 'c1' });
+      params.cursor ? { items: [wire('plugin', 'b.two', 'Two')], nextCursor: null } : { items: [wire('plugin', FIXTURE_ID.aOne, 'One')], nextCursor: 'c1' });
     await wrapper.get('button[aria-label="Load more"]').trigger('click');
     await flushPromises();
     expect(rowTitles(wrapper)).toEqual(['One', 'Two']);

@@ -3,11 +3,11 @@ import type { JsonValue } from '../../../../../../src/automation/types.ts';
 import { applyRuleTemplate, parseRuleTemplate, substituteRuleParams, type RuleTemplate } from '../../../../../../src/web/entities/rule-template/lib/rule-templates.ts';
 import { instantiateProfile, type RuleProfile } from '../../../../../../src/web/entities/rule-template/model/rule-profiles-state.ts';
 import { TEMPLATE_AGGREGATE_BYTES, TEMPLATE_RECORD_BYTES } from '../../../../../../src/web/entities/rule-template/lib/bounded-expansion.ts';
-import { ERROR_CODE, EVENT_KIND } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, EVENT_KIND } from '../../../../../shared/index.ts';
 
 function template(value: JsonValue, actions = 1): RuleTemplate {
   const parsed = parseRuleTemplate({ templateVersion: 1, id: 'bounded-template', title: 'Bounded',
-    actions: Array.from({ length: actions }, (_, index) => ({ name: `Action ${index}`, typeId: 'core.log', config: { message: value } })),
+    actions: Array.from({ length: actions }, (_, index) => ({ name: `Action ${index}`, typeId: ACTION_TYPE.coreLog, config: { message: value } })),
     event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat } });
   if (!parsed.ok) throw new Error(parsed.errors.join('; '));
   return parsed.template;

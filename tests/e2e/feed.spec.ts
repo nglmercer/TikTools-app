@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test';
 import { assertNoUnhandledCalls, emitPush, emitTopic, installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
 import { SEL } from './support/selectors.ts';
-import { TOPIC } from '../shared/index.ts';
+import { TOPIC, LIMIT } from '../shared/index.ts';
 
 test('feed appends only format new cards and still update locale, search, and clear', async ({ page }) => {
   const capture = await installFakeHost(page, emptyState());
@@ -65,7 +65,7 @@ test('events keep arriving while another tab is open and are waiting on return',
   await setTab('settings');
   await expect(page.locator(SEL.feedStream)).toHaveCount(0);
   for (let index = 0; index < 5; index += 1) {
-    await emitTopic(page, 'live.ui-event', { event: { kind: 'chat', author: 'alice', text: `hidden ${index}`, msgId: `hidden-${index}` } });
+    await emitTopic(page, TOPIC.liveUiEvent, { event: { kind: 'chat', author: 'alice', text: `hidden ${index}`, msgId: `hidden-${index}` } });
   }
   await setTab('feed');
   await expect(page.locator(SEL.eventCard)).toHaveCount(6);
@@ -99,13 +99,13 @@ test('autoscroll and paused position survive feed navigation', async ({ page }) 
       data: { event: { kind: 'chat', author: 'alice', text: `scroll ${index}`, msgId: `scroll-${index}` } } } }));
     window.__tiktools_receive_batch__?.(batch);
   });
-  await expect(page.locator(SEL.eventCard)).toHaveCount(100);
+  await expect(page.locator(SEL.eventCard)).toHaveCount(LIMIT.feedRenderLimit);
   const bottomDistance = () => page.locator(SEL.feedStream).evaluate((node) => node.scrollHeight - node.clientHeight - node.scrollTop);
   await expect.poll(bottomDistance).toBeLessThan(2);
   await page.getByRole('button', { name: /auto-scroll/ }).click();
   await page.locator(SEL.feedStream).evaluate((node) => { node.scrollTop = 100; });
   await emitTopic(page, TOPIC.liveUiEvent, { event: { kind: 'chat', author: 'alice', text: 'paused', msgId: 'paused-scroll' } });
-  await expect(page.locator(SEL.eventCard)).toHaveCount(100); // the per-type window evicts the oldest card
+  await expect(page.locator(SEL.eventCard)).toHaveCount(LIMIT.feedRenderLimit); // the per-type window evicts the oldest card
   // Evicting the oldest card above the reader moves the offset by its height so the visible rows stay put.
   const anchored = await page.locator(SEL.feedStream).evaluate((node) => node.scrollTop);
   expect(anchored).toBeGreaterThan(0);
@@ -130,7 +130,7 @@ test('a flood of one event type keeps the newest 100 and search stays within the
     window.__tiktools_receive_batch__?.(Array.from({ length: 300 }, (_, index) => JSON.stringify({ method: 'event', params: { topic: 'live.ui-event',
       data: { event: { kind: 'chat', author: 'alice', text: `buffer ${index}`, msgId: `buffer-${index}` } } } })));
   });
-  await expect(page.locator(SEL.eventRow)).toHaveCount(100);
+  await expect(page.locator(SEL.eventRow)).toHaveCount(LIMIT.feedRenderLimit);
   await expect(page.locator('.live-feed__count')).toHaveText(t('feed.count', { count: 100 }));
   await expect(page.locator(SEL.eventRow).last()).toContainText('buffer 299');
   await page.locator(SEL.feedSearch).fill('buffer 299');
@@ -138,7 +138,7 @@ test('a flood of one event type keeps the newest 100 and search stays within the
   await page.locator(SEL.feedSearch).fill('buffer 0');
   await expect(page.locator(SEL.eventRow)).toHaveCount(0);
   await page.locator(SEL.feedSearch).fill('');
-  await expect(page.locator(SEL.eventRow)).toHaveCount(100);
+  await expect(page.locator(SEL.eventRow)).toHaveCount(LIMIT.feedRenderLimit);
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });

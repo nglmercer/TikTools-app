@@ -9,7 +9,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { controlClientKey } from '@/shared/api/use-control-client.ts';
 import { activateLocale } from '@/shared/i18n/i18n.ts';
 import OwnerLibraryReview from '../../../../../../src/web/features/recover-owner-library/ui/OwnerLibraryReview.vue';
-import { ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, EVENT_KIND, FIXTURE_ID, LIBRARY_OPERATION, RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach); beforeEach(() => activateLocale('en')); afterEach(() => activateLocale('en'));
 function fixture() {
@@ -33,9 +33,9 @@ function fixture() {
 
 test('a lost graph reply retains its reviewed source and current comparison without resubmitting', async () => {
   const f = fixture(); await flushPromises(); await f.journal.refreshSnapshot();
-  const mutation: LibraryMutation = { operation: 'apply-template', profileId: 'default', entry: {
-    actions: [{ schemaVersion: 2, id: 'act-frozen', name: 'Frozen action', enabled: false, typeId: ACTION_TYPE.coreLog, config: { message: 'private-source' } }],
-    event: { schemaVersion: 1, id: 'evt-frozen', name: 'Frozen event', enabled: false, trigger: EVENT_KIND.tiktokChat, filters: [], actionIds: ['act-frozen'], cooldownMs: 0, cooldownScope: 'global', runMode: 'all' },
+  const mutation: LibraryMutation = { operation: LIBRARY_OPERATION.applyTemplate, profileId: 'default', entry: {
+    actions: [{ schemaVersion: 2, id: FIXTURE_ID.actFrozen, name: 'Frozen action', enabled: false, typeId: ACTION_TYPE.coreLog, config: { message: 'private-source' } }],
+    event: { schemaVersion: 1, id: 'evt-frozen', name: 'Frozen event', enabled: false, trigger: EVENT_KIND.tiktokChat, filters: [], actionIds: [FIXTURE_ID.actFrozen], cooldownMs: 0, cooldownScope: 'global', runMode: 'all' },
   } };
   const storing = vi.spyOn(Storage.prototype, 'setItem');
   try {
@@ -78,7 +78,7 @@ test('membership review names the exact saved action and requested profile', asy
   await f.native.handle(RPC.automationCreate, { kind: 'action', record: action });
   f.native.library.setCatalog({ packs: [{ id: 'requested-profile', name: 'Original selected profile', description: '', eventIds: [], actionIds: [] }], activeId: 'default', templates: [] });
   await f.journal.refreshSnapshot();
-  const outcome = f.journal.request({ operation: 'assign-record', kind: 'action', id: action.id, profileId: 'requested-profile' }).catch((failure: unknown) => failure);
+  const outcome = f.journal.request({ operation: LIBRARY_OPERATION.assignRecord, kind: 'action', id: action.id, profileId: 'requested-profile' }).catch((failure: unknown) => failure);
   await flushPromises();
   const records = f.review.get('[data-test="library-review-records"]');
   expect(records.findAll('.change-review__card')).toHaveLength(1);

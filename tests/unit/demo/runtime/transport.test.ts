@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { callWithMeta, createControlClient } from '@/shared/api/control-client.ts';
 import { createDemoTransport, demoMethod, objectParams } from '../../../../src/web/demo/runtime/transport.ts';
-import { RPC } from '../../../shared/index.ts';
+import { ERROR_CODE, RPC } from '../../../shared/index.ts';
 
 describe('demo ControlTransport protocol', () => {
   it('answers the client ID in the real rpc-response envelope with typed metadata', async () => {
@@ -18,8 +18,8 @@ describe('demo ControlTransport protocol', () => {
     client.attach();
     const discovery = await client.call<{ methods: Array<{ name: string }> }>(RPC.rpcDiscover);
     expect(discovery.methods.map((method) => method.name).sort()).toEqual([RPC.rpcDiscover, 'sample.read']);
-    await expect(client.call('shell.run', { command: 'anything' })).rejects.toMatchObject({ code: 'method_not_found' });
-    await expect(client.call('__proto__')).rejects.toMatchObject({ code: 'method_not_found' });
+    await expect(client.call('shell.run', { command: 'anything' })).rejects.toMatchObject({ code: ERROR_CODE.methodNotFound });
+    await expect(client.call('__proto__')).rejects.toMatchObject({ code: ERROR_CODE.methodNotFound });
     expect(client.diagnostics?.().pending).toBe(0);
     client.detach();
   });

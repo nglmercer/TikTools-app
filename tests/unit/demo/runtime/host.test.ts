@@ -7,7 +7,7 @@ import { createLiveFeedState } from '@/entities/live-event/model/live-feed-state
 import { flushPromises } from '@vue/test-utils';
 import type { AnalyticsTotals, GiftCatalogEntry, UiEvent } from '../../../../src/shared/messages.ts';
 import { DEMO_ACTIVITY_LENGTH } from '../../../../src/web/demo/fixtures/audience.ts';
-import { RPC, TOPIC } from '../../../shared/index.ts';
+import { ERROR_CODE, RPC, TOPIC } from '../../../shared/index.ts';
 
 describe('public demo host', () => {
   it('populates the feed, profiles, gift catalog and analytics from the same six fictional viewers', async () => {
@@ -56,7 +56,7 @@ describe('public demo host', () => {
     const { host, client, dispose } = createDemoFixture('connection');
     for (const [kind, code] of [['offline', 'creator_offline'], ['auth', 'authentication_required']] as const) {
       host.setConnectionExample(kind, `Example: ${kind}`);
-      await expect(client.call('live.connect', { uniqueId: 'demo_creator' })).rejects.toMatchObject({ code, message: `Example: ${kind}` });
+      await expect(client.call(RPC.liveConnect, { uniqueId: 'demo_creator' })).rejects.toMatchObject({ code, message: `Example: ${kind}` });
       expect(host.state.liveStatus.connected).toBe(false);
       expect(host.step()).toBe(false);
     }
@@ -108,7 +108,7 @@ describe('public demo host', () => {
     await call(); await expect(call()).rejects.toMatchObject({ code: 'conflict' });
     await expect(client.call('automation.script.analyze', { source: 'throw new Error()' })).rejects.toMatchObject({ code: 'demo_unsupported' });
     await expect(client.call('plugins.action.execute', { actionType: 'http', config: { url: 'https://example.com' } })).rejects.toMatchObject({ code: 'demo_unsupported' });
-    await expect(client.call('shell.execute', {})).rejects.toMatchObject({ code: 'method_not_found' });
+    await expect(client.call('shell.execute', {})).rejects.toMatchObject({ code: ERROR_CODE.methodNotFound });
     dispose();
   });
   it('has deterministic initial state and bounded explicit startup replies for every scenario', async () => {

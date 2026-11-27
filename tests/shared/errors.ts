@@ -6,5 +6,6 @@ export const ERROR_CODE = {
   capabilityUnavailable: 'capability_unavailable',
   automationNotFound: 'automation_not_found',
   commandPending: 'command_pending',
+  methodNotFound: 'method_not_found',
 } as const;
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];

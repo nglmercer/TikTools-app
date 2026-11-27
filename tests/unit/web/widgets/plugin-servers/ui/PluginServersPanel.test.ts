@@ -7,7 +7,7 @@ import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import PluginServersPanel from '../../../../../../src/web/widgets/plugin-servers/ui/PluginServersPanel.vue';
-import { RPC } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -54,7 +54,7 @@ function mountPanel(selected: string | null = null, announced: string[] = []) {
 
 async function mountAnnounced(announced: string[]) {
   const mounted = mountPanel(null, announced);
-  await mounted.stores.use(() => useCapabilityStore()).refresh('test-host');
+  await mounted.stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.testHost);
   await flushPromises();
   return mounted.wrapper;
 }

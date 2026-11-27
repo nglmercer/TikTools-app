@@ -8,5 +8,6 @@ export const TOPIC = {
   workflowChanged: 'workflow.changed',
   liveLikesRanking: 'live.likes-ranking',
   rankingUpdated: 'ranking.updated',
+  eventGap: 'event.gap',
 } as const;
 export type Topic = (typeof TOPIC)[keyof typeof TOPIC];

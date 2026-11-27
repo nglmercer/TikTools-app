@@ -292,8 +292,8 @@ test('iframe admission stays bounded after deadlines and disposal clears timers'
 test('concurrent subscribe requests cannot exceed the aggregate topic capacity', async () => {
   const { host, posted, send } = harness();
   await Promise.all([
-    send('first', 'events.subscribe', { topics: Array.from({ length: 32 }, (_, index) => `plugin.first.${index}`) }),
-    send('second', 'events.subscribe', { topics: Array.from({ length: 32 }, (_, index) => `plugin.second.${index}`) }),
+    send('first', RPC.eventsSubscribe, { topics: Array.from({ length: 32 }, (_, index) => `plugin.first.${index}`) }),
+    send('second', RPC.eventsSubscribe, { topics: Array.from({ length: 32 }, (_, index) => `plugin.second.${index}`) }),
   ]);
   expect(host.diagnostics().subscriptions).toBe(32);
   expect((posted[0] as BrokerResponse).ok).toBe(true);

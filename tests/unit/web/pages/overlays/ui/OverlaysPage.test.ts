@@ -6,7 +6,7 @@ import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import OverlaysPage from '../../../../../../src/web/pages/overlays/ui/OverlaysPage.vue';
-import { RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -24,7 +24,7 @@ async function mountPage(announce: string[] = []) {
     return { ok: true };
   });
   const stores = createStoreHarness(client);
-  if (announce.length > 0) await stores.use(() => useCapabilityStore()).refresh('test-host');
+  if (announce.length > 0) await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.testHost);
   const wrapper = mountWithPlugins(OverlaysPage, { attachTo: document.body, global: { plugins: stores.plugins } });
   await flushPromises();
   return { wrapper, calls };

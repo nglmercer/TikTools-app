@@ -6,7 +6,7 @@ describe('live feed rendering', () => {
     const harness = createControl();
     const live = createLiveFeedState(harness.control, callbacks('system'));
     for (let i = 0; i < 1000; i += 1) {
-      harness.emit('live.ui-event', chatEvent('burst', `user-${i}`, i) as never);
+      harness.emit(TOPIC.liveUiEvent, chatEvent('burst', `user-${i}`, i) as never);
     }
     expect(live.events.value).toHaveLength(100);
     expect(live.events.value[0]?.author).toBe('burst-user-900');
@@ -19,7 +19,7 @@ describe('live feed rendering', () => {
     const live = createLiveFeedState(harness.control, callbacks('system'));
     harness.emit(TOPIC.liveUiEvent, chatEvent('chat', 'alice', 0) as never);
     for (let i = 0; i < 200; i += 1) {
-      harness.emit('live.ui-event', { event: { kind: 'like', author: 'fan', text: 'like', msgId: `like-${i}` } } as never);
+      harness.emit(TOPIC.liveUiEvent, { event: { kind: 'like', author: 'fan', text: 'like', msgId: `like-${i}` } } as never);
     }
     expect(live.events.value.filter((event) => event.kind === 'chat')).toHaveLength(1);
     expect(live.events.value.filter((event) => event.kind === 'like')).toHaveLength(100);
@@ -39,7 +39,7 @@ describe('live feed rendering', () => {
     const live = createLiveFeedState(harness.control, { ...callbacks('system'), history });
     harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: 'room-one' } as never);
     for (let i = 0; i < 100; i += 1) {
-      harness.emit('live.ui-event', likeEvent('fan', 1, i + 1, `one-${i}`, 'room-one') as never);
+      harness.emit(TOPIC.liveUiEvent, likeEvent('fan', 1, i + 1, `one-${i}`, 'room-one') as never);
     }
     expect(live.events.value.filter((event) => event.kind === 'like')).toHaveLength(100);
 
@@ -56,7 +56,7 @@ describe('live feed rendering', () => {
     live.handleToggleAutoScroll();
     expect(live.autoScroll.value).toBe(false);
     for (let i = 0; i < 10; i += 1) {
-      harness.emit('live.ui-event', chatEvent('paused', `user-${i}`, i) as never);
+      harness.emit(TOPIC.liveUiEvent, chatEvent('paused', `user-${i}`, i) as never);
     }
     expect(live.unreadCount.value).toBe(10);
     live.scrollToBottom();
@@ -68,7 +68,7 @@ describe('live feed rendering', () => {
     const harness = createControl();
     const live = createLiveFeedState(harness.control, callbacks('system'));
     for (let i = 0; i < 5; i += 1) {
-      harness.emit('live.ui-event', chatEvent('reset', `user-${i}`, i) as never);
+      harness.emit(TOPIC.liveUiEvent, chatEvent('reset', `user-${i}`, i) as never);
     }
     live.resetEvents();
     expect(live.events.value).toHaveLength(0);

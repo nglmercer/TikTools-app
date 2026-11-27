@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 
 import type { PluginPageDescriptor } from '../../../src/automation/behavior/types.ts';
 import { adaptLegacyPage } from '../../../src/plugin-ui/legacy-v3-adapter.ts';
-import { PLUGIN_ID } from '../../shared/index.ts';
+import { PLUGIN_ID, PLUGIN_SOURCE } from '../../shared/index.ts';
 
 const text = { default: 'Title', i18key: '' };
 
@@ -25,7 +25,7 @@ test('adapts text, form, connection, and list sections to generic nodes', () => 
       {
         kind: 'list',
         title: text,
-        optionsFrom: 'plugin-action-options:sonicboom.server.speak:voice',
+        optionsFrom: PLUGIN_SOURCE.sonicboomVoices,
       },
     ]),
   );
@@ -39,7 +39,7 @@ test('adapts text, form, connection, and list sections to generic nodes', () => 
   ]);
   const list = adapted.body.children[3];
   expect(list?.type === 'list' && list.optionsFrom).toBe(
-    'plugin-action-options:sonicboom.server.speak:voice',
+    PLUGIN_SOURCE.sonicboomVoices,
   );
 });
 
@@ -50,7 +50,7 @@ test('adapts legacy tts sections to a neutral status note', () => {
         kind: 'tts',
         title: text,
         actionType: PLUGIN_ID.sonicboomServerSpeak,
-        voicesFrom: 'plugin-action-options:sonicboom.server.speak:voice',
+        voicesFrom: PLUGIN_SOURCE.sonicboomVoices,
         outputsFrom: 'plugin-action-options:sonicboom.server.set-output-device:device',
       },
     ]),
