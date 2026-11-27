@@ -4898,6 +4898,7 @@ dependencies = [
  "tiktools-plugin-package",
  "tiktools-plugin-registry",
  "tiktools-plugin-sdk",
+ "tiktools-tls",
  "tokio",
  "tracing",
  "zip",

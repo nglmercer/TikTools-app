@@ -30,6 +30,7 @@ tempfile = "3"
 libc = "0.2"
 
 [dev-dependencies]
+tiktools-tls = { path = "../tiktools-tls", features = ["ring"] }
 zip.workspace = true
 tar.workspace = true
 flate2.workspace = true
