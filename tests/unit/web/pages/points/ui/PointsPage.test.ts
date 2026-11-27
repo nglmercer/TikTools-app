@@ -36,7 +36,7 @@ function viewer(uniqueId: string, points: number): ViewerRecord {
 
 async function mountPage(status: ConnectionStatus = 'idle') {
   const { client, calls } = createFakeControlClient((method, params) => {
-    if (method === 'points.config.get') return defaultPointsConfig;
+    if (method === RPC.pointsConfigGet) return defaultPointsConfig;
     if (method === RPC.pointsConfigSet) return { ...defaultPointsConfig, ...params };
     if (method === RPC.pointsLeaderboard) return { viewers: [viewer('luna', 420), viewer('mango', 150)] };
     return {};

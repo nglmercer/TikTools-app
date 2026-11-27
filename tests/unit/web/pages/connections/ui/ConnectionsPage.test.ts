@@ -90,7 +90,7 @@ describe('ConnectionsPage', () => {
     expect(wrapper.text()).not.toContain('Receiving events from');
     await buttonByText(wrapper, 'Disconnect').trigger('click');
     await flushPromises();
-    expect(calls.some((call) => call.method === 'live.disconnect')).toBe(true);
+    expect(calls.some((call) => call.method === RPC.liveDisconnect)).toBe(true);
   });
 
   it.each<ConnectionStatus>(['connecting', 'retrying'])('cancels while %s and unlocks the form', async (status) => {
@@ -100,7 +100,7 @@ describe('ConnectionsPage', () => {
     expect(cancel.attributes('disabled')).toBeUndefined();
     await cancel.trigger('click');
     await flushPromises();
-    expect(calls.filter((call) => call.method === 'live.disconnect')).toHaveLength(1);
+    expect(calls.filter((call) => call.method === RPC.liveDisconnect)).toHaveLength(1);
     expect(connection.status).toBe('disconnected');
     expect(wrapper.get('#live-handle').attributes('disabled')).toBeUndefined();
     expect(buttonByText(wrapper, t('connection.connect'))).toBeDefined();

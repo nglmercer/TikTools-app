@@ -11,7 +11,7 @@ import en from '../src/web/shared/i18n/locales/en.ts';
 
 const root = resolve(import.meta.dirname, '..');
 const args = new Map(process.argv.slice(2).map((arg) => { const [key, value = 'true'] = arg.replace(/^--/, '').split('='); return [key, value] as const; }));
-const threshold = Number(args.get('threshold') ?? 4);
+const threshold = Number(args.get('threshold') ?? 5);
 const base = args.get('dir') ?? 'tests';
 const failOnFindings = args.has('fail');
 

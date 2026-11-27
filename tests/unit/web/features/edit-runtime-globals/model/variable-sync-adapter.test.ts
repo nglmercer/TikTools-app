@@ -11,7 +11,7 @@ function setup(rows = [row()], options: { support?: boolean } = { support: true 
   const { client, calls } = createFakeControlClient((method) => {
     if (method === 'sync.v2.variables.review') return { changes: comparisons };
     if (method === RPC.syncV2VariablesApply) return null;
-    if (method === 'sync.v2.variables.send' || method === RPC.syncV2VariablesWithdraw || method === 'sync.v2.variables.fetch') return { conflicts: [] };
+    if (method === RPC.syncV2VariablesSend || method === RPC.syncV2VariablesWithdraw || method === 'sync.v2.variables.fetch') return { conflicts: [] };
     throw new Error(`unexpected ${method}`);
   });
   const reloadLocal = vi.fn(async () => {});
@@ -51,8 +51,8 @@ describe('native Variables Changes adapter', () => {
     fixture.replace([row({ review: 'new-comparison' })]);
     await fixture.adapter.list();
     await fixture.adapter.push!([shown[0]!.id]);
-    expect(fixture.calls.at(-1)).toMatchObject({ method: 'sync.v2.variables.send', params: { review: 'reviewed-first' } });
-    expect(fixture.calls.some((call) => call.method === 'sync.v2.now' || call.method === RPC.syncV2Section || call.method === RPC.globalsTypedReplace)).toBe(false);
+    expect(fixture.calls.at(-1)).toMatchObject({ method: RPC.syncV2VariablesSend, params: { review: 'reviewed-first' } });
+    expect(fixture.calls.some((call) => call.method === RPC.syncV2Now || call.method === RPC.syncV2Section || call.method === RPC.globalsTypedReplace)).toBe(false);
   });
   it('fetches only into the cache and withdraws without replacing local values', async () => {
     const { adapter, calls, reloadLocal, refreshStatus } = setup();
@@ -73,7 +73,7 @@ describe('native Variables Changes adapter', () => {
     await adapter.resolve!('one', { choice: 'local' });
     await adapter.resolve!('two', { choice: 'cloud' });
     await expect(adapter.resolve!('three', { choice: 'merged', value: {} })).rejects.toThrow();
-    expect(calls.map((call) => call.method)).toEqual(['sync.v2.variables.send', RPC.syncV2VariablesApply]);
+    expect(calls.map((call) => call.method)).toEqual([RPC.syncV2VariablesSend, RPC.syncV2VariablesApply]);
   });
 });
 

@@ -10,6 +10,9 @@
  * 2. Tests must resolve translated text through testMessage(locale, key),
  *    never a `locale === 'x' ? 'literal'` ternary. Previously a
  *    no-restricted-syntax ConditionalExpression selector in eslint.
+ * 3. Unit tests must take RPC methods, topics, event kinds, plugin ids, error codes, account states and
+ *    fixture ids from tests/shared instead of retyping them (see scripts/test-literals.ts). E2E specs are
+ *    exempt: page-side scripts cannot import, so their literals stay.
  *
  * If oxlint gains selector/plugin support for these (or vize grows native
  * template-element rules), this script should retire in their favor; track
@@ -17,6 +20,7 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import * as sharedTokens from '../tests/shared/index.ts';
 
 const root = process.cwd();
 const problems: string[] = [];
@@ -64,6 +68,23 @@ for (const scope of ['tests', 'src']) {
       problems.push(`${file}:${lineOf(text, match.index)} use testMessage(locale, key) instead of a hardcoded translated string`);
     }
   }
+}
+
+// Shared test tokens must not be retyped in unit tests.
+const SHARED_GROUPS = ['RPC', 'TOPIC', 'EVENT_KIND', 'PLUGIN_ID', 'ACTION_TYPE', 'ACCOUNT_STATE', 'ERROR_CODE', 'FIXTURE_ID', 'STORAGE_KEY'] as const;
+const sharedValues = new Map<string, string>();
+for (const group of SHARED_GROUPS) for (const [key, value] of Object.entries(sharedTokens[group])) sharedValues.set(value as string, `${group}.${key}`);
+const IMPORT_OR_TYPE = /^\s*(import|export)\b.*\bfrom\b|^\s*(export\s+)?type\s|'\s*\|\s*'|`|vi\.mock\(/;
+for (const file of walk(join(root, 'tests', 'unit'))) {
+  if (!file.endsWith('.ts')) continue;
+  const lines = readFileSync(file, 'utf8').split('\n');
+  lines.forEach((line, index) => {
+    if (IMPORT_OR_TYPE.test(line)) return;
+    for (const match of line.matchAll(/'([a-z][a-z0-9]*(?:[._:-][a-z0-9]+)+)'/g)) {
+      const token = sharedValues.get(match[1]!);
+      if (token) problems.push(`${file}:${index + 1} use ${token} from tests/shared instead of '${match[1]}'`);
+    }
+  });
 }
 
 if (problems.length) {

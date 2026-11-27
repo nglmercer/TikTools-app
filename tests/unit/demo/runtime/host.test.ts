@@ -118,7 +118,7 @@ describe('public demo host', () => {
       const client = createControlClient({ transport: a.transport }); client.attach();
       const status = await client.call<{ connected: boolean }>('live.status', {});
       expect(status.connected, `${id} should only be seeded live when it reads live events`).toBe(id === 'feed');
-      for (const method of [RPC.systemInfo, RPC.appStateGet, RPC.automationSnapshot, RPC.automationRuns, 'points.config.get', RPC.pointsLeaderboard, 'live.status', 'live.monitor.status', 'creators.recent', RPC.globalsList, 'processors.status', 'widgets.status']) expect(await client.call(method, {})).toBeDefined();
+      for (const method of [RPC.systemInfo, RPC.appStateGet, RPC.automationSnapshot, RPC.automationRuns, RPC.pointsConfigGet, RPC.pointsLeaderboard, 'live.status', 'live.monitor.status', 'creators.recent', RPC.globalsList, 'processors.status', 'widgets.status']) expect(await client.call(method, {})).toBeDefined();
       expect(client.diagnostics?.().pending).toBe(0); client.detach(); a.dispose(); b.dispose();
     }
   });

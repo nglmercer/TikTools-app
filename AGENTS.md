@@ -102,3 +102,20 @@
   with `node --check` on the extracted script.
 - Run the suite with `bunx playwright test` (about 2.5 minutes, one worker, shared dev server).
 
+## Shared test tokens
+
+- `tests/shared/` holds the identifiers tests repeat: `RPC` methods, `TOPIC`s, `EVENT_KIND`s, `PLUGIN_ID`s,
+  `ACTION_TYPE`s, `ERROR_CODE`s, `ACCOUNT_STATE`s, `FIXTURE_ID`s, `ROUTE`s and `STORAGE_KEY`s. Import them
+  (`import { RPC } from '.../tests/shared/index.ts'`) instead of retyping the string. Keep the module
+  dependency-free: Playwright loads it in Node.
+- `bun scripts/lint-custom.ts` (part of `frontend-lint`) fails a unit test that retypes one of these values.
+  Add a new token to its group in `tests/shared` first; `tests/unit/shared/test-tokens.test.ts` pins values
+  that mirror production (storage keys) and rejects duplicates.
+- E2E specs share `tests/e2e/support/selectors.ts` (`SEL`, `PLUGIN_TITLE`) and `timeouts.ts` (`WAIT_MS`).
+  Code that runs inside the page (`page.evaluate`, `addInitScript`, the fake host `INIT_SCRIPT`) cannot see
+  imports, so literals stay there.
+- Typing: the tokens are `as const`. When a test needs a wider type (a mutable id, `.includes(method)` on a
+  `string`), widen at the use site (`typeId: string = ...`, `[...] as string[]`), not in the token.
+- `bun scripts/test-literals.ts [--dir=tests/unit] [--threshold=5]` lists what is still repeated. i18n keys,
+  DOM attribute names and the fixture data it names are ignored on purpose.
+

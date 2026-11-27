@@ -40,7 +40,7 @@ describe('demo playback controls', () => {
     const f = fixture();
     try {
       await f.playback.play();
-      await f.client.call('live.disconnect', {});
+      await f.client.call(RPC.liveDisconnect, {});
       f.playback.tick();
       expect(f.states.at(-1)).toMatchObject({ paused: true, status: 'disconnected' });
       await f.playback.play();

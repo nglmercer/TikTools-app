@@ -38,7 +38,7 @@ function stubControl(board: ViewerRecord[]): ControlClient & {
       void _params;
       calls.push(method);
       if (method === RPC.pointsLeaderboard) return Promise.resolve({ viewers: board } as T);
-      if (method === 'points.config.get') return Promise.resolve(defaultPointsConfig as T);
+      if (method === RPC.pointsConfigGet) return Promise.resolve(defaultPointsConfig as T);
       return Promise.reject(new Error(`unstubbed ${method}`)) as Promise<T>;
     },
     onTopic: <T,>(topic: string, handler: (data: T) => void): (() => void) => {
@@ -157,7 +157,7 @@ it('native board snapshots supersede slow board RPCs while config refresh still 
   const original = control.call;
   let resolveBoard!: (value: unknown) => void;
   control.call = <T,>(method: string, params?: RpcParams): Promise<T> => {
-    if (method === 'points.config.get') return Promise.resolve({ ...defaultPointsConfig, currencyName: t('feed.profile.stats.coins') } as T);
+    if (method === RPC.pointsConfigGet) return Promise.resolve({ ...defaultPointsConfig, currencyName: t('feed.profile.stats.coins') } as T);
     if (method === RPC.pointsLeaderboard) return new Promise((resolve) => { resolveBoard = resolve as (value: unknown) => void; });
     return original<T>(method, params);
   };

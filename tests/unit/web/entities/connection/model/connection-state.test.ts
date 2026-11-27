@@ -425,7 +425,7 @@ describe('useConnection cancellation', () => {
     expect(connection.activeCreator.value).toBe('alice');
     finish?.({ connected: true, uniqueId: 'late_creator' });
     await flushPromises();
-    expect(control.calls.map((call) => call.method)).toEqual([method, 'live.disconnect']);
+    expect(control.calls.map((call) => call.method)).toEqual([method, RPC.liveDisconnect]);
     expect(connection.status.value).toBe('disconnected');
     expect(connection.uniqueId.value).toBe('alice');
     expect(connection.error.value).toBe('');
