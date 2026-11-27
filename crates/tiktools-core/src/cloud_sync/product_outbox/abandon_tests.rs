@@ -160,6 +160,20 @@ fn reserve(sync: &SyncCoordinator, db: &DatabaseManager, epoch: &str, enabled: b
     .unwrap();
 }
 
+/// A throwaway app root named after `prefix`, removed when the guard drops,
+/// with the standard directories created.
+fn abandon_paths(prefix: &str) -> (FixtureDir, AppPaths) {
+    let root = std::env::temp_dir().join(format!(
+        "{prefix}-{}-{}",
+        std::process::id(),
+        fastrand::u64(..)
+    ));
+    let guard = FixtureDir(root.clone());
+    let paths = crate::control::test_support::paths(&root);
+    paths.ensure_directories().unwrap();
+    (guard, paths)
+}
+
 /// Local relay stub: serves `/me`, the change feed and the export with one plugin
 /// record, and answers every write with 409 while counting it in `writes`.
 /// Requests bearing `bob-token` are served as account `bob`.
@@ -261,23 +275,7 @@ async fn conflict_relay() -> (String, Arc<AtomicUsize>, tokio::task::JoinHandle<
 #[tokio::test]
 async fn sqlite_coordinator_abandon_recovers_crashes_and_retains_newer_conflict() {
     let (origin, writes, server) = conflict_relay().await;
-    let root = std::env::temp_dir().join(format!(
-        "sync-abandon-e2e-{}-{}",
-        std::process::id(),
-        fastrand::u64(..)
-    ));
-    let _guard = FixtureDir(root.clone());
-    let paths = AppPaths {
-        data: root.join("data"),
-        plugins: root.join("plugins"),
-        plugin_data: root.join("plugin-data"),
-        builtin_plugins: root.join("absent"),
-        development_plugins: None,
-        logs: root.join("logs"),
-        temp: root.join("temp"),
-        root,
-    };
-    paths.ensure_directories().unwrap();
+    let (_guard, paths) = abandon_paths("sync-abandon-e2e");
     let sidecar = paths.data.join("account.json");
     std::fs::write(
         &sidecar,
@@ -397,23 +395,7 @@ impl TokenStore for BobStore {
 #[tokio::test]
 async fn sqlite_coordinator_abandon_preserves_another_accounts_candidate() {
     let (origin, writes, server) = conflict_relay().await;
-    let root = std::env::temp_dir().join(format!(
-        "sync-abandon-foreign-{}-{}",
-        std::process::id(),
-        fastrand::u64(..)
-    ));
-    let _guard = FixtureDir(root.clone());
-    let paths = AppPaths {
-        data: root.join("data"),
-        plugins: root.join("plugins"),
-        plugin_data: root.join("plugin-data"),
-        builtin_plugins: root.join("absent"),
-        development_plugins: None,
-        logs: root.join("logs"),
-        temp: root.join("temp"),
-        root,
-    };
-    paths.ensure_directories().unwrap();
+    let (_guard, paths) = abandon_paths("sync-abandon-foreign");
     let alice_sidecar = paths.data.join("alice.json");
     let bob_sidecar = paths.data.join("bob.json");
     std::fs::write(
@@ -551,23 +533,7 @@ impl TokenStore for AccountStore {
 #[tokio::test]
 async fn sqlite_previous_consent_abandon_survives_account_switch_and_sqlite_failure() {
     let (origin, writes, server) = conflict_relay().await;
-    let root = std::env::temp_dir().join(format!(
-        "sync-previous-consent-{}-{}",
-        std::process::id(),
-        fastrand::u64(..)
-    ));
-    let _guard = FixtureDir(root.clone());
-    let paths = AppPaths {
-        data: root.join("data"),
-        plugins: root.join("plugins"),
-        plugin_data: root.join("plugin-data"),
-        builtin_plugins: root.join("absent"),
-        development_plugins: None,
-        logs: root.join("logs"),
-        temp: root.join("temp"),
-        root,
-    };
-    paths.ensure_directories().unwrap();
+    let (_guard, paths) = abandon_paths("sync-previous-consent");
     let sidecar = paths.data.join("account.json");
     std::fs::write(
         &sidecar,
