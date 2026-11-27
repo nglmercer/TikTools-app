@@ -4,7 +4,8 @@
 
 use crate::control::AutomationKind;
 use crate::wire;
-use rusqlite::{types::ValueRef, Row};
+use super::DatabaseError;
+use rusqlite::{types::ValueRef, Row, Connection};
 
 /// Byte bounds for the text columns of a `control_commands` row, in column
 /// order: payload hash, session, method, resource kind, resource scope,
@@ -36,6 +37,23 @@ pub(super) fn text_columns_within(
 
 pub(super) fn id(value: &str) -> bool {
     wire::canonical_id(value, 128)
+}
+
+/// A new owner journal entry may only start when no owner journal (adoption,
+/// approval, definition or library) still has an unresolved entry for `host`.
+/// Adding a journal means adding it here once, not in every submitter.
+pub(super) fn ensure_no_pending_owner_journal(
+    db: &Connection,
+    host: &str,
+) -> Result<(), DatabaseError> {
+    if super::owner_adoption::has_pending(db, host)?
+        || super::owner_approval::has_pending(db, host)?
+        || super::owner_definition::has_pending(db, host)?
+        || super::owner_library::has_pending(db, host)?
+    {
+        return Err(DatabaseError::OwnerAdoptionPending);
+    }
+    Ok(())
 }
 
 pub(super) fn revision(value: &str) -> Option<i64> {

@@ -1,5 +1,6 @@
 //! Metadata-only owner journal. Business results remain in the shared ledger.
 use super::owner_journal_values::{id, revision, scope};
+use super::owner_journal_values;
 use super::{commands, DatabaseError, DatabaseManager};
 use crate::{
     collaboration::{CommandRequest, ResourceKind},
@@ -192,13 +193,7 @@ impl DatabaseManager {
         let mut db = self.open(&self.automation_path())?;
         crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        if pending(&tx, host)?.is_some()
-            || super::owner_approval::has_pending(&tx, host)?
-            || super::owner_definition::has_pending(&tx, host)?
-            || super::owner_library::has_pending(&tx, host)?
-        {
-            return Err(DatabaseError::OwnerAdoptionPending);
-        }
+        owner_journal_values::ensure_no_pending_owner_journal(&tx, host)?;
         let (kind, target) = operation.target();
         if !matches!(operation, AutomationMutation::Adopt { .. })
             || kind != intent.kind

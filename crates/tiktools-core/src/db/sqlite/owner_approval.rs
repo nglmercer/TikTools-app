@@ -3,6 +3,7 @@
 use super::owner_journal_values::{
     digest, id, revision, scope, text_columns_within, CONTROL_COMMAND_TEXT_LIMITS,
 };
+use super::owner_journal_values;
 use super::{commands, DatabaseError, DatabaseManager};
 use crate::{
     collaboration::{CommandRequest, ResourceKind, ResourceVersion},
@@ -428,13 +429,7 @@ impl DatabaseManager {
         let mut db = self.open(&self.automation_path())?;
         crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        if pending(&tx, host)?.is_some()
-            || super::owner_adoption::has_pending(&tx, host)?
-            || super::owner_definition::has_pending(&tx, host)?
-            || super::owner_library::has_pending(&tx, host)?
-        {
-            return Err(DatabaseError::OwnerAdoptionPending);
-        }
+        owner_journal_values::ensure_no_pending_owner_journal(&tx, host)?;
         let proof = match operation {
             ApprovalCommand::Activate(p) => Some(ActivationProof {
                 reviewed_versions: p.reviewed_versions.clone(),
