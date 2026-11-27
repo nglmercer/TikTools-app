@@ -160,8 +160,10 @@ fn reserve(sync: &SyncCoordinator, db: &DatabaseManager, epoch: &str, enabled: b
     .unwrap();
 }
 
-#[tokio::test]
-async fn sqlite_coordinator_abandon_recovers_crashes_and_retains_newer_conflict() {
+/// Local relay stub: serves `/me`, the change feed and the export with one plugin
+/// record, and answers every write with 409 while counting it in `writes`.
+/// Requests bearing `bob-token` are served as account `bob`.
+async fn conflict_relay() -> (String, Arc<AtomicUsize>, tokio::task::JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let origin = format!("http://{}", listener.local_addr().unwrap());
     let writes = Arc::new(AtomicUsize::new(0));
@@ -176,7 +178,7 @@ async fn sqlite_coordinator_abandon_recovers_crashes_and_retains_newer_conflict(
                         if let Some(index) = request.windows(4).position(|x| x == b"\r\n\r\n") {
                             break index + 4;
                         }
-                        let mut chunk = [0u8; 1024];
+                        let mut chunk = [0; 1024];
                         let Ok(n) = socket.read(&mut chunk).await else {
                             return;
                         };
@@ -195,7 +197,7 @@ async fn sqlite_coordinator_abandon_recovers_crashes_and_retains_newer_conflict(
                         })
                         .unwrap_or(0);
                     while request.len() < header_end + content_length {
-                        let mut chunk = [0u8; 1024];
+                        let mut chunk = [0; 1024];
                         let Ok(n) = socket.read(&mut chunk).await else {
                             return;
                         };
@@ -205,12 +207,16 @@ async fn sqlite_coordinator_abandon_recovers_crashes_and_retains_newer_conflict(
                         request.extend_from_slice(&chunk[..n]);
                     }
                     let first = headers.lines().next().unwrap_or_default();
-                    let record = serde_json::json!({
-                        "collection":"plugin-selections", "key":"acme.plugin", "revision":1,
-                        "deleted":false, "value":{"schemaVersion":1,"pluginId":"acme.plugin","version":"1.0.0","enabled":false}
-                    });
+                    let record = serde_json::json!({"collection":"plugin-selections", "key":"acme.plugin",
+                        "revision":1, "deleted":false,
+                        "value":{"schemaVersion":1,"pluginId":"acme.plugin","version":"1.0.0","enabled":false}});
                     let (status, body) = if first.starts_with("get /api/v1/native/me ") {
-                        ("200 OK", serde_json::json!({"id":"alice"}))
+                        let id = if headers.contains("authorization: bearer bob-token") {
+                            "bob"
+                        } else {
+                            "alice"
+                        };
+                        ("200 OK", serde_json::json!({"id":id}))
                     } else if first.starts_with("get /api/v1/native/sync/changes?") {
                         let cursor = first
                             .split("cursor=")
@@ -249,6 +255,12 @@ async fn sqlite_coordinator_abandon_recovers_crashes_and_retains_newer_conflict(
             }
         })
     };
+    (origin, writes, server)
+}
+
+#[tokio::test]
+async fn sqlite_coordinator_abandon_recovers_crashes_and_retains_newer_conflict() {
+    let (origin, writes, server) = conflict_relay().await;
     let root = std::env::temp_dir().join(format!(
         "sync-abandon-e2e-{}-{}",
         std::process::id(),
@@ -384,97 +396,7 @@ impl TokenStore for BobStore {
 
 #[tokio::test]
 async fn sqlite_coordinator_abandon_preserves_another_accounts_candidate() {
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let origin = format!("http://{}", listener.local_addr().unwrap());
-    let writes = Arc::new(AtomicUsize::new(0));
-    let server = {
-        let writes = writes.clone();
-        tokio::spawn(async move {
-            while let Ok((mut socket, _)) = listener.accept().await {
-                let writes = writes.clone();
-                tokio::spawn(async move {
-                    let mut request = Vec::new();
-                    let header_end = loop {
-                        if let Some(index) = request.windows(4).position(|x| x == b"\r\n\r\n") {
-                            break index + 4;
-                        }
-                        let mut chunk = [0; 1024];
-                        let Ok(n) = socket.read(&mut chunk).await else {
-                            return;
-                        };
-                        if n == 0 || request.len() > 16384 {
-                            return;
-                        }
-                        request.extend_from_slice(&chunk[..n]);
-                    };
-                    let headers =
-                        String::from_utf8_lossy(&request[..header_end]).to_ascii_lowercase();
-                    let content_length = headers
-                        .lines()
-                        .find_map(|line| {
-                            line.strip_prefix("content-length:")
-                                .and_then(|value| value.trim().parse::<usize>().ok())
-                        })
-                        .unwrap_or(0);
-                    while request.len() < header_end + content_length {
-                        let mut chunk = [0; 1024];
-                        let Ok(n) = socket.read(&mut chunk).await else {
-                            return;
-                        };
-                        if n == 0 || request.len() > 16384 {
-                            return;
-                        }
-                        request.extend_from_slice(&chunk[..n]);
-                    }
-                    let first = headers.lines().next().unwrap_or_default();
-                    let record = serde_json::json!({"collection":"plugin-selections", "key":"acme.plugin",
-                        "revision":1, "deleted":false,
-                        "value":{"schemaVersion":1,"pluginId":"acme.plugin","version":"1.0.0","enabled":false}});
-                    let (status, body) = if first.starts_with("get /api/v1/native/me ") {
-                        let id = if headers.contains("authorization: bearer bob-token") {
-                            "bob"
-                        } else {
-                            "alice"
-                        };
-                        ("200 OK", serde_json::json!({"id":id}))
-                    } else if first.starts_with("get /api/v1/native/sync/changes?") {
-                        let cursor = first
-                            .split("cursor=")
-                            .nth(1)
-                            .and_then(|v| v.split(['&', ' ']).next())
-                            .and_then(|v| v.parse::<i64>().ok())
-                            .unwrap_or(0);
-                        let revision = i64::from(writes.load(Ordering::SeqCst) > 0);
-                        let changes = if cursor < revision {
-                            vec![record]
-                        } else {
-                            vec![]
-                        };
-                        (
-                            "200 OK",
-                            serde_json::json!({"changes":changes,"cursor":revision,"has_more":false}),
-                        )
-                    } else if first.starts_with("get /api/v1/native/sync/export ") {
-                        (
-                            "200 OK",
-                            serde_json::json!({"schemaVersion":1,"cursor":1,"records":[record]}),
-                        )
-                    } else if first.starts_with(
-                        "put /api/v1/native/sync/collections/plugin-selections/acme.plugin ",
-                    ) {
-                        writes.fetch_add(1, Ordering::SeqCst);
-                        ("409 Conflict", serde_json::json!({"error":"conflict"}))
-                    } else {
-                        ("404 Not Found", serde_json::json!({}))
-                    };
-                    let body = serde_json::to_vec(&body).unwrap();
-                    let head = format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
-                    let _ = socket.write_all(head.as_bytes()).await;
-                    let _ = socket.write_all(&body).await;
-                });
-            }
-        })
-    };
+    let (origin, writes, server) = conflict_relay().await;
     let root = std::env::temp_dir().join(format!(
         "sync-abandon-foreign-{}-{}",
         std::process::id(),
@@ -628,97 +550,7 @@ impl TokenStore for AccountStore {
 
 #[tokio::test]
 async fn sqlite_previous_consent_abandon_survives_account_switch_and_sqlite_failure() {
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let origin = format!("http://{}", listener.local_addr().unwrap());
-    let writes = Arc::new(AtomicUsize::new(0));
-    let server = {
-        let writes = writes.clone();
-        tokio::spawn(async move {
-            while let Ok((mut socket, _)) = listener.accept().await {
-                let writes = writes.clone();
-                tokio::spawn(async move {
-                    let mut request = Vec::new();
-                    let header_end = loop {
-                        if let Some(index) = request.windows(4).position(|x| x == b"\r\n\r\n") {
-                            break index + 4;
-                        }
-                        let mut chunk = [0; 1024];
-                        let Ok(n) = socket.read(&mut chunk).await else {
-                            return;
-                        };
-                        if n == 0 || request.len() > 16384 {
-                            return;
-                        }
-                        request.extend_from_slice(&chunk[..n]);
-                    };
-                    let headers =
-                        String::from_utf8_lossy(&request[..header_end]).to_ascii_lowercase();
-                    let content_length = headers
-                        .lines()
-                        .find_map(|line| {
-                            line.strip_prefix("content-length:")
-                                .and_then(|value| value.trim().parse::<usize>().ok())
-                        })
-                        .unwrap_or(0);
-                    while request.len() < header_end + content_length {
-                        let mut chunk = [0; 1024];
-                        let Ok(n) = socket.read(&mut chunk).await else {
-                            return;
-                        };
-                        if n == 0 || request.len() > 16384 {
-                            return;
-                        }
-                        request.extend_from_slice(&chunk[..n]);
-                    }
-                    let first = headers.lines().next().unwrap_or_default();
-                    let record = serde_json::json!({"collection":"plugin-selections", "key":"acme.plugin",
-                        "revision":1, "deleted":false,
-                        "value":{"schemaVersion":1,"pluginId":"acme.plugin","version":"1.0.0","enabled":false}});
-                    let (status, body) = if first.starts_with("get /api/v1/native/me ") {
-                        let id = if headers.contains("authorization: bearer bob-token") {
-                            "bob"
-                        } else {
-                            "alice"
-                        };
-                        ("200 OK", serde_json::json!({"id":id}))
-                    } else if first.starts_with("get /api/v1/native/sync/changes?") {
-                        let cursor = first
-                            .split("cursor=")
-                            .nth(1)
-                            .and_then(|v| v.split(['&', ' ']).next())
-                            .and_then(|v| v.parse::<i64>().ok())
-                            .unwrap_or(0);
-                        let revision = i64::from(writes.load(Ordering::SeqCst) > 0);
-                        let changes = if cursor < revision {
-                            vec![record]
-                        } else {
-                            vec![]
-                        };
-                        (
-                            "200 OK",
-                            serde_json::json!({"changes":changes,"cursor":revision,"has_more":false}),
-                        )
-                    } else if first.starts_with("get /api/v1/native/sync/export ") {
-                        (
-                            "200 OK",
-                            serde_json::json!({"schemaVersion":1,"cursor":1,"records":[record]}),
-                        )
-                    } else if first.starts_with(
-                        "put /api/v1/native/sync/collections/plugin-selections/acme.plugin ",
-                    ) {
-                        writes.fetch_add(1, Ordering::SeqCst);
-                        ("409 Conflict", serde_json::json!({"error":"conflict"}))
-                    } else {
-                        ("404 Not Found", serde_json::json!({}))
-                    };
-                    let body = serde_json::to_vec(&body).unwrap();
-                    let head = format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
-                    let _ = socket.write_all(head.as_bytes()).await;
-                    let _ = socket.write_all(&body).await;
-                });
-            }
-        })
-    };
+    let (origin, writes, server) = conflict_relay().await;
     let root = std::env::temp_dir().join(format!(
         "sync-previous-consent-{}-{}",
         std::process::id(),
