@@ -152,39 +152,14 @@ impl Session {
         epoch: &WorkspaceWriteEpoch,
     ) -> Result<WorkspaceRecord, SyncError> {
         epoch.verify_session(self)?;
-        if !portable::validate(collection, key, &value) || base_revision.is_some_and(|n| n < 1) {
-            return Err(SyncError::Configuration);
-        }
-        let mut request = self
-            .request(
-                Method::PUT,
-                &format!("api/v2/sync/collections/{collection}/{key}"),
-            )?
-            .header(EPOCH_HEADER, epoch.decimal())
-            .json(&value);
-        request = if let Some(n) = base_revision {
-            request.header(IF_MATCH, format!("\"{n}\""))
-        } else {
-            request.header(IF_NONE_MATCH, "*")
-        };
-        let record: WorkspaceRecord = decode_with_limit(
-            request.send().await.map_err(|_| SyncError::Network)?,
-            MAX_V2_RESPONSE,
+        self.put_record_checked(
+            collection,
+            key,
+            value,
+            base_revision,
+            Some((EPOCH_HEADER, epoch.decimal())),
         )
-        .await?;
-        if record.collection != collection
-            || record.key != key
-            || record.deleted
-            || !record
-                .value
-                .as_ref()
-                .is_some_and(|returned| portable::values_equivalent(returned, &value))
-            || base_revision.is_some_and(|base| record.revision < base)
-            || !record.valid(record.revision)
-        {
-            return Err(SyncError::Protocol);
-        }
-        Ok(record)
+        .await
     }
 
     /// Conditionally delete using a previously persisted, identity-bound epoch.
@@ -196,28 +171,12 @@ impl Session {
         epoch: &WorkspaceWriteEpoch,
     ) -> Result<WorkspaceRecord, SyncError> {
         epoch.verify_session(self)?;
-        if !portable::valid_key(collection, key) || base_revision < 1 {
-            return Err(SyncError::Configuration);
-        }
-        let response = self
-            .request(
-                Method::DELETE,
-                &format!("api/v2/sync/collections/{collection}/{key}"),
-            )?
-            .header(EPOCH_HEADER, epoch.decimal())
-            .header(IF_MATCH, format!("\"{base_revision}\""))
-            .send()
-            .await
-            .map_err(|_| SyncError::Network)?;
-        let record: WorkspaceRecord = decode_with_limit(response, MAX_V2_RESPONSE).await?;
-        if record.collection != collection
-            || record.key != key
-            || !record.deleted
-            || record.revision < base_revision
-            || !record.valid(record.revision)
-        {
-            return Err(SyncError::Protocol);
-        }
-        Ok(record)
+        self.delete_record_checked(
+            collection,
+            key,
+            base_revision,
+            Some((EPOCH_HEADER, epoch.decimal())),
+        )
+        .await
     }
 }

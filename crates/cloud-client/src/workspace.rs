@@ -304,6 +304,29 @@ impl Session {
         value: Value,
         base_revision: Option<i64>,
     ) -> Result<WorkspaceRecord, SyncError> {
+        self.put_record_checked(collection, key, value, base_revision, None)
+            .await
+    }
+    pub async fn workspace_delete(
+        &self,
+        collection: &str,
+        key: &str,
+        base_revision: i64,
+    ) -> Result<WorkspaceRecord, SyncError> {
+        self.delete_record_checked(collection, key, base_revision, None)
+            .await
+    }
+    /// Single copy of the conditional PUT and of the checks on its response,
+    /// shared by the plain and the epoch-fenced writers so a fix cannot land
+    /// in only one of them. `epoch` is the already-rendered fence header.
+    async fn put_record_checked(
+        &self,
+        collection: &str,
+        key: &str,
+        value: Value,
+        base_revision: Option<i64>,
+        epoch: Option<(&'static str, String)>,
+    ) -> Result<WorkspaceRecord, SyncError> {
         if !portable::validate(collection, key, &value) || base_revision.is_some_and(|n| n < 1) {
             return Err(SyncError::Configuration);
         }
@@ -313,6 +336,9 @@ impl Session {
                 &format!("api/v2/sync/collections/{collection}/{key}"),
             )?
             .json(&value);
+        if let Some((name, number)) = epoch {
+            request = request.header(name, number);
+        }
         request = if let Some(n) = base_revision {
             request.header(IF_MATCH, format!("\"{n}\""))
         } else {
@@ -337,20 +363,26 @@ impl Session {
         }
         Ok(record)
     }
-    pub async fn workspace_delete(
+    /// Single copy of the conditional DELETE and of its response checks; see
+    /// [`Self::put_record_checked`].
+    async fn delete_record_checked(
         &self,
         collection: &str,
         key: &str,
         base_revision: i64,
+        epoch: Option<(&'static str, String)>,
     ) -> Result<WorkspaceRecord, SyncError> {
         if !portable::valid_key(collection, key) || base_revision < 1 {
             return Err(SyncError::Configuration);
         }
-        let response = self
-            .request(
-                Method::DELETE,
-                &format!("api/v2/sync/collections/{collection}/{key}"),
-            )?
+        let mut request = self.request(
+            Method::DELETE,
+            &format!("api/v2/sync/collections/{collection}/{key}"),
+        )?;
+        if let Some((name, number)) = epoch {
+            request = request.header(name, number);
+        }
+        let response = request
             .header(IF_MATCH, format!("\"{base_revision}\""))
             .send()
             .await
