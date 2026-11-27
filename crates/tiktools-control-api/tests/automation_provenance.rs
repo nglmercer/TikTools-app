@@ -4,10 +4,7 @@
 use serde_json::{json, Value};
 use tiktools_control_api::{RemoteSession, RequestContext, RpcResponse};
 use tiktools_core::{
-    collaboration::{
-        Capability, Grant, GrantSet,
-        ResourceKind,
-    },
+    collaboration::{Capability, Grant, GrantSet, ResourceKind},
     control::AutomationKind,
 };
 mod support;

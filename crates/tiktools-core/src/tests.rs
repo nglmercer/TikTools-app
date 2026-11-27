@@ -3291,9 +3291,10 @@ async fn plugin_sync_worker_guard_requires_matching_live_selection() {
     let _ = std::fs::remove_dir_all(root);
 }
 
+/// A core with one fake plugin (`acme.hotkeys`) whose Cloud sync is signed in as
+/// `alice` and switched on, for the tests of durable local plugin edits.
 #[cfg(all(feature = "cloud-sync", feature = "persistence"))]
-#[tokio::test]
-async fn durable_local_enable_requires_runtime_success_before_outbox_confirmation() {
+fn durable_sync_core() -> (Arc<AppCore>, Arc<FakePluginState>, PathBuf) {
     use tiktools_cloud_auth::{CloudAuth, MemoryTokenStore};
 
     let runtime = Arc::new(FakePluginState::default());
@@ -3313,6 +3314,13 @@ async fn durable_local_enable_requires_runtime_success_before_outbox_confirmatio
     Arc::get_mut(&mut core).unwrap().sync =
         Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
     core.sync_set_enabled(true).unwrap();
+    (core, runtime, root)
+}
+
+#[cfg(all(feature = "cloud-sync", feature = "persistence"))]
+#[tokio::test]
+async fn durable_local_enable_requires_runtime_success_before_outbox_confirmation() {
+    let (core, runtime, root) = durable_sync_core();
 
     core.plugin_set_enabled_with_durable_intent("acme.hotkeys", false)
         .unwrap();
@@ -3447,26 +3455,9 @@ async fn runtime_outbox_requires_matching_live_selection() {
 #[tokio::test]
 async fn durable_local_enable_does_not_confirm_a_newer_concurrent_source() {
     use crate::cloud_sync::product_outbox::SqliteProductOutbox;
-    use tiktools_cloud_auth::{CloudAuth, MemoryTokenStore};
     use tiktools_cloud_sync::{V1LocalEditContext, V1ProductOutbox};
 
-    let runtime = Arc::new(FakePluginState::default());
-    let (mut core, _, root) = core_with_fake_plugins(Arc::clone(&runtime), &["acme.hotkeys"]);
-    let paths = core.db.paths().clone();
-    let sidecar = paths.data.join("durable-account.json");
-    std::fs::write(
-        &sidecar,
-        br#"{"origin":"https://cloud.example","account_id":"alice"}"#,
-    )
-    .unwrap();
-    let auth = CloudAuth::new(
-        Some("https://cloud.example".into()),
-        sidecar,
-        Arc::new(MemoryTokenStore::new()),
-    );
-    Arc::get_mut(&mut core).unwrap().sync =
-        Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
-    core.sync_set_enabled(true).unwrap();
+    let (core, runtime, root) = durable_sync_core();
     core.plugin_set_enabled_with_durable_intent("acme.hotkeys", false)
         .unwrap();
 
