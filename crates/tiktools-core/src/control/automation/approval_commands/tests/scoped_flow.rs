@@ -39,12 +39,8 @@ async fn reusable_script_runs_public_input_once_and_stops_after_revocation() {
         .capabilities
         .extend([Capability::AutomationToggle, Capability::ScriptsExecute]);
     allowed.automation_delegation = Some(AutomationDelegation {
-        effects: [DelegatedAutomationEffect::Script].into(),
         allow_dynamic_targets: true,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
+        ..delegated([DelegatedAutomationEffect::Script])
     });
     let auth = f.pair(allowed.clone());
     let identity = auth.snapshot().unwrap();

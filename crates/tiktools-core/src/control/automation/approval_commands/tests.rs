@@ -2198,12 +2198,8 @@ fn owner_action_edit_rejects_unscoped_or_unsupported_dependent_events() {
         let mut permission = grant();
         permission.capabilities.insert(Capability::AutomationToggle);
         permission.automation_delegation = Some(AutomationDelegation {
-            effects: [DelegatedAutomationEffect::Log].into(),
-            allow_dynamic_targets: false,
             allow_owner_edits: true,
-            allow_owner_source: false,
-            allow_other_author_edits: false,
-            allow_other_author_source: false,
+            ..delegated([DelegatedAutomationEffect::Log])
         });
         if case == 0 {
             permission.resources.insert(
@@ -2311,7 +2307,8 @@ async fn competition_winner_actions_case(mode: i32) {
             allowed.effects.emit_topics.insert("overlay.alert".into());
         }
         allowed.automation_delegation = Some(AutomationDelegation {
-            effects: [if is_points {
+            allow_dynamic_targets: is_points,
+            ..delegated([if is_points {
                 DelegatedAutomationEffect::Points
             } else if is_audio {
                 DelegatedAutomationEffect::Audio
@@ -2319,13 +2316,7 @@ async fn competition_winner_actions_case(mode: i32) {
                 DelegatedAutomationEffect::Emit
             } else {
                 DelegatedAutomationEffect::Log
-            }]
-            .into(),
-            allow_dynamic_targets: is_points,
-            allow_owner_edits: false,
-            allow_owner_source: false,
-            allow_other_author_edits: false,
-            allow_other_author_source: false,
+            }])
         });
         if mode == 3 {
             allowed
