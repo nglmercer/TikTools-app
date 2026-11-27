@@ -20,10 +20,12 @@ test('gift identities, hidden-page backfill, metadata search and broken artwork 
   await expect(page.locator('.connections-page')).toBeVisible();
   await writeHostState(page, { ...await readHostState(page), feedJournal: [{ cursor: 4, event: gift }, { cursor: 5, event: gift }] });
   await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
-  await expect(page.locator('.event-card--gift')).toHaveCount(4);
+  // Streams stay active, so the rows missed in the journal are recovered when the next delivery reveals the gap.
+  await emitTopic(page, 'live.ui-event', { cursor: 6, event: gift });
+  await expect(page.locator('.event-card--gift')).toHaveCount(5);
   await expect(page.locator('.event-card--gift img.event-card__gift')).toHaveCount(0);
   await page.locator('.live-feed__search input').fill('Rose');
-  await expect(page.locator('.event-card')).toHaveCount(4);
+  await expect(page.locator('.event-card')).toHaveCount(5);
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });
