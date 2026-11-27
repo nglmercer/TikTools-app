@@ -381,6 +381,39 @@ fn coordinator(root: &Path, server: &Server, account: &str) -> WorkspaceCoordina
 }
 // These low-level tests supply a trusted product fixture directly, without
 // running the separate protocol cutover transaction.
+/// Runs one guarded product upload on the product worker, the way the app does:
+/// it is cancelled when the worker is, and gives up at the worker's deadline.
+fn spawn_product_upload<S>(
+    coordinator: Arc<WorkspaceCoordinator>,
+    session: Arc<Session>,
+    source: Arc<S>,
+) -> tokio::task::JoinHandle<Result<WorkspaceOutcome, WorkspaceCoordError>>
+where
+    S: crate::V2ProductUploadSource + Send + Sync + 'static,
+{
+    tokio::spawn(async move {
+        crate::v2_product_outbox::run_product_worker(move |cancelled, deadline| async move {
+            let flag = cancelled.clone();
+            let eligibility = WorkspaceEligibility::new(session.clone(), move || {
+                !flag.load(std::sync::atomic::Ordering::Acquire)
+                    && std::time::Instant::now() < deadline
+            })
+            .with_test_publication_guard();
+            coordinator
+                .sync_product_guarded(
+                    &session,
+                    &eligibility,
+                    &ProductUploadAdmission {
+                        source: source.as_ref(),
+                        config_generation: 42,
+                    },
+                )
+                .await
+        })
+        .await
+    })
+}
+
 /// The product decision staged by the upload tests: plugin `acme.plugin`,
 /// consent 42, source generation 7, for account `account-a`.
 fn standard_decision(server: &Server) -> crate::V2ProductDecision {
@@ -1658,7 +1691,6 @@ impl crate::V2ProductUploadSource for BlockingProductSource {
 
 #[tokio::test(flavor = "current_thread")]
 async fn product_worker_cancellation_does_not_block_executor_or_send_after_source_unblocks() {
-    use std::sync::atomic::Ordering;
     let server = start_server().await;
     let session = Arc::new(connect(&server, "device-a").await);
     let temp = tempfile::tempdir().unwrap();
@@ -1676,27 +1708,7 @@ async fn product_worker_cancellation_does_not_block_executor_or_send_after_sourc
         release: Mutex::new(release_rx),
         finished: Mutex::new(Some(finished_tx)),
     });
-    let other = coordinator.clone();
-    let task = tokio::spawn(async move {
-        crate::v2_product_outbox::run_product_worker(move |cancelled, deadline| async move {
-            let flag = cancelled.clone();
-            let eligibility = WorkspaceEligibility::new(session.clone(), move || {
-                !flag.load(Ordering::Acquire) && std::time::Instant::now() < deadline
-            })
-            .with_test_publication_guard();
-            other
-                .sync_product_guarded(
-                    &session,
-                    &eligibility,
-                    &ProductUploadAdmission {
-                        source: source.as_ref(),
-                        config_generation: 42,
-                    },
-                )
-                .await
-        })
-        .await
-    });
+    let task = spawn_product_upload(coordinator.clone(), session, source);
     tokio::time::timeout(std::time::Duration::from_secs(2), entered_rx)
         .await
         .unwrap()
@@ -1825,7 +1837,7 @@ async fn product_worker_deadline_returns_while_source_blocked_without_sending_la
 
 #[tokio::test(flavor = "current_thread")]
 async fn cancelled_product_worker_releases_http_lease_and_retains_unknown_result() {
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::AtomicU64;
     let server = start_server().await;
     let session = Arc::new(connect(&server, "device-a").await);
     let temp = tempfile::tempdir().unwrap();
@@ -1846,27 +1858,7 @@ async fn cancelled_product_worker_releases_http_lease_and_retains_unknown_result
         entered: entered_tx,
         release: release_rx,
     });
-    let other = coordinator.clone();
-    let task = tokio::spawn(async move {
-        crate::v2_product_outbox::run_product_worker(move |cancelled, deadline| async move {
-            let flag = cancelled.clone();
-            let eligibility = WorkspaceEligibility::new(session.clone(), move || {
-                !flag.load(Ordering::Acquire) && std::time::Instant::now() < deadline
-            })
-            .with_test_publication_guard();
-            other
-                .sync_product_guarded(
-                    &session,
-                    &eligibility,
-                    &ProductUploadAdmission {
-                        source: source.as_ref(),
-                        config_generation: 42,
-                    },
-                )
-                .await
-        })
-        .await
-    });
+    let task = spawn_product_upload(coordinator.clone(), session, source);
     tokio::time::timeout(std::time::Duration::from_secs(3), entered_rx)
         .await
         .unwrap()
