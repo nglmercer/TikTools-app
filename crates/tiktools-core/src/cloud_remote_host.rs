@@ -216,9 +216,12 @@ async fn session(
     let ticket = teams.issue_ticket(auth, host_id, device_id).await?;
     let (origin, _) = cloud_teams::credentials(auth).await?;
     let mut socket = connect_relay(&origin, &ticket).await?;
-    let ready = timeout(READY_TIMEOUT, next_json(&mut socket))
-        .await
-        .map_err(|_| OperationError::unavailable("the relay did not confirm the session"))??;
+    let ready = timeout(
+        READY_TIMEOUT,
+        next_json(&mut socket, "the relay did not confirm the session"),
+    )
+    .await
+    .map_err(|_| OperationError::unavailable("the relay did not confirm the session"))??;
     if ready.get("type").and_then(Value::as_str) != Some("ready")
         || ready.get("role").and_then(Value::as_str) != Some("host")
         || ready.get("hostId").and_then(Value::as_str) != Some(host_id)
@@ -294,7 +297,13 @@ pub(crate) async fn connect_relay(origin: &str, ticket: &str) -> Result<Socket, 
     Ok(socket)
 }
 
-async fn next_json(socket: &mut Socket) -> Result<Value, OperationError> {
+/// Next JSON text frame from the relay, skipping pings and pongs. Anything else
+/// (close, binary, error, end of stream) fails with `lost`, which each caller
+/// words for what it was waiting on; unreadable or oversized text is rejected.
+pub(crate) async fn next_json(
+    socket: &mut Socket,
+    lost: &'static str,
+) -> Result<Value, OperationError> {
     loop {
         match socket.next().await {
             Some(Ok(Message::Text(text))) if text.len() <= MAX_FRAME_BYTES => {
@@ -303,11 +312,7 @@ async fn next_json(socket: &mut Socket) -> Result<Value, OperationError> {
                 });
             }
             Some(Ok(Message::Ping(_) | Message::Pong(_))) => continue,
-            _ => {
-                return Err(OperationError::unavailable(
-                    "the relay did not confirm the session",
-                ))
-            }
+            _ => return Err(OperationError::unavailable(lost)),
         }
     }
 }

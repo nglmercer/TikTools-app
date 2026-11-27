@@ -8,7 +8,7 @@
 
 use std::time::Duration;
 
-use futures_util::{SinkExt, StreamExt};
+use futures_util::SinkExt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -17,7 +17,7 @@ use tokio::time::timeout;
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::{
-    cloud_remote_host::{connect_relay, now_millis, Socket},
+    cloud_remote_host::{connect_relay, next_json, now_millis, Socket},
     cloud_teams::{self, CloudTeams},
     control::OperationError,
 };
@@ -83,9 +83,12 @@ pub async fn run_command(
         .await?;
     let (origin, _) = cloud_teams::credentials(auth).await?;
     let mut socket = connect_relay(&origin, &ticket).await?;
-    let ready = timeout(READY_TIMEOUT, next_json(&mut socket))
-        .await
-        .map_err(|_| OperationError::unavailable("the relay did not confirm the session"))??;
+    let ready = timeout(
+        READY_TIMEOUT,
+        next_json(&mut socket, "the relay connection was lost"),
+    )
+    .await
+    .map_err(|_| OperationError::unavailable("the relay did not confirm the session"))??;
     if ready.get("type").and_then(Value::as_str) != Some("ready")
         || ready.get("role").and_then(Value::as_str) != Some("controller")
         || ready.get("hostId").and_then(Value::as_str) != Some(host_id.as_str())
@@ -130,7 +133,7 @@ async fn wait_for_result(
     command_id: &str,
 ) -> Result<CommandOutcome, OperationError> {
     loop {
-        let frame = next_json(socket).await?;
+        let frame = next_json(socket, "the relay connection was lost").await?;
         match frame.get("type").and_then(Value::as_str) {
             Some("command.accepted" | "command.status" | "pong") => continue,
             Some("command.rejected")
@@ -192,20 +195,6 @@ async fn wait_for_result(
                 )));
             }
             _ => continue,
-        }
-    }
-}
-
-async fn next_json(socket: &mut Socket) -> Result<Value, OperationError> {
-    loop {
-        match socket.next().await {
-            Some(Ok(Message::Text(text))) if text.len() <= 128 * 1024 => {
-                return serde_json::from_str(text.as_str()).map_err(|_| {
-                    OperationError::unavailable("the relay sent an unreadable frame")
-                });
-            }
-            Some(Ok(Message::Ping(_) | Message::Pong(_))) => continue,
-            _ => return Err(OperationError::unavailable("the relay connection was lost")),
         }
     }
 }
