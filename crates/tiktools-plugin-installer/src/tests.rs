@@ -742,13 +742,12 @@ fn product_local_rollback_preserves_reviewed_tree_and_can_restore_again() {
     assert_eq!(restored.receipt.version, "1.1.0");
 }
 
-#[test]
-fn product_rollback_rejects_cloud_target_even_when_current_is_local() {
-    let root = TempDir::new("product-cloud-rollback");
-    let installer = installer(&root);
+/// Installs `demo` at `version` as if it came from the official registry,
+/// with the implicit consent a product install gives.
+fn install_demo_from_registry(installer: &Installer, root: &TempDir, version: &str) {
     let cloud = installer
         .prepare(
-            &demo_package(&root, "demo", "1.0.0", serde_json::json!({})),
+            &demo_package(root, "demo", version, serde_json::json!({})),
             PackageOrigin::Registry {
                 registry: "official".into(),
                 url: "https://example.test/demo".into(),
@@ -759,6 +758,13 @@ fn product_rollback_rejects_cloud_target_even_when_current_is_local() {
     installer
         .commit(&cloud, &implicit(true), &NoopHooks, &NoopReporter)
         .unwrap();
+}
+
+#[test]
+fn product_rollback_rejects_cloud_target_even_when_current_is_local() {
+    let root = TempDir::new("product-cloud-rollback");
+    let installer = installer(&root);
+    install_demo_from_registry(&installer, &root, "1.0.0");
     install_file(
         &installer,
         &demo_package(&root, "demo", "1.1.0", serde_json::json!({})),
@@ -920,19 +926,7 @@ fn product_rollback_invalidates_local_proof_when_cloud_reuses_version() {
         .layout()
         .retained_local_proof("demo", "1.0.0")
         .exists());
-    let cloud = installer
-        .prepare(
-            &demo_package(&root, "demo", "1.0.0", serde_json::json!({})),
-            PackageOrigin::Registry {
-                registry: "official".into(),
-                url: "https://example.test/demo".into(),
-            },
-            SignaturePolicy::AllowWithConsent,
-        )
-        .unwrap();
-    installer
-        .commit(&cloud, &implicit(true), &NoopHooks, &NoopReporter)
-        .unwrap();
+    install_demo_from_registry(&installer, &root, "1.0.0");
     install_file(
         &installer,
         &demo_package(&root, "demo", "1.2.0", serde_json::json!({})),
