@@ -23,14 +23,7 @@ fn competition_winner_candidate_requires_every_inherited_operator_grant() {
         Capability::CompetitionsRead,
         Capability::CompetitionsManage,
     ]);
-    allowed.automation_delegation = Some(AutomationDelegation {
-        effects: [DelegatedAutomationEffect::Log].into(),
-        allow_dynamic_targets: false,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
-    });
+    allowed.automation_delegation = Some(delegated([DelegatedAutomationEffect::Log]));
     let first = f.pair(allowed.clone()).snapshot().unwrap();
     let second = f.pair(allowed.clone()).snapshot().unwrap();
     let db = rusqlite::Connection::open(f.paths.automation_database()).unwrap();
@@ -168,14 +161,7 @@ async fn competition_activation_transaction_retains_operators_and_replays_origin
         Capability::CompetitionsManage,
         Capability::AutomationToggle,
     ]);
-    permission.automation_delegation = Some(AutomationDelegation {
-        effects: [DelegatedAutomationEffect::Points].into(),
-        allow_dynamic_targets: false,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
-    });
+    permission.automation_delegation = Some(delegated([DelegatedAutomationEffect::Points]));
     let first = f.pair(permission.clone());
     let second = f.pair(permission.clone());
     let first_id = first.snapshot().unwrap();
@@ -524,14 +510,7 @@ fn shared_moderator_edit_requires_explicit_transfer_and_source_grants() {
     );
     let mut access = grant();
     access.capabilities.insert(Capability::AutomationToggle);
-    access.automation_delegation = Some(AutomationDelegation {
-        effects: [DelegatedAutomationEffect::Log].into(),
-        allow_dynamic_targets: false,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
-    });
+    access.automation_delegation = Some(delegated([DelegatedAutomationEffect::Log]));
     let editor = f.pair(access.clone());
     let identity = editor.snapshot().unwrap();
     let before = f
@@ -610,14 +589,7 @@ async fn shared_action_keeps_both_moderators_authority_for_existing_event() {
     let f = Fixture::new();
     let mut permission = grant();
     permission.capabilities.insert(Capability::AutomationToggle);
-    permission.automation_delegation = Some(AutomationDelegation {
-        effects: [DelegatedAutomationEffect::Log].into(),
-        allow_dynamic_targets: false,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
-    });
+    permission.automation_delegation = Some(delegated([DelegatedAutomationEffect::Log]));
     let author = f.pair(permission.clone());
     let author_id = author.snapshot().unwrap();
     let mut action = log("team-action", "original");
@@ -1321,18 +1293,10 @@ async fn reusable_multi_author_event_chain_requires_both_current_topic_grants() 
         .extend([Capability::AutomationToggle, Capability::EventsEmit]);
     permitted.max_points_delta = Some(5.0);
     permitted.effects.emit_topics.insert("overlay.alert".into());
-    permitted.automation_delegation = Some(AutomationDelegation {
-        effects: [
-            DelegatedAutomationEffect::Emit,
-            DelegatedAutomationEffect::Points,
-        ]
-        .into(),
-        allow_dynamic_targets: false,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
-    });
+    permitted.automation_delegation = Some(delegated([
+        DelegatedAutomationEffect::Emit,
+        DelegatedAutomationEffect::Points,
+    ]));
     let auth = f.pair(permitted.clone());
     let identity = auth.snapshot().unwrap();
     let other = f.pair(permitted.clone());
@@ -1472,18 +1436,10 @@ async fn native_ingress_drives_reusable_internal_event_chain_until_topic_revoked
         .extend([Capability::AutomationToggle, Capability::EventsEmit]);
     permitted.max_points_delta = Some(5.0);
     permitted.effects.emit_topics.insert("overlay.alert".into());
-    permitted.automation_delegation = Some(AutomationDelegation {
-        effects: [
-            DelegatedAutomationEffect::Emit,
-            DelegatedAutomationEffect::Points,
-        ]
-        .into(),
-        allow_dynamic_targets: false,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
-    });
+    permitted.automation_delegation = Some(delegated([
+        DelegatedAutomationEffect::Emit,
+        DelegatedAutomationEffect::Points,
+    ]));
     let auth = f.pair(permitted.clone());
     let identity = auth.snapshot().unwrap();
     for (kind, record) in [
@@ -1596,14 +1552,7 @@ async fn reusable_grant_runs_saved_live_event_and_revocation_stops_it() {
     let mut permitted = grant();
     permitted.capabilities.insert(Capability::AutomationToggle);
     permitted.max_points_delta = Some(5.0);
-    permitted.automation_delegation = Some(AutomationDelegation {
-        effects: [DelegatedAutomationEffect::Points].into(),
-        allow_dynamic_targets: false,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
-    });
+    permitted.automation_delegation = Some(delegated([DelegatedAutomationEffect::Points]));
     let auth = f.pair(permitted.clone());
     let identity = auth.snapshot().unwrap();
     f.draft(
@@ -1748,14 +1697,7 @@ fn remote_activation_requires_reusable_policy_and_author_ownership() {
     );
     let mut permitted = grant();
     permitted.capabilities.insert(Capability::AutomationToggle);
-    permitted.automation_delegation = Some(AutomationDelegation {
-        effects: [DelegatedAutomationEffect::Log].into(),
-        allow_dynamic_targets: false,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
-    });
+    permitted.automation_delegation = Some(delegated([DelegatedAutomationEffect::Log]));
     let other = f.pair(permitted);
     assert!(f
         .core()
@@ -1780,14 +1722,7 @@ fn remote_activation_rejects_effects_outside_reusable_grant() {
     let f = Fixture::new();
     let mut limited = grant();
     limited.capabilities.insert(Capability::AutomationToggle);
-    limited.automation_delegation = Some(AutomationDelegation {
-        effects: [DelegatedAutomationEffect::Log].into(),
-        allow_dynamic_targets: false,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
-    });
+    limited.automation_delegation = Some(delegated([DelegatedAutomationEffect::Log]));
     let auth = f.pair(limited);
     f.draft(
         &auth,
@@ -1825,14 +1760,7 @@ async fn reusable_grant_creates_and_edits_active_automation_atomically() {
     let mut permitted = grant();
     permitted.capabilities.insert(Capability::AutomationToggle);
     permitted.max_points_delta = Some(5.0);
-    permitted.automation_delegation = Some(AutomationDelegation {
-        effects: [DelegatedAutomationEffect::Points].into(),
-        allow_dynamic_targets: false,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
-    });
+    permitted.automation_delegation = Some(delegated([DelegatedAutomationEffect::Points]));
     let auth = f.pair(permitted);
     let mut action = points("active-points", "alice", 1.0);
     action["enabled"] = true.into();
@@ -1936,14 +1864,7 @@ async fn native_live_ingress_applies_reusable_grants_only_for_verified_generatio
     let mut permitted = grant();
     permitted.capabilities.insert(Capability::AutomationToggle);
     permitted.max_points_delta = Some(5.0);
-    permitted.automation_delegation = Some(AutomationDelegation {
-        effects: [DelegatedAutomationEffect::Points].into(),
-        allow_dynamic_targets: false,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
-    });
+    permitted.automation_delegation = Some(delegated([DelegatedAutomationEffect::Points]));
     let auth = f.pair(permitted.clone());
     let identity = auth.snapshot().unwrap();
     let mut action = points("native-points", "alice", 2.0);
@@ -2051,19 +1972,11 @@ async fn reusable_grant_revocation_during_delay_stops_later_effects() {
     let mut permitted = grant();
     permitted.capabilities.insert(Capability::AutomationToggle);
     permitted.max_points_delta = Some(5.0);
-    permitted.automation_delegation = Some(AutomationDelegation {
-        effects: [
-            DelegatedAutomationEffect::Log,
-            DelegatedAutomationEffect::Delay,
-            DelegatedAutomationEffect::Points,
-        ]
-        .into(),
-        allow_dynamic_targets: false,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
-    });
+    permitted.automation_delegation = Some(delegated([
+        DelegatedAutomationEffect::Log,
+        DelegatedAutomationEffect::Delay,
+        DelegatedAutomationEffect::Points,
+    ]));
     let auth = f.pair(permitted);
     let identity = auth.snapshot().unwrap();
     let mut begin = log("reusable-begin", "started");
@@ -2117,14 +2030,7 @@ async fn reusable_event_intersects_grants_of_multiple_authors() {
     let mut permission = grant();
     permission.capabilities.insert(Capability::AutomationToggle);
     permission.max_points_delta = Some(5.0);
-    permission.automation_delegation = Some(AutomationDelegation {
-        effects: [DelegatedAutomationEffect::Points].into(),
-        allow_dynamic_targets: false,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
-    });
+    permission.automation_delegation = Some(delegated([DelegatedAutomationEffect::Points]));
     let action_author = f.pair(permission.clone());
     let event_author = f.pair(permission.clone());
     let action_identity = action_author.snapshot().unwrap();
@@ -2192,14 +2098,7 @@ async fn explicit_reusable_grant_can_edit_owner_action_and_revalidates_dependent
     let mut permitted = grant();
     permitted.capabilities.insert(Capability::AutomationToggle);
     permitted.max_points_delta = Some(5.0);
-    permitted.automation_delegation = Some(AutomationDelegation {
-        effects: [DelegatedAutomationEffect::Points].into(),
-        allow_dynamic_targets: false,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
-    });
+    permitted.automation_delegation = Some(delegated([DelegatedAutomationEffect::Points]));
     let auth = f.pair(permitted.clone());
     let identity = auth.snapshot().unwrap();
     let mut edited = points("owner-shared", "alice", 2.0);
@@ -2660,14 +2559,7 @@ async fn remote_stop_events_retain_the_operator_and_run_scoped_actions() {
         Capability::CompetitionsRead,
         Capability::CompetitionsManage,
     ]);
-    allowed.automation_delegation = Some(AutomationDelegation {
-        effects: [DelegatedAutomationEffect::Points].into(),
-        allow_dynamic_targets: false,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
-    });
+    allowed.automation_delegation = Some(delegated([DelegatedAutomationEffect::Points]));
     let auth = f.pair(allowed);
     f.core()
         .competition_transition("shared", Transition::Start)

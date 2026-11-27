@@ -195,6 +195,21 @@ impl Drop for Fixture {
         let _ = std::fs::remove_dir_all(&self.paths.root);
     }
 }
+/// A delegation that allows exactly `effects` and nothing else: no dynamic
+/// targets and no edits to the owner's or another author's records or sources.
+pub(crate) fn delegated(
+    effects: impl IntoIterator<Item = DelegatedAutomationEffect>,
+) -> AutomationDelegation {
+    AutomationDelegation {
+        effects: effects.into_iter().collect(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    }
+}
+
 pub(crate) fn grant() -> Grant {
     Grant {
         capabilities: [

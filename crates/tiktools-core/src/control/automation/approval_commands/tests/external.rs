@@ -171,14 +171,7 @@ mod http {
         let origin = format!("http://{}", listener.local_addr().unwrap());
         let mut allowed = http_grant(origin.clone());
         allowed.capabilities.insert(Capability::AutomationToggle);
-        allowed.automation_delegation = Some(AutomationDelegation {
-            effects: [DelegatedAutomationEffect::Http].into(),
-            allow_dynamic_targets: false,
-            allow_owner_edits: false,
-            allow_owner_source: false,
-            allow_other_author_edits: false,
-            allow_other_author_source: false,
-        });
+        allowed.automation_delegation = Some(delegated([DelegatedAutomationEffect::Http]));
         let auth = f.pair(allowed.clone());
         let identity = auth.snapshot().unwrap();
         for (kind, record) in [
