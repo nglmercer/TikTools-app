@@ -1,6 +1,6 @@
 //! Metadata-only owner journal. Business results remain in the shared ledger.
 use super::owner_journal_values::{id, revision, scope};
-use super::owner_journal_values;
+use super::owner_journal_values::{self, Resolution};
 use super::{commands, DatabaseError, DatabaseManager};
 use crate::{
     collaboration::{CommandRequest, ResourceKind},
@@ -232,79 +232,60 @@ impl DatabaseManager {
         let Some(stored) = pending(&tx, host)? else {
             return Ok(());
         };
-        let intent = &stored.intent;
-        let ledger:Option<(String,String)>=tx.query_row("SELECT payload_hash,session_id FROM control_commands WHERE principal_id='local-owner' AND command_id=?1",[&intent.command_id],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
-        match ledger {
+        let ledger:Option<(String,String)>=tx.query_row("SELECT payload_hash,session_id FROM control_commands WHERE principal_id='local-owner' AND command_id=?1",[&stored.intent.command_id],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+        let bound = match ledger {
             Some((hash, session)) => {
                 if hash != stored.payload_hash || session != "local-owner" {
                     return Err(invalid());
                 }
-                match commands::lookup(&tx, "local-owner", &intent.command_id) {
-                    Ok(Some(outcome)) => {
-                        let resource = outcome.command.resource.as_ref().ok_or_else(invalid)?;
-                        let primary = outcome.resource_versions.first().ok_or_else(invalid)?;
-                        let body = outcome.result.as_object().ok_or_else(invalid)?;
-                        if outcome.method != "automation.adopt"
-                            || outcome.host_instance_id != intent.host_instance_id
-                            || outcome.command.command_id != intent.command_id
-                            || outcome.command.state
-                                != crate::collaboration::CommandState::Succeeded
-                            || resource.kind != ResourceKind::Automation
-                            || resource.scope != scope(intent.kind)
-                            || resource.id != intent.id
-                            || outcome.resource_versions.len() != 1
-                            || primary.kind != resource.kind
-                            || primary.scope != resource.scope
-                            || primary.id != resource.id
-                            || body.len() != 2
-                            || body.get("id").and_then(serde_json::Value::as_str)
-                                != Some(intent.id.as_str())
-                            || body.get("adopted") != Some(&serde_json::Value::Bool(true))
-                        {
-                            return Err(invalid());
-                        }
-                        let version = primary.revision.clone();
-                        complete(
-                            &tx,
-                            stored,
-                            OwnerAdoptionOutcome::Succeeded,
-                            Some(version),
-                            None,
-                        )?;
-                    }
-                    Err(DatabaseError::CommandExpired) if review_unknown => {
-                        complete(
-                            &tx,
-                            stored,
-                            OwnerAdoptionOutcome::ReviewedUnknown,
-                            None,
-                            None,
-                        )?;
-                    }
-                    Err(DatabaseError::CommandExpired) => {}
-                    Err(error) => return Err(error),
-                    Ok(None) => return Err(invalid()),
+                true
+            }
+            None => false,
+        };
+        if let Some(settled) = owner_journal_values::settle_pending(
+            &tx,
+            owner_journal_values::PendingAsk {
+                command_id: &stored.intent.command_id,
+                ledger_bound: bound,
+                review_unknown,
+                rejection,
+                rejection_known: adoption_rejection,
+                invalid,
+            },
+            |outcome| {
+                let intent = &stored.intent;
+                let resource = outcome.command.resource.as_ref().ok_or_else(invalid)?;
+                let primary = outcome.resource_versions.first().ok_or_else(invalid)?;
+                let body = outcome.result.as_object().ok_or_else(invalid)?;
+                if outcome.method != "automation.adopt"
+                    || outcome.host_instance_id != intent.host_instance_id
+                    || outcome.command.command_id != intent.command_id
+                    || outcome.command.state
+                        != crate::collaboration::CommandState::Succeeded
+                    || resource.kind != ResourceKind::Automation
+                    || resource.scope != scope(intent.kind)
+                    || resource.id != intent.id
+                    || outcome.resource_versions.len() != 1
+                    || primary.kind != resource.kind
+                    || primary.scope != resource.scope
+                    || primary.id != resource.id
+                    || body.len() != 2
+                    || body.get("id").and_then(serde_json::Value::as_str)
+                        != Some(intent.id.as_str())
+                    || body.get("adopted") != Some(&serde_json::Value::Bool(true))
+                {
+                    return Err(invalid());
                 }
-            }
-            None if rejection.is_some_and(adoption_rejection) => {
-                complete(
-                    &tx,
-                    stored,
-                    OwnerAdoptionOutcome::Rejected,
-                    None,
-                    rejection.map(str::to_owned),
-                )?;
-            }
-            None if review_unknown => {
-                complete(
-                    &tx,
-                    stored,
-                    OwnerAdoptionOutcome::ReviewedUnknown,
-                    None,
-                    None,
-                )?;
-            }
-            None => {}
+                Ok(primary.revision.clone())
+            },
+        )? {
+            let resolution = settled.resolution;
+            let outcome = match resolution {
+                Resolution::Succeeded => OwnerAdoptionOutcome::Succeeded,
+                Resolution::Rejected => OwnerAdoptionOutcome::Rejected,
+                Resolution::ReviewedUnknown => OwnerAdoptionOutcome::ReviewedUnknown,
+            };
+            complete(&tx, stored, outcome, settled.receipt, settled.error_code)?;
         }
         tx.commit()?;
         Ok(())

@@ -3,7 +3,7 @@
 use super::owner_journal_values::{
     digest, id, revision, scope, text_columns_within, CONTROL_COMMAND_TEXT_LIMITS,
 };
-use super::owner_journal_values;
+use super::owner_journal_values::{self, Resolution};
 use super::{commands, DatabaseError, DatabaseManager};
 use crate::{
     collaboration::{CommandOutcome, CommandRequest, CommandState, ResourceKind},
@@ -559,45 +559,26 @@ impl DatabaseManager {
         let Some(stored) = pending(&tx, host)? else {
             return Ok(());
         };
-        if bound_ledger(&tx, &stored)? {
-            match commands::lookup(&tx, "local-owner", &stored.intent.command_id) {
-                Ok(Some(outcome)) => {
-                    let receipt = receipt(&stored, &outcome)?;
-                    complete(
-                        &tx,
-                        stored,
-                        OwnerDefinitionOutcome::Succeeded,
-                        Some(receipt),
-                        None,
-                    )?;
-                }
-                Err(DatabaseError::CommandExpired) if review_unknown => complete(
-                    &tx,
-                    stored,
-                    OwnerDefinitionOutcome::ReviewedUnknown,
-                    None,
-                    None,
-                )?,
-                Err(DatabaseError::CommandExpired) => {}
-                Err(error) => return Err(error),
-                Ok(None) => return Err(invalid()),
-            }
-        } else if rejection.is_some_and(definition_rejection) {
-            complete(
-                &tx,
-                stored,
-                OwnerDefinitionOutcome::Rejected,
-                None,
-                rejection.map(str::to_owned),
-            )?;
-        } else if review_unknown {
-            complete(
-                &tx,
-                stored,
-                OwnerDefinitionOutcome::ReviewedUnknown,
-                None,
-                None,
-            )?;
+        let bound = bound_ledger(&tx, &stored)?;
+        if let Some(settled) = owner_journal_values::settle_pending(
+            &tx,
+            owner_journal_values::PendingAsk {
+                command_id: &stored.intent.command_id,
+                ledger_bound: bound,
+                review_unknown,
+                rejection,
+                rejection_known: definition_rejection,
+                invalid,
+            },
+            |outcome| receipt(&stored, outcome),
+        )? {
+            let resolution = settled.resolution;
+            let outcome = match resolution {
+                Resolution::Succeeded => OwnerDefinitionOutcome::Succeeded,
+                Resolution::Rejected => OwnerDefinitionOutcome::Rejected,
+                Resolution::ReviewedUnknown => OwnerDefinitionOutcome::ReviewedUnknown,
+            };
+            complete(&tx, stored, outcome, settled.receipt, settled.error_code)?;
         }
         tx.commit()?;
         Ok(())

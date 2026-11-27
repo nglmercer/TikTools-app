@@ -56,6 +56,78 @@ pub(super) fn ensure_no_pending_owner_journal(
     Ok(())
 }
 
+/// How a pending owner journal entry ends.
+pub(super) enum Resolution {
+    Succeeded,
+    Rejected,
+    ReviewedUnknown,
+}
+
+/// What one `owner_*_resolve` knows about its pending entry.
+pub(super) struct PendingAsk<'a> {
+    pub command_id: &'a str,
+    /// A command ledger row bound to this entry exists.
+    pub ledger_bound: bool,
+    pub review_unknown: bool,
+    pub rejection: Option<&'a str>,
+    pub rejection_known: fn(&str) -> bool,
+    pub invalid: fn() -> DatabaseError,
+}
+
+pub(super) struct Settlement<R> {
+    pub resolution: Resolution,
+    pub receipt: Option<R>,
+    pub error_code: Option<String>,
+}
+
+impl<R> Settlement<R> {
+    fn of(resolution: Resolution) -> Self {
+        Self {
+            resolution,
+            receipt: None,
+            error_code: None,
+        }
+    }
+}
+
+/// The shared decision of every `owner_*_resolve`: a bound command ledger row
+/// with a known immutable outcome wins over rejection and unknown assertions;
+/// an expired outcome is settled only when the owner reviewed it as unknown;
+/// without a ledger row, a recognised rejection or an unknown review settles
+/// the entry. Returns `None` when the entry must stay pending. `receipt`
+/// builds the journal-specific receipt from the known outcome.
+pub(super) fn settle_pending<R>(
+    db: &Connection,
+    ask: PendingAsk<'_>,
+    receipt: impl FnOnce(&crate::collaboration::CommandOutcome) -> Result<R, DatabaseError>,
+) -> Result<Option<Settlement<R>>, DatabaseError> {
+    if ask.ledger_bound {
+        return match super::commands::lookup(db, "local-owner", ask.command_id) {
+            Ok(Some(outcome)) => Ok(Some(Settlement {
+                resolution: Resolution::Succeeded,
+                receipt: Some(receipt(&outcome)?),
+                error_code: None,
+            })),
+            Err(DatabaseError::CommandExpired) if ask.review_unknown => {
+                Ok(Some(Settlement::of(Resolution::ReviewedUnknown)))
+            }
+            Err(DatabaseError::CommandExpired) => Ok(None),
+            Err(error) => Err(error),
+            Ok(None) => Err((ask.invalid)()),
+        };
+    }
+    if ask.rejection.is_some_and(ask.rejection_known) {
+        return Ok(Some(Settlement {
+            resolution: Resolution::Rejected,
+            receipt: None,
+            error_code: ask.rejection.map(str::to_owned),
+        }));
+    }
+    Ok(ask
+        .review_unknown
+        .then(|| Settlement::of(Resolution::ReviewedUnknown)))
+}
+
 pub(super) fn revision(value: &str) -> Option<i64> {
     wire::decimal(value, false)
 }
