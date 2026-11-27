@@ -4,6 +4,7 @@ import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import type { LiveChannel } from '@/types.ts';
 import { createDiscoveryState } from '../../../../../../src/web/entities/live-room/model/discovery-state.ts';
+import { RPC } from '../../../../../shared/index.ts';
 
 function stubControl(respond: (method: string, params?: RpcParams) => unknown): {
   control: ControlClient;
@@ -51,7 +52,7 @@ describe('createDiscoveryState', () => {
     discovery.setOpen(true);
     await flush();
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.method).toBe('live.channels');
+    expect(calls[0]?.method).toBe(RPC.liveChannels);
   });
 
   it('an unauthenticated refusal is not reported as no matches', async () => {

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ControlClient, GapHandler, TopicHandler } from '@/shared/api/control-client.ts';
 import type { RankingDefinition } from '../../../../../../src/web/entities/ranking/types.ts';
 import { createFeedRankings, feedRankingDefinition, FEED_RANKING_IDS } from '../../../../../../src/web/entities/ranking/model/feed-rankings.ts';
-import { EVENT_KIND, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
+import { EVENT_KIND, FIXTURE_ID, RPC, TOPIC } from '../../../../../shared/index.ts';
 
 export function rankingSnapshot(rankingId: string, creatorId: string, roomId: string, scores: number[], revision = 1) {
   return {
@@ -74,9 +74,9 @@ describe('feed rankings', () => {
     const host = fakeHost();
     const rankings = createFeedRankings(host.client);
     await rankings.connect('luna', FIXTURE_ID.room1);
-    host.emit('ranking.updated', { snapshot: rankingSnapshot(FEED_RANKING_IDS.likes, 'luna', FIXTURE_ID.room1, [9], 2) });
+    host.emit(TOPIC.rankingUpdated, { snapshot: rankingSnapshot(FEED_RANKING_IDS.likes, 'luna', FIXTURE_ID.room1, [9], 2) });
     expect(rankings.likesRanking.value?.entries[0]?.score).toBe(9);
-    host.emit('ranking.updated', { snapshot: rankingSnapshot(FEED_RANKING_IDS.likes, 'other', 'room-9', [99], 3) });
+    host.emit(TOPIC.rankingUpdated, { snapshot: rankingSnapshot(FEED_RANKING_IDS.likes, 'other', 'room-9', [99], 3) });
     expect(rankings.likesRanking.value).toBeNull();
     rankings.dispose();
   });

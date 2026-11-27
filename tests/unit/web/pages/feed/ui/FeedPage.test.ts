@@ -172,7 +172,7 @@ describe('FeedPage', () => {
     expect(wrapper.findAll('.top-likes__row')).toHaveLength(1);
     expect(wrapper.get('.top-likes__row').text()).toContain('5,000');
 
-    emit('ranking.updated', { snapshot: rankingSnapshot('feed-top-likes', 'luna', 'room-42', [6000, 12], 2) });
+    emit(TOPIC.rankingUpdated, { snapshot: rankingSnapshot('feed-top-likes', 'luna', 'room-42', [6000, 12], 2) });
     await nextTick();
     expect(wrapper.findAll('.top-likes__row')).toHaveLength(2);
     expect(wrapper.get('.top-likes__row').text()).toContain('6,000');

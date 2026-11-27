@@ -14,7 +14,7 @@ import {
   slugProfileId,
   useRuleProfiles,
 } from '../../../../../../src/web/entities/rule-template/model/rule-profiles-state.ts';
-import { ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
 
 function fakeControl(
   handler: (method: string, params: unknown) => Promise<unknown>,
@@ -268,7 +268,7 @@ test('delete removes the pack and its rules, falling back to default', async () 
     if (method === RPC.appStateSet) return { ok: true };
     if (method === RPC.automationDelete) {
       const { id } = params as { id: string };
-      if (id === 'gone') throw new ControlCallError('automation_not_found', 'gone');
+      if (id === 'gone') throw new ControlCallError(ERROR_CODE.automationNotFound, 'gone');
       deleted.push({ method, id });
       return { ok: true };
     }

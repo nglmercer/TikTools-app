@@ -94,7 +94,7 @@ describe('CloudAccountEditor', () => {
       if (method === RPC.cloudRestore) throw new ControlCallError('unavailable', 'no saved session', { reason: 'no-saved-session' });
       if (method === RPC.cloudLoginReserve) return { operationId: '0123456789abcdef0123456789abcdef' };
       if (method === RPC.cloudLoginBegin) return { browserUrl: 'https://cloud.example/desktop/login' };
-      if (method === 'cloud.login.open') throw new Error('browser unavailable');
+      if (method === RPC.cloudLoginOpen) throw new Error('browser unavailable');
       if (method === RPC.cloudLoginComplete) return pending;
       if (method === RPC.cloudLoginCancel) return out;
       throw new Error(`unexpected ${method}`);

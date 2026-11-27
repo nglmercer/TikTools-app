@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { useCloudOverlayStore } from '../../../../../../src/web/entities/overlay/model/cloud-overlay-store.ts';
+import { RPC } from '../../../../../shared/index.ts';
 
 const id = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
 
@@ -15,7 +16,7 @@ describe('overlay store', () => {
 
   it('creates a new overlay, then revises it with the revision it holds', async () => {
     const { client, calls } = createFakeControlClient((method) => {
-      if (method === 'bundles.overlays.create') return { id, revision: 1, status: 'draft', schemaVersion: 1 };
+      if (method === RPC.bundlesOverlaysCreate) return { id, revision: 1, status: 'draft', schemaVersion: 1 };
       if (method === 'bundles.overlays.revise') return { id, revision: 2, status: 'draft' };
       throw new Error(method);
     });

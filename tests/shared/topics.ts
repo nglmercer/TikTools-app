@@ -7,5 +7,6 @@ export const TOPIC = {
   pluginEvent: 'plugin.event',
   workflowChanged: 'workflow.changed',
   liveLikesRanking: 'live.likes-ranking',
+  rankingUpdated: 'ranking.updated',
 } as const;
 export type Topic = (typeof TOPIC)[keyof typeof TOPIC];

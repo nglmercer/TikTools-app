@@ -39,7 +39,7 @@ describe('public demo host', () => {
     const viewer = (id: string) => host.state.leaderboard.find((user) => user.uniqueId === id)!;
     host.step(); await Promise.resolve();
     expect(viewer('luna').points).toBe(121);
-    await client.call('points.config.set', { pointsPerLikeEnabled: false, pointsPerCoin: 2, pointsPerChat: 3, subBonusMultiplier: 100 });
+    await client.call(RPC.pointsConfigSet, { pointsPerLikeEnabled: false, pointsPerCoin: 2, pointsPerChat: 3, subBonusMultiplier: 100 });
     host.step(); await Promise.resolve();
     expect(viewer('milo')).toMatchObject({ points: 85, totalLikes: 42 });
     expect(viewer('luna').points).toBe(121);
@@ -104,7 +104,7 @@ describe('public demo host', () => {
   });
   it('rejects stale changes and never executes supplied code or network effects', async () => {
     const { client, dispose } = createDemoFixture('cloud');
-    const call = () => client.call('sync.v2.variables.apply', { review: 'demo-review-1' });
+    const call = () => client.call(RPC.syncV2VariablesApply, { review: 'demo-review-1' });
     await call(); await expect(call()).rejects.toMatchObject({ code: 'conflict' });
     await expect(client.call('automation.script.analyze', { source: 'throw new Error()' })).rejects.toMatchObject({ code: 'demo_unsupported' });
     await expect(client.call('plugins.action.execute', { actionType: 'http', config: { url: 'https://example.com' } })).rejects.toMatchObject({ code: 'demo_unsupported' });

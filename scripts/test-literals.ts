@@ -7,6 +7,7 @@
  */
 import { readdir, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import en from '../src/web/shared/i18n/locales/en.ts';
 
 const root = resolve(import.meta.dirname, '..');
 const args = new Map(process.argv.slice(2).map((arg) => { const [key, value = 'true'] = arg.replace(/^--/, '').split('='); return [key, value] as const; }));
@@ -22,6 +23,16 @@ const ALLOWED = new Set([
   'en', 'es', 'pt', 'fr', 'zh', 'ja', 'dark', 'light', 'chromium', 'visible', 'hidden', 'none', 'auto',
   'id', 'name', 'kind', 'key', 'label', 'error', 'warn', 'info', 'log',
 ]);
+/** i18n keys are production vocabulary already: tests pass them to `testMessage`, so they may repeat. */
+function flatKeys(tree: unknown, prefix = '', out = new Set<string>()): Set<string> {
+  if (tree && typeof tree === 'object') for (const [key, value] of Object.entries(tree)) { out.add(`${prefix}${key}`); flatKeys(value, `${prefix}${key}.`, out); }
+  return out;
+}
+const MESSAGE_KEYS = flatKeys(en);
+/** Whole families that are DOM vocabulary or fixture data rather than shared identifiers. */
+const ALLOWED_PATTERN = /^(aria|data)-|^(is-true|starts-with|index\.html|tiktools-core|tiktools-desktop|plugin\.json|stable\.json)$/;
+/** Fixture data that tests assert on directly; extract it only if a second concept starts using it. */
+const FIXTURE_DATA = new Set(['host.gifts', 'acme.gift', 'demo.audio', 'b.two', 'evt-frozen', 'demo_creator', 'gift.diamonds', 'event.data.comment', 'event.intel.comment.tts.text', 'points-rules', 'points-leaderboard']);
 const IMPORT_LINE = /^\s*(import|export)\b.*\bfrom\b|^\s*import\s+['"]|require\(|vi\.mock\(|import\(/;
 const LITERAL = /'([a-z][a-z0-9]*(?:[.:_-][a-z0-9]+)+)'/g;
 
@@ -40,7 +51,7 @@ for await (const file of walk(resolve(root, base))) {
     if (IMPORT_LINE.test(line)) continue;
     for (const match of line.matchAll(LITERAL)) {
       const value = match[1]!;
-      if (ALLOWED.has(value)) continue;
+      if (ALLOWED.has(value) || MESSAGE_KEYS.has(value) || ALLOWED_PATTERN.test(value) || FIXTURE_DATA.has(value)) continue;
       const entry = counts.get(value) ?? { total: 0, files: new Set<string>() };
       entry.total += 1;
       entry.files.add(file.slice(root.length + 1));

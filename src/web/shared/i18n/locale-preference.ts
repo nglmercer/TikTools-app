@@ -1,7 +1,8 @@
 import { normalizeLocale, type Locale } from './i18n.ts';
 import { appStorage } from '../lib/app-storage.ts';
 
-const STORAGE_KEY = 'tiktok-live-locale';
+export const LOCALE_STORAGE_KEY = 'tiktok-live-locale';
+const STORAGE_KEY = LOCALE_STORAGE_KEY;
 
 export function storedLocale(): Locale | null {
   try {

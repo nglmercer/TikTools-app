@@ -113,7 +113,7 @@ describe('automation editor base and outcome fencing', () => {
 
   test('deletion requires explicit preparation against the tombstone before a separate create', async () => {
     const host = gateway();
-    host.save = vi.fn(async () => { throw new ControlCallError('automation_not_found', 'Deleted'); });
+    host.save = vi.fn(async () => { throw new ControlCallError(ERROR_CODE.automationNotFound, 'Deleted'); });
     host.read = vi.fn(async () => ({ record: null, revision: '4' }));
     const editor = useAutomationEditor(host);
     editor.open('action', action, '1'); editor.change({ ...action, name: 'Kept' });

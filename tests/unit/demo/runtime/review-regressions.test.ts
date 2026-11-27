@@ -24,7 +24,7 @@ type WireResponse = {
 };
 
 describe('review regressions: demo runtime contract and isolation', () => {
-  for (const method of ['plugins.settings.get', 'plugins.settings.set']) {
+  for (const method of [RPC.pluginsSettingsGet, 'plugins.settings.set']) {
     it.each(['constructor', '__proto__'])(`${method} rejects inherited plugin key %s without changing built-ins`, async (pluginId) => {
       const { client, host } = hostHarness();
       const originalValues = Object.getOwnPropertyDescriptor(Object, 'values')!;
@@ -49,7 +49,7 @@ describe('review regressions: demo runtime contract and isolation', () => {
       expect(observedValues).toEqual(originalValues);
       expect(observedPrototypeValues).toEqual(originalPrototypeValues);
       expect(host.wasSuccessful(method)).toBe(false);
-      expect(await client.call('plugins.settings.get', { pluginId: 'demo.audio' })).toMatchObject({
+      expect(await client.call(RPC.pluginsSettingsGet, { pluginId: 'demo.audio' })).toMatchObject({
         pluginId: 'demo.audio', values: { volume: 50, enabled: true },
       });
     });

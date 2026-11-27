@@ -28,7 +28,7 @@ async function mountPage(status: ConnectionStatus = 'idle', announce: string[] =
   const { client, calls } = createFakeControlClient((method) => {
     if (method === RPC.rpcDiscover) return { methods: announce.map((name) => ({ name })) };
     if (method === RPC.integrationsConnections) return { items: [] };
-    if (method === 'live.channels') return { rooms, fetchedAt: Date.now(), source: t('automations.runs.testBadge') };
+    if (method === RPC.liveChannels) return { rooms, fetchedAt: Date.now(), source: t('automations.runs.testBadge') };
     if (method === RPC.liveConnect || method === 'live.pick') return { connected: true, uniqueId: 'luna', roomId: '1', connectionId: 'c', native: true };
     return {};
   });
@@ -112,7 +112,7 @@ describe('ConnectionsPage', () => {
     expect(buttonByText(wrapper, t('connections.explore.open')).isVisible()).toBe(true);
     await buttonByText(wrapper, t('connections.explore.open')).trigger('click');
     await flushPromises();
-    expect(calls[0]?.method).toBe('live.channels');
+    expect(calls[0]?.method).toBe(RPC.liveChannels);
     const rows = wrapper.findAll('.live-explorer tbody tr');
     expect(rows.map((row) => row.text())).toEqual([expect.stringContaining('@luna'), expect.stringContaining('@mango')]);
     expect(rows[0]!.text()).toContain('1,520');

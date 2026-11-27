@@ -33,7 +33,7 @@ function fixture() {
       return hold ? hold.then(() => body) : body;
     }
     if (method === 'automation.get') {
-      if (missing) throw new ControlCallError('automation_not_found', 'Deleted', meta());
+      if (missing) throw new ControlCallError(ERROR_CODE.automationNotFound, 'Deleted', meta());
       if (metadata) options?.onMetadata?.(meta());
       return structuredClone(snapshot.actions[0]);
     }
@@ -41,7 +41,7 @@ function fixture() {
       if (options?.meta?.expectedRevision !== (method === RPC.automationCreate ? (missing ? revision : '0') : revision) && persistence !== false) {
         throw new ControlCallError(ERROR_CODE.revisionConflict, 'Host changed', meta());
       }
-      if (method === RPC.automationUpdate && missing) throw new ControlCallError('automation_not_found', 'Deleted', meta());
+      if (method === RPC.automationUpdate && missing) throw new ControlCallError(ERROR_CODE.automationNotFound, 'Deleted', meta());
       revision = String(BigInt(method === RPC.automationCreate && !missing ? '0' : revision) + 1n);
       const record = structuredClone(params?.record) as LiveAction;
       snapshot.actions = [record]; missing = false;
@@ -167,6 +167,6 @@ test('persistent helpers never borrow a background projection host when the open
     () => f.automation.setRecordEnabled('action', 'same', false, '1'),
   ]) await expect(writing()).rejects.toMatchObject({ code: ERROR_CODE.capabilityUnavailable });
   expect(f.calls.filter((call) => call.method === RPC.automationDefinitionSubmit)).toHaveLength(0);
-  expect(f.requests.some((call) => [RPC.automationCreate, RPC.automationUpdate, RPC.automationDelete, 'automation.enable', RPC.automationDisable].includes(call.method))).toBe(false);
+  expect(f.requests.some((call) => ([RPC.automationCreate, RPC.automationUpdate, RPC.automationDelete, RPC.automationEnable, RPC.automationDisable] as string[]).includes(call.method))).toBe(false);
   f.automation.dispose();
 });

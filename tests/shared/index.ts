@@ -7,3 +7,4 @@ export * from './status.ts';
 export * from './errors.ts';
 export * from './fixtures.ts';
 export * from './routes.ts';
+export * from './storage.ts';

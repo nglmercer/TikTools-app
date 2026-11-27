@@ -3,6 +3,7 @@ import type { PluginStatus } from '../../../../../../src/automation/behavior/typ
 import type { WorkspaceEntry, WorkspaceValue } from '@/entities/cloud-sync/api/workspace-changes.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import { createPluginSyncAdapter } from '../../../../../../src/web/features/manage-plugins/model/plugin-sync-adapter.ts';
+import { RPC } from '../../../../../shared/index.ts';
 
 const absent: WorkspaceValue = { state: 'absent', revision: null, value: null, version: null, enabled: null };
 const present = (version: string, enabled: boolean, revision = 1): WorkspaceValue => ({
@@ -15,7 +16,7 @@ function setup(entries: WorkspaceEntry[], plugins: PluginStatus[], overrides: { 
   const { client, calls } = createFakeControlClient((method) => {
     if (method === 'sync.v2.selected') return overrides.selected ?? true;
     if (method === 'sync.v2.changes.list') return entries;
-    if (method === 'sync.v2.section') return { pushed: 1 };
+    if (method === RPC.syncV2Section) return { pushed: 1 };
     if (method === 'sync.v2.conflict.review') return { handle: 'h'.repeat(64) };
     if (method === 'sync.v2.conflict.resolve') return 'resolved';
     throw new Error(`unexpected ${method}`);
@@ -109,7 +110,7 @@ describe('plugin sync adapter', () => {
   it('syncs only plugins and refreshes the status', async () => {
     const { adapter, calls, refreshed } = setup([], []);
     await adapter.sync!();
-    expect(calls.map((call) => [call.method, call.params])).toEqual([['sync.v2.section', { section: 'plugins' }]]);
+    expect(calls.map((call) => [call.method, call.params])).toEqual([[RPC.syncV2Section, { section: 'plugins' }]]);
     expect(refreshed()).toBe(1);
   });
 

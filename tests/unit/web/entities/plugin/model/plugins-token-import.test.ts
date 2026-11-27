@@ -2,7 +2,7 @@ import { HOST_MESSAGES } from '@/shared/testing/host-messages.ts';
 import { expect, test } from 'vitest';
 import { usePlugins } from '../../../../../../src/web/entities/plugin/model/plugins-state.ts';
 import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
-import { PLUGIN_ID } from '../../../../../shared/index.ts';
+import { PLUGIN_ID, RPC } from '../../../../../shared/index.ts';
 
 function harness(result: Promise<unknown>) {
   const calls: Array<{method: string; params?: RpcParams}> = [];
@@ -10,8 +10,8 @@ function harness(result: Promise<unknown>) {
     attach() {}, detach() {},
     call<T>(method: string, params?: RpcParams) {
       calls.push({ method, params });
-      if (method === 'plugins.token.import') return result as Promise<T>;
-      return Promise.resolve(method === 'plugins.settings.get'
+      if (method === RPC.pluginsTokenImport) return result as Promise<T>;
+      return Promise.resolve(method === RPC.pluginsSettingsGet
         ? { pluginId: PLUGIN_ID.repoGame, schema: {}, values: { apiToken: '••••••••' } }
         : { pluginId: PLUGIN_ID.repoGame, ok: true, latencyMs: 1 }) as Promise<T>;
     },
@@ -30,8 +30,8 @@ test('token import sends only plugin ID and refreshes masked settings and connec
   expect(plugins.pluginProvision.value[PLUGIN_ID.repoGame]?.working).toBe(true);
   await flush();
   expect(calls).toEqual([
-    { method: 'plugins.token.import', params: { pluginId: PLUGIN_ID.repoGame } },
-    { method: 'plugins.settings.get', params: { pluginId: PLUGIN_ID.repoGame } },
+    { method: RPC.pluginsTokenImport, params: { pluginId: PLUGIN_ID.repoGame } },
+    { method: RPC.pluginsSettingsGet, params: { pluginId: PLUGIN_ID.repoGame } },
     { method: 'plugins.health', params: { pluginId: PLUGIN_ID.repoGame } },
   ]);
   expect(plugins.pluginProvision.value[PLUGIN_ID.repoGame]?.ok).toBe(true);
@@ -72,7 +72,7 @@ test('automatic setup requires a source selection before import and never sends 
   const { plugins, calls } = harness(Promise.resolve({ pluginId: PLUGIN_ID.repoGame, ok: false, candidates }));
   plugins.handleImportPluginToken(PLUGIN_ID.repoGame, { mode: 'auto' });
   await flush();
-  expect(calls).toEqual([{ method: 'plugins.token.import', params: { pluginId: PLUGIN_ID.repoGame, mode: 'auto' } }]);
+  expect(calls).toEqual([{ method: RPC.pluginsTokenImport, params: { pluginId: PLUGIN_ID.repoGame, mode: 'auto' } }]);
   expect(plugins.pluginProvision.value[PLUGIN_ID.repoGame]?.candidates).toEqual(candidates);
   plugins.handleImportPluginToken(PLUGIN_ID.repoGame, { mode: 'candidate', candidateId: '1122334455667788' });
   await flush();
@@ -85,7 +85,7 @@ test('folder setup invokes the host picker and refreshes connection after import
   const { plugins, calls } = harness(Promise.resolve({ pluginId: PLUGIN_ID.repoGame, ok: true }));
   plugins.handleImportPluginToken(PLUGIN_ID.repoGame, { mode: 'folder' });
   await flush();
-  expect(calls[0]).toEqual({ method: 'plugins.token.import', params: { pluginId: PLUGIN_ID.repoGame, mode: 'folder' } });
-  expect(calls.map((call) => call.method)).toEqual(['plugins.token.import', 'plugins.settings.get', 'plugins.health']);
+  expect(calls[0]).toEqual({ method: RPC.pluginsTokenImport, params: { pluginId: PLUGIN_ID.repoGame, mode: 'folder' } });
+  expect(calls.map((call) => call.method)).toEqual([RPC.pluginsTokenImport, RPC.pluginsSettingsGet, 'plugins.health']);
   plugins.dispose();
 });

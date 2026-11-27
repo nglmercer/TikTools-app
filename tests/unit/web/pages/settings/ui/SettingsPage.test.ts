@@ -8,13 +8,13 @@ import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testin
 import { activateLocale, i18n } from '@/shared/i18n/i18n.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import SettingsPage from '../../../../../../src/web/pages/settings/ui/SettingsPage.vue';
-import { RPC } from '../../../../../shared/index.ts';
+import { RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
 
 /** Every Cloud feature the host can announce; none of them may surface inside Settings. */
-const announced = [RPC.integrationsConnections, RPC.bundlesPackagesPreflight, 'bundles.overlays.create', RPC.catalogItems];
+const announced = [RPC.integrationsConnections, RPC.bundlesPackagesPreflight, RPC.bundlesOverlaysCreate, RPC.catalogItems];
 
 async function mountPage(query = '', announce: string[] = []) {
   const router = createRouter({
@@ -90,7 +90,7 @@ describe('SettingsPage', () => {
       .find((option) => option.querySelector('.base-search-select__label')?.textContent?.trim() === t('menu.languages.es'))
       ?.click();
     await vi.waitFor(() => expect(i18n.global.locale.value).toBe('es'));
-    expect(localStorage.getItem('tiktok-live-locale')).toBe('es');
+    expect(localStorage.getItem(STORAGE_KEY.locale)).toBe('es');
     await activateLocale('en');
   });
 });

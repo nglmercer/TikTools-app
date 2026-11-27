@@ -16,7 +16,7 @@ describe('PluginsPage install', () => {
     await wrapper.findAll('input[type="checkbox"]').at(-1)!.setValue(true);
     await buttonByText(wrapper, t('plugins.details.install')).trigger('click');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'plugins.packages.install')?.params).toEqual({
+    expect(calls.find((call) => call.method === RPC.pluginsPackagesInstall)?.params).toEqual({
       spec: { kind: 'file', path: 'C:/x.plugin' },
       consentToken: 'token-1',
     });

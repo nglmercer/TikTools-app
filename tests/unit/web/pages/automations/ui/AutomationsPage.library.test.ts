@@ -1,6 +1,6 @@
 import { t, mountPage, buttonByLabel, goBack, documentButton, selectRow, it, expect, vi, nextTick, libraryJournal, flushPromises, afterEach, beforeEach, resetResolutionPreference } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
 import { runGuideAction } from '../../../../../../src/web/features/guided-help/model/guide-actions.ts';
-import { ACTION_TYPE, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
 
 beforeEach(() => { localStorage.clear(); resetResolutionPreference('manual'); });
 afterEach(() => resetResolutionPreference('automatic'));
@@ -136,10 +136,10 @@ it('blocks profile and template changes until the initial coherent library is re
     vi.useFakeTimers();
     await selectRow(f.wrapper, 'Big gifts');
     f.wrapper.unmount();
-    const atUnmount = localStorage.getItem('tiktok-live-view-state');
+    const atUnmount = localStorage.getItem(STORAGE_KEY.viewState);
     vi.advanceTimersByTime(500);
     vi.useRealTimers();
-    expect(localStorage.getItem('tiktok-live-view-state')).toBe(atUnmount);
+    expect(localStorage.getItem(STORAGE_KEY.viewState)).toBe(atUnmount);
   });
 
   it('opens the templates dialog on its Cloud tab from a saved ?view=cloud link and clears the link when it closes', async () => {

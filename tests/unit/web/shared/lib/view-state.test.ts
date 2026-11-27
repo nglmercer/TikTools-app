@@ -23,8 +23,9 @@ Object.defineProperty(globalThis, 'localStorage', {
 });
 
 import { debounce, loadViewState, saveViewState, type FeedViewState } from '../../../../../src/web/shared/lib/view-state.ts';
+import { STORAGE_KEY } from '../../../../shared/index.ts';
 
-const KEY = 'tiktok-live-view-state';
+const KEY = STORAGE_KEY.viewState;
 
 function readStored(): Record<string, unknown> | null {
   const raw = localStorage.getItem(KEY);

@@ -211,7 +211,7 @@ describe('useAutomation hotkey access request', () => {
       calls.push(method);
       if (method === 'system.requestInputAccess') return Promise.resolve(result);
       if (method === RPC.automationRuns) return Promise.resolve({ runs: [] });
-      if (method === 'automation.library.snapshot') {
+      if (method === RPC.automationLibrarySnapshot) {
         const definitions = { actions: [], events: [], plugins: [], actionTypes: [], translations: {} };
         return Promise.resolve({ hostId: FIXTURE_ID.hostA, hostInstanceId: FIXTURE_ID.instanceA, revision: '0', definitionDigest: libraryDefinitionDigest(definitions, []),
           catalog: { packs: [], activeId: 'default', templates: [] }, definitions, resourceVersions: [] });
@@ -234,7 +234,7 @@ describe('useAutomation hotkey access request', () => {
     expect(automation.hotkeyAccessPending.value).toBe(true);
     await flush();
     expect(calls.filter((method) => method === 'system.requestInputAccess')).toHaveLength(1);
-    expect(calls).toContain('automation.library.snapshot');
+    expect(calls).toContain(RPC.automationLibrarySnapshot);
     expect(automation.hotkeyAccessPending.value).toBe(false);
     expect(automation.behaviorError.value).toBe('');
   });

@@ -4,5 +4,7 @@ export const ERROR_CODE = {
   notFound: 'not_found',
   tooLarge: 'too_large',
   capabilityUnavailable: 'capability_unavailable',
+  automationNotFound: 'automation_not_found',
+  commandPending: 'command_pending',
 } as const;
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];

@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import type { ControlClient, PushHandler, TopicHandler } from '@/shared/api/control-client.ts';
 import { usePlugins } from '@/entities/plugin/model/plugins-state.ts';
 import { useAutomation } from '../../../../../../src/web/entities/automation/model/automation-state.ts';
-import { TOPIC } from '../../../../../shared/index.ts';
+import { RPC, TOPIC } from '../../../../../shared/index.ts';
 
 function harness() {
   const topics = new Map<string, Set<TopicHandler>>();
@@ -52,5 +52,5 @@ test('disposed plugins ignore outstanding settings completion', async () => {
   state.finish({ pluginId: 'p', schema: {}, values: { old: true } });
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(plugins.pluginSettings.value).toEqual({});
-  expect(state.calls).toEqual(['plugins.settings.get']);
+  expect(state.calls).toEqual([RPC.pluginsSettingsGet]);
 });

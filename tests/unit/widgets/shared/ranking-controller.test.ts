@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { RankingController, parseRankingSnapshot } from '../../../../src/widgets/shared/ranking-controller.ts';
+import { TOPIC } from '../../../shared/index.ts';
 
-const snapshot = (revision: number, score = 5) => ({ topic: 'ranking.updated', data: { snapshot: {
+const snapshot = (revision: number, score = 5) => ({ topic: TOPIC.rankingUpdated, data: { snapshot: {
   rankingId: 'r', schemaVersion: 1, creatorId: 'c', roomId: 'room', revision, integrityStatus: 'unknown', paused: false,
   entries: [{ key: 'u', rank: 1, score }], totalScore: score, totalParticipants: 1,
 } } });
@@ -40,7 +41,7 @@ describe('ranking snapshot adapter', () => {
   });
   test('rejects malformed and imprecise scores', () => {
     expect(parseRankingSnapshot(snapshot(1, Number.MAX_SAFE_INTEGER + 1))).toBeNull();
-    expect(parseRankingSnapshot({ topic: 'ranking.updated', data: {} })).toBeNull();
+    expect(parseRankingSnapshot({ topic: TOPIC.rankingUpdated, data: {} })).toBeNull();
   });
   test('preserves window and accounting diagnostics', () => {
     const event = snapshot(1);

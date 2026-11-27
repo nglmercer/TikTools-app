@@ -3,20 +3,21 @@ import { configureAppStorage } from '@/shared/lib/app-storage.ts';
 import { loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import { storeLocale, storedLocale } from '@/shared/i18n/locale-preference.ts';
 import { installDemoStorage, memoryStorage, namespacedStorage } from '../../../src/web/demo/storage.ts';
+import { STORAGE_KEY } from '../../shared/index.ts';
 
 afterEach(() => configureAppStorage(undefined));
 
 describe('isolated demo preferences', () => {
   it('uses the real fixed-key helpers without reading or changing ordinary app preferences', () => {
     const local = memoryStorage();
-    local.setItem('tiktok-live-locale', 'fr');
-    local.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, tab: 'plugins' }));
+    local.setItem(STORAGE_KEY.locale, 'fr');
+    local.setItem(STORAGE_KEY.viewState, JSON.stringify({ version: 1, tab: 'plugins' }));
     installDemoStorage('first', { local, session: memoryStorage() });
     expect(storedLocale()).toBeNull();
     expect(loadViewState()).toEqual({});
     storeLocale('es');
     saveViewState('feed', { searchQuery: 'Fictional viewer' });
-    expect(local.getItem('tiktok-live-locale')).toBe('fr');
+    expect(local.getItem(STORAGE_KEY.locale)).toBe('fr');
     expect(local.getItem('tiktools.demo.first.tiktok-live-locale')).toBe('es');
     expect(loadViewState().feed?.searchQuery).toBe('Fictional viewer');
   });

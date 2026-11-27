@@ -1,10 +1,10 @@
 import { type VueWrapper, flushPromises, beforeEach, describe, expect, it, ControlCallError, type PluginStatus, t, mountPage, buttonByLabel, openTab, detailsTitle, menuItem, REGISTRY_HOST } from '../../../../../../src/web/pages/plugins/ui/plugins-page-fixture.ts';
-import { FIXTURE_ID, PLUGIN_ID, RPC } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, PLUGIN_ID, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
 
 describe('PluginsPage catalog', () => {
   describe('on a host that announces the unified catalog', () => {
     const unified = (plugins?: PluginStatus[]) => mountPage(plugins, undefined, undefined, [RPC.catalogItems]);
-    const savedView = () => JSON.parse(localStorage.getItem('tiktok-live-view-state') ?? '{}').plugins?.view;
+    const savedView = () => JSON.parse(localStorage.getItem(STORAGE_KEY.viewState) ?? '{}').plugins?.view;
 
     // A previous test's debounced save must not land in this test's storage.
     beforeEach(async () => {
@@ -23,7 +23,7 @@ describe('PluginsPage catalog', () => {
 
     it('sends a saved catalog or Cloud view to the installed plugins', async () => {
       for (const view of ['catalog', 'cloud']) {
-        localStorage.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, plugins: { view } }));
+        localStorage.setItem(STORAGE_KEY.viewState, JSON.stringify({ version: 1, plugins: { view } }));
         const { wrapper } = await unified();
         expect(wrapper.find('.plugin-catalog').exists()).toBe(true);
         expect(wrapper.find('.explore-toolbar').exists()).toBe(false);
@@ -153,7 +153,7 @@ describe('PluginsPage catalog', () => {
   });
 
   it('restores the selected plugin from the view state', async () => {
-    localStorage.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, plugins: { selected: 'deck', view: 'plugins' } }));
+    localStorage.setItem(STORAGE_KEY.viewState, JSON.stringify({ version: 1, plugins: { selected: 'deck', view: 'plugins' } }));
     const { wrapper } = await mountPage();
     expect(detailsTitle(wrapper)).toBe('DECK');
   });

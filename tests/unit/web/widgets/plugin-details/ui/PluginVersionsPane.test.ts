@@ -18,7 +18,7 @@ function setup(kind: 'registry' | 'file') {
   const { client, calls } = createFakeControlClient((method) => {
     if (method === 'plugins.packages.versions') return { id:receipt.id, installed:receipt.version, receipt, retained:receipt.retained, registry:'old-source', available:[] };
     if (method === RPC.pluginsPackagesInspect) return { id:receipt.id, version:'1.0.0', consentToken:'review-token' };
-    if (method === 'plugins.packages.install') return { job:{ id:'install-job', kind:'install', stage:'queued', status:'queued', createdAt:1, updatedAt:1 } };
+    if (method === RPC.pluginsPackagesInstall) return { job:{ id:'install-job', kind:'install', stage:'queued', status:'queued', createdAt:1, updatedAt:1 } };
     if (method === 'plugins.packages.rollback') return { job:{ id:'job', kind:'rollback', stage:'queued', status:'queued', createdAt:1, updatedAt:1 } };
     return {};
   });
@@ -40,11 +40,11 @@ it('reviews a previous Cloud version from the configured instance before install
   expect(calls.filter((call) => call.method === RPC.pluginsPackagesInspect)).toEqual([
     { method:RPC.pluginsPackagesInspect, params:{ spec:{ kind:'registry', id:'acme.plugin', version:'1.0.0' } } },
   ]);
-  expect(calls.some((call) => ['plugins.packages.install', 'plugins.packages.rollback'].includes(call.method))).toBe(false);
+  expect(calls.some((call) => [RPC.pluginsPackagesInstall, 'plugins.packages.rollback'].includes(call.method))).toBe(false);
   expect(store.review.open).toBe(true);
   await store.confirmReview();
-  expect(calls.find((call) => call.method === 'plugins.packages.install')).toEqual({
-    method:'plugins.packages.install', params:{ spec:{ kind:'registry', id:'acme.plugin', version:'1.0.0' }, consentToken:'review-token' },
+  expect(calls.find((call) => call.method === RPC.pluginsPackagesInstall)).toEqual({
+    method:RPC.pluginsPackagesInstall, params:{ spec:{ kind:'registry', id:'acme.plugin', version:'1.0.0' }, consentToken:'review-token' },
   });
 });
 

@@ -92,7 +92,7 @@ describe('account store', () => {
   it('runs the browser login loop to signed-in', async () => {
     const { store } = harness((method) => {
       if (method === RPC.cloudLoginBegin) return { browserUrl: 'https://cloud.example/desktop/login?x=1' };
-      if (method === 'cloud.login.open') return { ok: true };
+      if (method === RPC.cloudLoginOpen) return { ok: true };
       if (method === RPC.cloudLoginComplete) {
         return signedOut({ state: ACCOUNT_STATE.signedIn, accountId: FIXTURE_ID.user1 });
       }
@@ -108,7 +108,7 @@ describe('account store', () => {
   it('keeps the login URL on screen when the browser cannot open', async () => {
     const { store } = harness((method) => {
       if (method === RPC.cloudLoginBegin) return { browserUrl: 'https://cloud.example/desktop/login?x=2' };
-      if (method === 'cloud.login.open') {
+      if (method === RPC.cloudLoginOpen) {
         throw new ControlCallError('internal', 'cannot open', { reason: 'failed' });
       }
       if (method === RPC.cloudLoginComplete) {
@@ -326,14 +326,14 @@ describe('account store', () => {
   it('cancels the original operation after a complete deadline without replaying it', async () => {
     const { store, calls } = harness((method) => {
       if (method === RPC.cloudLoginBegin) return { browserUrl: 'https://cloud.example/login' };
-      if (method === 'cloud.login.open') return { ok: true };
+      if (method === RPC.cloudLoginOpen) return { ok: true };
       if (method === RPC.cloudLoginComplete) throw new ControlCallError('deadline', 'operation may still complete');
       if (method === RPC.cloudLoginCancel || method === RPC.cloudStatus) return signedOut();
       throw new Error(`unexpected ${method}`);
     });
     await store.startLogin();
     expect(calls.map((entry) => entry.method)).toEqual([
-      RPC.cloudLoginReserve, RPC.cloudLoginBegin, 'cloud.login.open', RPC.cloudLoginComplete,
+      RPC.cloudLoginReserve, RPC.cloudLoginBegin, RPC.cloudLoginOpen, RPC.cloudLoginComplete,
       RPC.cloudLoginCancel, RPC.cloudStatus,
     ]);
     expect(calls[4]?.params).toEqual({ operationId: '0123456789abcdef0123456789abcdef' });
@@ -348,7 +348,7 @@ describe('account store', () => {
     let reservations = 0;
     const { store, calls } = harness((method) => {
       if (method === RPC.cloudLoginBegin) return { browserUrl: 'https://cloud.example/login' };
-      if (method === 'cloud.login.open') return { ok: true };
+      if (method === RPC.cloudLoginOpen) return { ok: true };
       if (method === RPC.cloudLoginComplete) return completion;
       if (method === RPC.cloudLoginCancel) return signedOut();
       throw new Error(`unexpected ${method}`);

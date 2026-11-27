@@ -37,7 +37,7 @@ function viewer(uniqueId: string, points: number): ViewerRecord {
 async function mountPage(status: ConnectionStatus = 'idle') {
   const { client, calls } = createFakeControlClient((method, params) => {
     if (method === 'points.config.get') return defaultPointsConfig;
-    if (method === 'points.config.set') return { ...defaultPointsConfig, ...params };
+    if (method === RPC.pointsConfigSet) return { ...defaultPointsConfig, ...params };
     if (method === RPC.pointsLeaderboard) return { viewers: [viewer('luna', 420), viewer('mango', 150)] };
     return {};
   });
@@ -77,7 +77,7 @@ describe('PointsPage', () => {
     await wrapper.get('#points-currency').setValue('Gems');
     await button(wrapper, t('points.rules.save')).trigger('click');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'points.config.set')?.params).toMatchObject({ currencyName: 'Gems' });
+    expect(calls.find((call) => call.method === RPC.pointsConfigSet)?.params).toMatchObject({ currencyName: 'Gems' });
     expect(wrapper.findAll('th').map((th) => th.text())).toContain('Gems');
   });
 
@@ -87,8 +87,8 @@ describe('PointsPage', () => {
     await wrapper.get('#points-currency').setValue('Live Gems');
     await button(wrapper, t('points.rules.save')).trigger('click');
     await flushPromises();
-    expect(calls.filter((call) => call.method === 'points.config.set')).toHaveLength(1);
-    expect(calls.find((call) => call.method === 'points.config.set')?.params).toMatchObject({ currencyName: 'Live Gems' });
+    expect(calls.filter((call) => call.method === RPC.pointsConfigSet)).toHaveLength(1);
+    expect(calls.find((call) => call.method === RPC.pointsConfigSet)?.params).toMatchObject({ currencyName: 'Live Gems' });
     expect(wrapper.findAll('th').map((th) => th.text())).toContain('Live Gems');
     expect(calls.some((call) => call.method.startsWith('live.'))).toBe(false);
     expect(button(wrapper, t('points.actions.resetAll')).attributes('disabled')).toBeDefined();

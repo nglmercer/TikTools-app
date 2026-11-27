@@ -4,7 +4,8 @@ import { parsePluginNavId } from '../../../automation/plugins/declarative.ts';
 import { appStorage } from './app-storage.ts';
 import type { BuiltinAppTab, EventFilter } from '@/types.ts';
 
-const STORAGE_KEY = 'tiktok-live-view-state';
+export const VIEW_STATE_STORAGE_KEY = 'tiktok-live-view-state';
+const STORAGE_KEY = VIEW_STATE_STORAGE_KEY;
 const STORAGE_VERSION = 1;
 const MAX_STRING = 256;
 const MAX_TAB = 128;

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import RankingsPage from '../../../../../../src/web/pages/rankings/ui/RankingsPage.vue';
-import { EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+import { EVENT_KIND, RPC, TOPIC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -38,7 +38,7 @@ describe('rankings management', () => {
       if (method === RPC.rankingsSnapshot) return new Promise((resolve) => { resolveSnapshot = resolve; });
       return { ok: true };
     });
-    client.onTopic = (topic, callback) => { if (topic === 'ranking.updated') publish = callback as (data: unknown) => void; return () => {}; };
+    client.onTopic = (topic, callback) => { if (topic === TOPIC.rankingUpdated) publish = callback as (data: unknown) => void; return () => {}; };
     const wrapper = mountWithPlugins(RankingsPage, { global: { plugins: storePlugins(client) } });
     await flushPromises();
     await wrapper.get('[data-item="top"]').trigger('click');

@@ -50,12 +50,12 @@ describe('packages store', () => {
         { id:'revoked', latest:'2.0.0', latestStatus:'key-revoked' },
         { id:'unknown', latest:'2.0.0' },
       ] };
-      if (method === 'plugins.packages.update') return { job: job({}) };
+      if (method === RPC.pluginsPackagesUpdate) return { job: job({}) };
       return { receipts: [], jobs: [] };
     });
     await store.initialize();
     await store.updateAll();
-    expect(calls.filter((call) => call.method === 'plugins.packages.update').map((call) => call.params)).toEqual([
+    expect(calls.filter((call) => call.method === RPC.pluginsPackagesUpdate).map((call) => call.params)).toEqual([
       { pluginId:'allowed', version:'2.0.0' },
     ]);
   });
@@ -91,7 +91,7 @@ describe('packages store', () => {
     await store.checkUpdates();
     expect(store.updates?.updates[0]?.latestStatus).toBe('unknown');
     await store.updateAll();
-    expect(calls.some((call) => call.method === 'plugins.packages.update')).toBe(false);
+    expect(calls.some((call) => call.method === RPC.pluginsPackagesUpdate)).toBe(false);
   });
 
   it('keeps an old list from superseding a newer update check', async () => {
@@ -235,7 +235,7 @@ describe('packages store', () => {
 
   it('opens a review when an automatic update needs consent', async () => {
     const { store, topics, calls } = harness((method) => {
-      if (method === 'plugins.packages.update') return { job: job({}) };
+      if (method === RPC.pluginsPackagesUpdate) return { job: job({}) };
       return { receipts: [], jobs: [], updates: [], checkedAt: 0 };
     });
     await store.initialize();
@@ -246,7 +246,7 @@ describe('packages store', () => {
     expect(store.review.open).toBe(true);
     expect(store.review.mode).toBe('update');
     await store.confirmReview();
-    expect(calls.filter((call) => call.method === 'plugins.packages.update').at(-1)?.params).toEqual({
+    expect(calls.filter((call) => call.method === RPC.pluginsPackagesUpdate).at(-1)?.params).toEqual({
       pluginId: PLUGIN_ID.acmeTts,
       version: '1.1.0',
       consentToken: 'token-2',

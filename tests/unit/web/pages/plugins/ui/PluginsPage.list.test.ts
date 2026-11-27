@@ -1,5 +1,5 @@
 import { describe, flushPromises, expect, it, vi, nextTick, t, plugin, mountPage, buttonByText, buttonByLabel, tabNames, openTab, selectPlugin, openItemMenu, detailsTitle, menuItems, menuItem } from '../../../../../../src/web/pages/plugins/ui/plugins-page-fixture.ts';
-import { EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+import { EVENT_KIND, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
 
 describe('PluginsPage list', () => {
   it('saves the current view on leaving and cannot overwrite a later view from a delayed callback', async () => {
@@ -8,12 +8,12 @@ describe('PluginsPage list', () => {
       const { wrapper } = await mountPage();
       await selectPlugin(wrapper, 'DECK');
       wrapper.unmount();
-      const saved = JSON.parse(localStorage.getItem('tiktok-live-view-state')!);
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY.viewState)!);
       expect(saved.plugins.selected).toBe('deck');
       saved.plugins.selected = 'next-screen';
-      localStorage.setItem('tiktok-live-view-state', JSON.stringify(saved));
+      localStorage.setItem(STORAGE_KEY.viewState, JSON.stringify(saved));
       await vi.advanceTimersByTimeAsync(500);
-      expect(JSON.parse(localStorage.getItem('tiktok-live-view-state')!).plugins.selected).toBe('next-screen');
+      expect(JSON.parse(localStorage.getItem(STORAGE_KEY.viewState)!).plugins.selected).toBe('next-screen');
     } finally {
       vi.useRealTimers();
     }
@@ -119,7 +119,7 @@ describe('PluginsPage list', () => {
     expect(buttonByLabel(wrapper, t('plugins.catalog.updateAll')).attributes('disabled')).toBeUndefined();
     await buttonByLabel(wrapper, 'Update DECK').trigger('click');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'plugins.packages.update')?.params).toEqual({ pluginId: 'deck', version: '1.3.0' });
+    expect(calls.find((call) => call.method === RPC.pluginsPackagesUpdate)?.params).toEqual({ pluginId: 'deck', version: '1.3.0' });
   });
 
   it('filters the catalog by search', async () => {

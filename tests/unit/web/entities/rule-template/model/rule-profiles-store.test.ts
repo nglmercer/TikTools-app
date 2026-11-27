@@ -8,7 +8,7 @@ import { useRuleProfilesStore } from '../../../../../../src/web/entities/rule-te
 import { useAutomationEditor } from '@/features/edit-automation-record/model/automation-editor.ts';
 import { libraryJournal } from '../../../../../../src/web/entities/rule-template/model/library-journal.ts';
 import { flushPromises } from '@vue/test-utils';
-import { ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
 
 test('a delayed saved action adopts into the originating profile, independently of same-ID event membership', async () => {
   const snapshot: BehaviorSnapshot = { plugins: [], actions: [], actionTypes: [], translations: {}, events: [{
@@ -50,7 +50,7 @@ test('a delayed saved action adopts into the originating profile, independently 
   await automation.refresh(); await profiles.loadProfiles();
   const action: LiveAction = { schemaVersion: 2, id: 'same', name: 'New action in A', enabled: false, typeId: ACTION_TYPE.coreLog, config: {} };
   const saving = profiles.saveAction(action, { create: true, revision: '0', host: automation.sourceHost });
-  await expect(profiles.switchProfile('b')).rejects.toMatchObject({ code: 'command_pending' });
+  await expect(profiles.switchProfile('b')).rejects.toMatchObject({ code: ERROR_CODE.commandPending });
   finish(); await saving;
   const library = libraryJournal(client);
   expect(library.draft.value?.mutation).toMatchObject({ operation: 'assign-record', kind: 'action', id: 'same', profileId: 'a' });
@@ -123,7 +123,7 @@ test.each([false, true])('membership review binds a fresh saved record after a s
   const held: Array<() => void> = [];
   const fake = createFakeControlClient(async (method, params, options) => {
     const response = await native.handle(method, params, options);
-    if (method === 'automation.library.snapshot' && stored && held.length < 2) {
+    if (method === RPC.automationLibrarySnapshot && stored && held.length < 2) {
       return new Promise<unknown>((resolve) => { held.push(() => resolve(response)); });
     }
     return response;
@@ -201,7 +201,7 @@ test.each([false, true])('64-character profile name collisions terminate with di
   expect(profiles.loading).toBe(false);
   if (!persistence) {
     expect(libraryJournal(fake.client).snapshot.value).toBeNull();
-    expect(fake.calls.some((call) => call.method === 'automation.library.snapshot')).toBe(false);
+    expect(fake.calls.some((call) => call.method === RPC.automationLibrarySnapshot)).toBe(false);
   }
   for (let i = 0; i < 2; ++i) {
     const creating = profiles.createProfile(longest);

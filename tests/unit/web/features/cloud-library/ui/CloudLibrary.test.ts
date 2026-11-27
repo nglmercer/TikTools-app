@@ -182,7 +182,7 @@ describe('CloudLibrary', () => {
       });
       const { client, calls } = createFakeControlClient(async (method, params, options) => {
         // The library read that follows the already-open document is held.
-        if (hold?.snapshot && method === 'automation.library.snapshot') await hold.snapshot;
+        if (hold?.snapshot && method === RPC.automationLibrarySnapshot) await hold.snapshot;
         return native.handle(method, params, options);
       });
       const stores = createStoreHarness(client);

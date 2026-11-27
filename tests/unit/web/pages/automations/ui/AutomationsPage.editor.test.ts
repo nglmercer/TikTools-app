@@ -1,6 +1,6 @@
 import { t, mountPage, buttonByText, buttonByLabel, goBack, documentButton, selectRow, it, expect, vi, nextTick, flushPromises, afterEach, beforeEach, resetResolutionPreference } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
 import { i18n } from '@/shared/i18n/i18n.ts';
-import { ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, EVENT_KIND, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
 const itn = (key: string, params?: Record<string, string>) => i18n.global.t(key, params ?? {});
 
 beforeEach(() => { localStorage.clear(); resetResolutionPreference('manual'); });
@@ -200,7 +200,7 @@ it('offers the sync panel for the events and for the actions, but not on the var
   it('restores the folded recent runs from storage', async () => {
     const { wrapper } = await mountPage();
     await buttonByLabel(wrapper, t('automations.runs.collapse')).trigger('click');
-    expect(JSON.parse(localStorage.getItem('tiktok-live-view-state')!).automationRuns).toEqual({ open: false });
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY.viewState)!).automationRuns).toEqual({ open: false });
     wrapper.unmount();
     const { wrapper: remounted } = await mountPage();
     expect(remounted.get('.automation-runs').text()).not.toContain('Log gift');

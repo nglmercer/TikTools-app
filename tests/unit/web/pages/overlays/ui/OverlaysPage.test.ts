@@ -6,7 +6,7 @@ import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import OverlaysPage from '../../../../../../src/web/pages/overlays/ui/OverlaysPage.vue';
-import { RPC } from '../../../../../shared/index.ts';
+import { RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -64,7 +64,7 @@ describe('OverlaysPage', () => {
   });
 
   it('opens the overlay library in a modal and returns to the retained design', async () => {
-    const { wrapper } = await mountPage(['bundles.overlays.create', RPC.bundlesPackagesPreflight]);
+    const { wrapper } = await mountPage([RPC.bundlesOverlaysCreate, RPC.bundlesPackagesPreflight]);
     const source = (wrapper.get('#overlay-source-url').element as HTMLInputElement).value;
     await wrapper.get('button[aria-label="Cloud"]').trigger('click');
     expect(wrapper.get('dialog.overlay-library').attributes('open')).toBeDefined();
@@ -84,7 +84,7 @@ describe('OverlaysPage', () => {
   });
 
   it('filters library cards and opens the selected widget without losing the workspace', async () => {
-    const { wrapper } = await mountPage(['bundles.overlays.create']);
+    const { wrapper } = await mountPage([RPC.bundlesOverlaysCreate]);
     await wrapper.get('button[aria-label="Cloud"]').trigger('click');
     expect(buttonByText(wrapper, t('overlayLibrary.open')).attributes('disabled')).toBeDefined();
     await wrapper.get('.overlay-library input[type="search"]').setValue('gift');
@@ -97,7 +97,7 @@ describe('OverlaysPage', () => {
   });
 
   it('clears selection when search hides the selected overlay', async () => {
-    const { wrapper } = await mountPage(['bundles.overlays.create']);
+    const { wrapper } = await mountPage([RPC.bundlesOverlaysCreate]);
     await wrapper.get('button[aria-label="Cloud"]').trigger('click');
     await wrapper.findAll('.overlay-library__card')[0]!.trigger('click');
     await wrapper.get('.overlay-library input[type="search"]').setValue('no matching widget');
@@ -143,6 +143,6 @@ describe('OverlaysPage', () => {
     const { wrapper } = await mountPage();
     await selectKind(wrapper, t('overlays.kinds.chat.name'));
     expect((wrapper.get('#overlay-source-url').element as HTMLInputElement).value).toContain('/widgets/chat/');
-    expect(JSON.parse(localStorage.getItem('tiktok-live-view-state') ?? '{}').widgets).toEqual({ selectedKind: 'chat' });
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY.viewState) ?? '{}').widgets).toEqual({ selectedKind: 'chat' });
   });
 });

@@ -73,7 +73,7 @@ test('a known library commit keeps its review busy until a new coherent snapshot
   const f = fixture(); let hold = false; let release!: () => void;
   const transport = createFakeControlClient(async (method, params, options) => {
     const response = await f.native.handle(method, params, options);
-    if (hold && method === 'automation.library.snapshot') return new Promise<unknown>((resolve) => { release = () => resolve(response); });
+    if (hold && method === RPC.automationLibrarySnapshot) return new Promise<unknown>((resolve) => { release = () => resolve(response); });
     return response;
   });
   const journal = libraryJournal(transport.client); const context = await journal.refreshSnapshot();
@@ -84,7 +84,7 @@ test('a known library commit keeps its review busy until a new coherent snapshot
   await vi.waitFor(() => expect(release).toBeTypeOf('function'));
   expect(journal.busy.value).toBe(true); expect(journal.draft.value?.busy).toBe(true); expect(finished).toBe(false);
   expect(journal.snapshot.value?.catalog.packs.some((pack) => pack.id === 'after-write')).toBe(false);
-  await expect(journal.request({ operation: 'create-profile', id: 'too-early', name: 'Too early', description: '' })).rejects.toMatchObject({ code: 'command_pending' });
+  await expect(journal.request({ operation: 'create-profile', id: 'too-early', name: 'Too early', description: '' })).rejects.toMatchObject({ code: ERROR_CODE.commandPending });
   release(); await confirming; await pending;
   expect(finished).toBe(true); expect(journal.busy.value).toBe(false); expect(journal.draft.value).toBeNull();
   expect(journal.snapshot.value?.catalog.packs.some((pack) => pack.id === 'after-write')).toBe(true);
@@ -174,7 +174,7 @@ describe('atomic Owner library transition gateway', () => {
   test('definition writes cannot proceed through a pending library intent on the same original client', async () => {
     const f = fixture(); await apply(f, { operation: 'create-profile', id: 'c', name: 'C', description: '' });
     const stored = f.native.library.state(); f.native.library.setState({ ...stored, pending: { ...stored.recent[0]!.intent, commandId: `owner-library-${'f'.repeat(32)}` } });
-    await expect(definitionJournal(f.client).submit({ operation: 'update', kind: 'action', id: 'old-action', expectedRevision: '1', record: action() }, { hostId: FIXTURE_ID.hostA, hostInstanceId: FIXTURE_ID.instanceA })).rejects.toMatchObject({ code: 'command_pending' });
+    await expect(definitionJournal(f.client).submit({ operation: 'update', kind: 'action', id: 'old-action', expectedRevision: '1', record: action() }, { hostId: FIXTURE_ID.hostA, hostInstanceId: FIXTURE_ID.instanceA })).rejects.toMatchObject({ code: ERROR_CODE.commandPending });
     expect(f.calls.some((call) => call.method === RPC.automationDefinitionSubmit)).toBe(false);
   });
 });

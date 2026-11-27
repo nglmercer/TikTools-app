@@ -81,8 +81,8 @@ describe('unified catalog store', () => {
   });
 
   it('resolves installed plugins one by one and keeps local-only ones labelled', async () => {
-    const { stores, calls } = host([RPC.catalogItems, 'catalog.item'], (method, params) => {
-      if (method === 'catalog.item') {
+    const { stores, calls } = host([RPC.catalogItems, RPC.catalogItem], (method, params) => {
+      if (method === RPC.catalogItem) {
         if ((params as { id: string }).id === 'b.two') return item('b.two');
         throw new ControlCallError(ERROR_CODE.notFound, 'catalog item not found');
       }
@@ -95,7 +95,7 @@ describe('unified catalog store', () => {
     expect(catalog.items.map((entry) => [entry.id, entry.published])).toEqual([['b.two', true], ['z.local', false]]);
     expect(catalog.hasMore).toBe(false);
     expect(calls.filter((call) => call.method === RPC.catalogItems)).toHaveLength(0);
-    expect(calls.filter((call) => call.method === 'catalog.item').map((call) => call.params)).toEqual([
+    expect(calls.filter((call) => call.method === RPC.catalogItem).map((call) => call.params)).toEqual([
       { kind: 'plugin', id: 'b.two' },
       { kind: 'plugin', id: 'z.local' },
     ]);
@@ -217,7 +217,7 @@ describe('unified catalog store', () => {
 
   it('does not let a late detail answer reopen what was closed', async () => {
     const fresh = deferred<unknown>();
-    const { stores } = host([RPC.catalogItems, 'catalog.item'], (method) => (method === 'catalog.item' ? fresh.promise : { items: [], nextCursor: null }));
+    const { stores } = host([RPC.catalogItems, RPC.catalogItem], (method) => (method === RPC.catalogItem ? fresh.promise : { items: [], nextCursor: null }));
     await discover(stores);
     const catalog = stores.use(() => useCatalogStore());
     const plugin = { kind: 'plugin', id: 'acme.gift', title: '', summary: '', publisher: null, categories: [], targets: [], version: '1.0.0', yanked: false, published: true, revision: null, sha256: null } as const;

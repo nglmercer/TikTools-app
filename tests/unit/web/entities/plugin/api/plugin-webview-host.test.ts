@@ -138,7 +138,7 @@ test('subscriptions gate event pushes by topic', async () => {
   host.pushEvent(TOPIC.pluginEvent, {});
   expect(posted).toHaveLength(0);
   await host.handleFrameMessage(
-    { apiVersion: 1, id: '1', method: 'events.subscribe', params: { topics: [TOPIC.pluginEvent] } },
+    { apiVersion: 1, id: '1', method: RPC.eventsSubscribe, params: { topics: [TOPIC.pluginEvent] } },
     frameWindow,
   );
   expect(subscribed).toEqual([TOPIC.pluginEvent]);
@@ -148,7 +148,7 @@ test('subscriptions gate event pushes by topic', async () => {
   expect(posted[1]).toEqual({ apiVersion: 1, event: TOPIC.pluginEvent, data: { hello: true } });
   // Non-plugin topics are rejected without subscribing.
   await host.handleFrameMessage(
-    { apiVersion: 1, id: '2', method: 'events.subscribe', params: { topics: [TOPIC.liveEvent] } },
+    { apiVersion: 1, id: '2', method: RPC.eventsSubscribe, params: { topics: [TOPIC.liveEvent] } },
     frameWindow,
   );
   expect((posted[2] as BrokerResponse).ok).toBe(false);
@@ -262,7 +262,7 @@ test('dispose during a pending backend call prevents responses to the old frame'
   host.dispose();
   complete({ voice: 'M1' });
   await pending;
-  await send('stale', 'events.subscribe', { topics: [TOPIC.pluginEvent] });
+  await send('stale', RPC.eventsSubscribe, { topics: [TOPIC.pluginEvent] });
   expect(posted).toHaveLength(0);
 });
 

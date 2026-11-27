@@ -14,9 +14,9 @@ const source = (): LiveAction => ({ schemaVersion: 2, id: 'saved', name: 'Saved 
 function fixture() {
   let record = source(); let revision = '1'; let writes = 0;
   const native = nativeDefinitionHost((method, params, options) => {
-    if ([RPC.automationCreate, RPC.automationUpdate, 'automation.enable', RPC.automationDisable].includes(method)) {
+    if (([RPC.automationCreate, RPC.automationUpdate, RPC.automationEnable, RPC.automationDisable] as string[]).includes(method)) {
       ++writes; revision = String(BigInt(String(options?.meta?.expectedRevision)) + 1n);
-      record = structuredClone(params?.record as LiveAction ?? { ...record, enabled: method === 'automation.enable' });
+      record = structuredClone(params?.record as LiveAction ?? { ...record, enabled: method === RPC.automationEnable });
       options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: 'action', id: record.id, revision }] });
       return record;
     }
@@ -71,13 +71,13 @@ describe('native Owner definition journal', () => {
   test('pending authority transitions, shared in-flight operations and host changes block before submit', async () => {
     const f = fixture(); await f.journal.refresh();
     f.native.transitions.adoptionPending = true;
-    await expect(f.journal.submit(f.input, f.host)).rejects.toMatchObject({ code: 'command_pending' });
+    await expect(f.journal.submit(f.input, f.host)).rejects.toMatchObject({ code: ERROR_CODE.commandPending });
     expect(f.writes()).toBe(0);
     f.native.transitions.adoptionPending = false;
     const gate = ownerMutationGate(f.client);
     let release!: () => void;
     const held = gate.run('approval', () => new Promise<void>((resolve) => { release = resolve; }));
-    await expect(f.journal.submit(f.input, f.host)).rejects.toMatchObject({ code: 'command_pending' });
+    await expect(f.journal.submit(f.input, f.host)).rejects.toMatchObject({ code: ERROR_CODE.commandPending });
     release(); await held;
     f.native.replaceState({ ...f.native.state(), hostInstanceId: 'replacement' });
     await expect(f.journal.submit(f.input, f.host)).rejects.toMatchObject({ code: 'host_restarted' });
@@ -105,7 +105,7 @@ describe('native Owner definition journal', () => {
     f.input.record.name = 'Typed later'; f.input.record.config.message = 'new draft source';
     Object.assign(f.input, { operation: 'create', id: 'other-target', expectedRevision: '9' });
     f.host.hostId = 'later-host';
-    await expect(f.journal.submit({ ...f.input, expectedRevision: '1' }, f.host)).rejects.toMatchObject({ code: 'command_pending' });
+    await expect(f.journal.submit({ ...f.input, expectedRevision: '1' }, f.host)).rejects.toMatchObject({ code: ERROR_CODE.commandPending });
     const ack = await writing;
     expect((ack.value as LiveAction).name).toBe('Saved action');
     expect((ack.value as LiveAction).config.message).toBe('private source');

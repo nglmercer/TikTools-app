@@ -10,8 +10,8 @@ function setup(rows = [row()], options: { support?: boolean } = { support: true 
   let comparisons = rows;
   const { client, calls } = createFakeControlClient((method) => {
     if (method === 'sync.v2.variables.review') return { changes: comparisons };
-    if (method === 'sync.v2.variables.apply') return null;
-    if (method === 'sync.v2.variables.send' || method === 'sync.v2.variables.withdraw' || method === 'sync.v2.variables.fetch') return { conflicts: [] };
+    if (method === RPC.syncV2VariablesApply) return null;
+    if (method === 'sync.v2.variables.send' || method === RPC.syncV2VariablesWithdraw || method === 'sync.v2.variables.fetch') return { conflicts: [] };
     throw new Error(`unexpected ${method}`);
   });
   const reloadLocal = vi.fn(async () => {});
@@ -52,20 +52,20 @@ describe('native Variables Changes adapter', () => {
     await fixture.adapter.list();
     await fixture.adapter.push!([shown[0]!.id]);
     expect(fixture.calls.at(-1)).toMatchObject({ method: 'sync.v2.variables.send', params: { review: 'reviewed-first' } });
-    expect(fixture.calls.some((call) => call.method === 'sync.v2.now' || call.method === 'sync.v2.section' || call.method === RPC.globalsTypedReplace)).toBe(false);
+    expect(fixture.calls.some((call) => call.method === 'sync.v2.now' || call.method === RPC.syncV2Section || call.method === RPC.globalsTypedReplace)).toBe(false);
   });
   it('fetches only into the cache and withdraws without replacing local values', async () => {
     const { adapter, calls, reloadLocal, refreshStatus } = setup();
     await adapter.fetch!();
     await adapter.withdraw!('secret-reference');
-    expect(calls.map((call) => call.method)).toEqual(['sync.v2.variables.fetch', 'sync.v2.variables.withdraw']);
+    expect(calls.map((call) => call.method)).toEqual(['sync.v2.variables.fetch', RPC.syncV2VariablesWithdraw]);
     expect(reloadLocal).not.toHaveBeenCalled();
     expect(refreshStatus).toHaveBeenCalledTimes(2);
   });
   it('adopts the reviewed cached value through the native RPC and reloads local state', async () => {
     const { adapter, calls, reloadLocal } = setup();
     await adapter.apply!('cloud-reference');
-    expect(calls).toEqual([{ method: 'sync.v2.variables.apply', params: { review: 'cloud-reference' } }]);
+    expect(calls).toEqual([{ method: RPC.syncV2VariablesApply, params: { review: 'cloud-reference' } }]);
     expect(reloadLocal).toHaveBeenCalledOnce();
   });
   it('resolves by native send or native adoption and rejects field merges', async () => {
@@ -73,7 +73,7 @@ describe('native Variables Changes adapter', () => {
     await adapter.resolve!('one', { choice: 'local' });
     await adapter.resolve!('two', { choice: 'cloud' });
     await expect(adapter.resolve!('three', { choice: 'merged', value: {} })).rejects.toThrow();
-    expect(calls.map((call) => call.method)).toEqual(['sync.v2.variables.send', 'sync.v2.variables.apply']);
+    expect(calls.map((call) => call.method)).toEqual(['sync.v2.variables.send', RPC.syncV2VariablesApply]);
   });
 });
 
