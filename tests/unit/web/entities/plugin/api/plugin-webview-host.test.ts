@@ -118,6 +118,7 @@ test('rejects mismatched plugin identities', async () => {
 });
 
 test('subscriptions gate event pushes by topic', async () => {
+  // Arrange: a host whose subscribeTopic hook records which topics the bus is currently listening to
   const subscribed: string[] = [];
   const frameWindow = {} as WindowProxy;
   const posted: Array<BrokerResponse | BrokerEvent> = [];
@@ -142,6 +143,7 @@ test('subscriptions gate event pushes by topic', async () => {
     frameWindow,
   );
   expect(subscribed).toEqual([TOPIC.pluginEvent]);
+  // Act: once subscribed, the plugin topic is delivered, while an unsubscribed topic stays filtered
   host.pushEvent(TOPIC.pluginEvent, { hello: true });
   host.pushEvent('plugin.status', {});
   expect(posted).toHaveLength(2);
@@ -153,11 +155,13 @@ test('subscriptions gate event pushes by topic', async () => {
   );
   expect((posted[2] as BrokerResponse).ok).toBe(false);
   expect(subscribed).toEqual([TOPIC.pluginEvent]);
+  // Act: unsubscribing releases the topic, so the shared bus no longer delivers it to this frame
   await host.handleFrameMessage(
     { apiVersion: 1, id: '3', method: 'events.unsubscribe', params: { topics: [TOPIC.pluginEvent] } },
     frameWindow,
   );
   expect(subscribed).toEqual([]);
+  // Assert: with the topic released, the final push never reaches the frame
   host.pushEvent(TOPIC.pluginEvent, {});
   expect(posted).toHaveLength(4);
   host.dispose();
@@ -210,10 +214,13 @@ test('Windows WebView2 uses the rewritten plugin asset host', () => {
 test('frame URLs reject identifier and path injection', () => {
   const scope = globalThis as Record<string, unknown>;
   const previous = scope['window'];
+  // Arrange: run as the desktop shell, so every accepted URL uses the plugin scheme
   scope['window'] = { ipc: { postMessage: () => undefined } };
   try {
     const ok = 'tiktools-plugin://app/sonicboom.server/index.html#page=tts';
+    // Assert: a well-formed id and entry still resolve, so the nulls below come from the checks
     expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', 'tts')).toBe(ok);
+    // Act: each hostile id, entry or page id is tried alone; any one that yields a URL fails
     // Plugin ids cannot inject paths: the id travels as a URL segment.
     expect(pluginUiUrl('', 'ui/dist/index.html', 'tts')).toBe(null);
     expect(pluginUiUrl('../evil', 'ui/dist/index.html', 'tts')).toBe(null);

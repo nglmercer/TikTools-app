@@ -9,47 +9,57 @@ import { TOPIC, LIMIT } from '../shared/index.ts';
 
 test('feed appends only format new cards and still update locale, search, and clear', async ({ page }) => {
   const capture = await installFakeHost(page, emptyState());
-  await page.addInitScript(() => {
-    const target = window as typeof window & { feedFormatCalls: number };
-    target.feedFormatCalls = 0;
-    const descriptor = Object.getOwnPropertyDescriptor(Intl.DateTimeFormat.prototype, 'format')!;
-    Object.defineProperty(Intl.DateTimeFormat.prototype, 'format', {
-      ...descriptor,
-      get() {
-        const format = descriptor.get!.call(this) as (date?: number | Date) => string;
-        return (date?: number | Date) => {
-          target.feedFormatCalls += 1;
-          return format(date);
-        };
-      },
+  await test.step('install a counter on date formatting and open the empty feed', async () => {
+    await page.addInitScript(() => {
+      const target = window as typeof window & { feedFormatCalls: number };
+      target.feedFormatCalls = 0;
+      const descriptor = Object.getOwnPropertyDescriptor(Intl.DateTimeFormat.prototype, 'format')!;
+      Object.defineProperty(Intl.DateTimeFormat.prototype, 'format', {
+        ...descriptor,
+        get() {
+          const format = descriptor.get!.call(this) as (date?: number | Date) => string;
+          return (date?: number | Date) => {
+            target.feedFormatCalls += 1;
+            return format(date);
+          };
+        },
+      });
     });
+    await page.goto('/');
+    await waitForFrontend(page);
+    await expect(page.getByText(t('feed.empty'), { exact: false })).toBeVisible();
   });
-  await page.goto('/');
-  await waitForFrontend(page);
-  await expect(page.getByText(t('feed.empty'), { exact: false })).toBeVisible();
-  const emitChat = (index: number) => emitTopic(page, TOPIC.liveUiEvent, {
-    event: { kind: 'chat', author: 'alice', text: `feed message ${index}`, msgId: `feed-${index}` },
+  await test.step('append a card and check that only the new card is formatted', async () => {
+    const emitChat = (index: number) => emitTopic(page, TOPIC.liveUiEvent, {
+      event: { kind: 'chat', author: 'alice', text: `feed message ${index}`, msgId: `feed-${index}` },
+    });
+    await emitChat(1);
+    await expect(page.locator(SEL.eventCard)).toHaveCount(1);
+    await page.evaluate(() => { (window as typeof window & { feedFormatCalls: number }).feedFormatCalls = 0; });
+    await emitChat(2);
+    await expect(page.locator(SEL.eventCard)).toHaveCount(2);
+    expect(await page.evaluate(() => (window as typeof window & { feedFormatCalls: number }).feedFormatCalls)).toBe(1);
   });
-  await emitChat(1);
-  await expect(page.locator(SEL.eventCard)).toHaveCount(1);
-  await page.evaluate(() => { (window as typeof window & { feedFormatCalls: number }).feedFormatCalls = 0; });
-  await emitChat(2);
-  await expect(page.locator(SEL.eventCard)).toHaveCount(2);
-  expect(await page.evaluate(() => (window as typeof window & { feedFormatCalls: number }).feedFormatCalls)).toBe(1);
 
-  // The native shell menu switches the language by pushing its action.
-  await emitPush(page, { type: 'shell-menu-action', id: 'locale:es' });
-  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
-  await expect.poll(() => page.evaluate(() => (window as typeof window & { feedFormatCalls: number }).feedFormatCalls)).toBe(3);
-  await page.locator(SEL.feedSearch).fill('message 2');
-  await expect(page.locator(SEL.eventCard)).toHaveCount(1);
-  await expect(page.locator(SEL.eventCard)).toContainText('feed message 2');
-  await page.locator(SEL.feedSearch).fill('');
-  await expect(page.locator(SEL.eventCard)).toHaveCount(2);
-  await page.getByRole('button', { name: /Limpiar/ }).click();
-  await expect(page.locator(SEL.eventCard)).toHaveCount(0);
-  await assertNoUnhandledCalls(page);
-  capture.assertClean();
+  await test.step('switch the language to Spanish and check the format count', async () => {
+    // The native shell menu switches the language by pushing its action.
+    await emitPush(page, { type: 'shell-menu-action', id: 'locale:es' });
+    await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+    await expect.poll(() => page.evaluate(() => (window as typeof window & { feedFormatCalls: number }).feedFormatCalls)).toBe(3);
+  });
+  await test.step('search for one message, then clear the search', async () => {
+    await page.locator(SEL.feedSearch).fill('message 2');
+    await expect(page.locator(SEL.eventCard)).toHaveCount(1);
+    await expect(page.locator(SEL.eventCard)).toContainText('feed message 2');
+    await page.locator(SEL.feedSearch).fill('');
+    await expect(page.locator(SEL.eventCard)).toHaveCount(2);
+  });
+  await test.step('clear the feed and confirm nothing is left unhandled', async () => {
+    await page.getByRole('button', { name: /Limpiar/ }).click();
+    await expect(page.locator(SEL.eventCard)).toHaveCount(0);
+    await assertNoUnhandledCalls(page);
+    capture.assertClean();
+  });
 });
 
 test('events keep arriving while another tab is open and are waiting on return', async ({ page }) => {

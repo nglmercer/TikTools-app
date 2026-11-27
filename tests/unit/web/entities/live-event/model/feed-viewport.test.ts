@@ -85,6 +85,7 @@ it('retains the paused position across container replacement and stops persistin
 it('keeps the paused reading position anchored when eviction is hidden by appends', async () => {
   saveViewState('feed', { autoScroll: false });
   const row = (id: number): DisplayEvent => ({ id, kind: 'chat', author: `user${id}`, text: `message ${id}`, receivedAt: id });
+  // Arrange: ten 28px rows, with the reader paused partway down the feed
   const events = shallowRef<DisplayEvent[]>(Array.from({ length: 10 }, (_, index) => row(index + 1)));
   const domRect = (top: number, height = 0): DOMRect => ({
     x: 0,
@@ -126,9 +127,11 @@ it('keeps the paused reading position anchored when eviction is hidden by append
     });
     element.scrollTop = 100;
 
+    // Act: evict the oldest row while appending two; the anchored row keeps its place on screen
     events.value = [...events.value.slice(1), row(11), row(12)];
     await nextTick();
 
+    // Assert: scrollTop falls by exactly one row height, 100 to 72, so the reader sees no jump
     expect(element.scrollTop).toBe(72);
   } finally {
     wrapper.unmount();
@@ -137,6 +140,7 @@ it('keeps the paused reading position anchored when eviction is hidden by append
   }
 });
 
+// A reader paused deep in a long feed must keep their row when the list is trimmed from both ends.
 it('restores a paused anchor from the clamped scroll position', async () => {
   saveViewState('feed', { autoScroll: false });
   const row = (id: number): DisplayEvent => ({ id, kind: 'chat', author: `user${id}`, text: `message ${id}`, receivedAt: id });
@@ -179,17 +183,21 @@ it('restores a paused anchor from the clamped scroll position', async () => {
       configurable: true,
       get: () => element.childElementCount * 10,
     });
+    // Arrange: scrollTop reads back clamped to the current content height, as a browser does
     let assignedScrollTop = 0;
     Object.defineProperty(element, 'scrollTop', {
       configurable: true,
       get: () => Math.min(assignedScrollTop, Math.max(0, element.childElementCount * 10 - 100)),
       set: (value) => { assignedScrollTop = value; },
     });
+    // Act: the reader pauses 500px down the feed, so the viewport anchors on the row at that offset
     element.scrollTop = 500;
 
+    // Act: old rows are evicted from both ends, leaving 45 rows, so the anchored row changes index
     events.value = events.value.slice(45, 90);
     await nextTick();
 
+    // Assert: the reader stays on its row at offset 50, not the stale offset, which would clamp to 350
     expect(element.scrollTop).toBe(50);
   } finally {
     wrapper.unmount();

@@ -1,4 +1,3 @@
-const t = (key: string): string => testMessage('en', key);
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { describe, expect, it } from 'vitest';
 import type { ActionTypeDefinition, BehaviorRun, LiveAction, LiveEvent, PluginStatus } from '../../../../../../src/automation/behavior/types.ts';
@@ -19,6 +18,8 @@ import {
   triggerOptions,
 } from '../../../../../../src/web/entities/automation/lib/automation-records.ts';
 import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
+
+const t = (key: string): string => testMessage('en', key);
 
 const localize = (value: unknown) => (value as { default: string }).default;
 const text = (value: string) => ({ default: value, i18key: '' });

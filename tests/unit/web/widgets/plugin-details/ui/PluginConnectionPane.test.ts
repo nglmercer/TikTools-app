@@ -12,6 +12,7 @@ it('flushes pending settings before asking the parent to probe the connection', 
   const operations: string[] = [];
   const text = (value: string) => ({ default: value, i18key: '' });
   const save = vi.fn<PluginControls['saveSettings']>(() => { operations.push('save'); });
+  // Arrange: edits to a server setting autosave after a delay, so the typed value is still pending
   const plugins = {
     settings: shallowRef({ server: {
       schema: { type: 'object', properties: {
@@ -40,9 +41,11 @@ it('flushes pending settings before asking the parent to probe the connection', 
   try {
     await wrapper.get('.connection-editor input').setValue('http://127.0.0.1:9000');
     expect(save).not.toHaveBeenCalled();
+    // Act: clicking Test must save the pending value first, so the probe runs against the URL just typed
     await wrapper.get('.plugin-details__test').trigger('click');
     expect(operations).toEqual(['save', 'probe']);
     expect(save).toHaveBeenCalledWith('server', { serverUrl: 'http://127.0.0.1:9000' });
+    // Assert: the flush cancelled the pending autosave, so the delayed timer does not save the value twice
     vi.advanceTimersByTime(1000);
     expect(save).toHaveBeenCalledTimes(1);
   } finally {

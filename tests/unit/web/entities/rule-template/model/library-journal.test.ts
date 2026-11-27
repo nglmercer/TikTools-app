@@ -159,7 +159,9 @@ test('a known library commit keeps its review busy until a new coherent snapshot
 
 describe('atomic Owner library transition gateway', () => {
   test('all eight user operations use one native submission each and never write persistent app-state keys', async () => {
+    // Arrange: profile A owns one action and one event while B is empty, so operations have records to move
     const f = fixture();
+    // Act: each of the eight user operations is one reviewed change, applied in order on the same host
     await apply(f, { operation: LIBRARY_OPERATION.createProfile, id: 'c', name: 'Profile C', description: '' });
     await apply(f, { operation: 'switch-profile', id: 'b' });
     expect(f.source.actions[0]?.enabled).toBe(false);
@@ -196,8 +198,11 @@ describe('atomic Owner library transition gateway', () => {
     await apply(f, { operation: LIBRARY_OPERATION.importTemplates, templates: [template] });
     await apply(f, { operation: 'delete-template', id: template.id });
     await apply(f, { operation: 'delete-profile', id: 'b' });
+    // Assert: exactly eight library submissions were sent, one per operation, with no retries
     expect(f.calls.filter((call) => call.method === RPC.automationLibrarySubmit)).toHaveLength(8);
+    // Assert: no operation writes app-state keys or calls the legacy per-record commands directly
     expect(f.calls.some((call) => call.method === RPC.appStateSet || /^automation\.(create|delete|set_enablement)$/.test(call.method))).toBe(false);
+    // Assert: the host journal records all eight outcomes and the library advances to revision 8
     expect(f.journal.state.value?.recent).toHaveLength(8);
     expect(f.journal.snapshot.value?.revision).toBe('8');
   });

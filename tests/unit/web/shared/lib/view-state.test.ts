@@ -34,7 +34,9 @@ function readStored(): Record<string, unknown> | null {
 }
 
 test('save and load round-trips every section', () => {
+  // Arrange: start from empty storage so the blob holds only the sections saved below
   localStorage.clear();
+  // Act: each page saves its own section in a separate call, as it does during normal use
   saveViewState('tab', 'behavior');
   saveViewState('feed', {
     filter: 'gift',
@@ -67,6 +69,7 @@ test('save and load round-trips every section', () => {
   });
   saveViewState('aside', { open: true });
 
+  // Assert: every section loads back field for field, so no page loses its saved view after a reload
   const state = loadViewState();
   expect(state.tab).toBe('behavior');
   expect(state.feed).toEqual({

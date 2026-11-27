@@ -17,7 +17,7 @@ describe('emote image failure cache', () => {
     expect(hasEmoteImageFailed(url)).toBe(true);
   });
 
-  it('is idempotent', () => {
+  it('counts a failed emote image once however many times it is reported', () => {
     markEmoteImageFailed('https://cdn.example.com/a.webp');
     markEmoteImageFailed('https://cdn.example.com/a.webp');
     expect(emoteImageFailureCount()).toBe(1);

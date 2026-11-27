@@ -1,8 +1,9 @@
-const t = (key: string): string => testMessage('en', key);
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { mount } from '@vue/test-utils';
 import { expect, test } from 'vitest';
 import SettingsRow from '../../../../../../src/web/shared/ui/settings-row/SettingsRow.vue';
+
+const t = (key: string): string => testMessage('en', key);
 test('labels the input and gives its group a stable description without hiding details', () => {
   const wrapper = mount(SettingsRow, {
     props: { label:'Background updates', for:'updates', description:t('appUpdater.automaticChecks') },

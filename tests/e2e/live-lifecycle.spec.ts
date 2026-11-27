@@ -11,10 +11,14 @@ import { PAUSE_MS, TEST_BUDGET_MS } from './support/timeouts.ts';
 test('100 actual Vue root remounts return listeners, timers and DOM to baseline', async ({ page }, testInfo) => {
   test.setTimeout(TEST_BUDGET_MS.lifecycle);
   const capture = await installFakeHost(page, emptyState());
-  await page.goto('/');
-  await waitForFrontend(page);
+  await test.step('open the app and wait for the frontend', async () => {
+    await page.goto('/');
+    await waitForFrontend(page);
+  });
   const cdp = await page.context().newCDPSession(page);
-  await cdp.send('HeapProfiler.enable');
+  await test.step('attach a heap profiler', async () => {
+    await cdp.send('HeapProfiler.enable');
+  });
   const snapshot = async (name: string): Promise<void> => {
     // Disposed RPC chains need a browser turn to settle; fixture call
     // history is deliberately removed from retained-heap measurements.
@@ -54,39 +58,47 @@ test('100 actual Vue root remounts return listeners, timers and DOM to baseline'
     return scope.__tiktools_frontend_diagnostics__();
     });
   };
-  await expect.poll(async () => (await diagnostics()).control.pending).toBe(0);
-  const baseline = await diagnostics();
-  await snapshot('warmup');
-  for (let i = 0; i < 100; i += 1) {
-    await page.evaluate(() => {
-      const scope = window as unknown as {
-        __tiktools_benchmark_controls__: { setTab(tab: string): void };
-        __tiktools_remount__(): void;
-      };
-      scope.__tiktools_remount__();
-    });
+  await test.step('wait for the first root to settle', async () => {
     await expect.poll(async () => (await diagnostics()).control.pending).toBe(0);
-    if (i === 49) await snapshot('after-50-roots');
-  }
-  await snapshot('after-100-roots');
-  const final = await diagnostics();
-  expect(final.control.topicSubscriptions).toBe(baseline.control.topicSubscriptions);
-  expect(final.control.pushSubscriptions).toBe(baseline.control.pushSubscriptions);
-  expect(final.domNodes).toBe(baseline.domNodes);
-  expect(final.ownedTimers).toBe(0);
-  expect(final.iframeCount).toBe(0);
-  expect(final.live.frames).toBe(0);
-  await testInfo.attach('diagnostics', { body: JSON.stringify({ baseline, final }), contentType: 'application/json' });
-  await assertNoUnhandledCalls(page);
-  capture.assertClean();
+  });
+  const baseline = await diagnostics();
+  await test.step('remount the root 100 times, taking heap snapshots along the way', async () => {
+    await snapshot('warmup');
+    for (let i = 0; i < 100; i += 1) {
+      await page.evaluate(() => {
+        const scope = window as unknown as {
+          __tiktools_benchmark_controls__: { setTab(tab: string): void };
+          __tiktools_remount__(): void;
+        };
+        scope.__tiktools_remount__();
+      });
+      await expect.poll(async () => (await diagnostics()).control.pending).toBe(0);
+      if (i === 49) await snapshot('after-50-roots');
+    }
+    await snapshot('after-100-roots');
+  });
+  await test.step('compare the final state with the baseline', async () => {
+    const final = await diagnostics();
+    expect(final.control.topicSubscriptions).toBe(baseline.control.topicSubscriptions);
+    expect(final.control.pushSubscriptions).toBe(baseline.control.pushSubscriptions);
+    expect(final.domNodes).toBe(baseline.domNodes);
+    expect(final.ownedTimers).toBe(0);
+    expect(final.iframeCount).toBe(0);
+    expect(final.live.frames).toBe(0);
+    await testInfo.attach('diagnostics', { body: JSON.stringify({ baseline, final }), contentType: 'application/json' });
+    await assertNoUnhandledCalls(page);
+    capture.assertClean();
+  });
 });
 
 test('100 Feed to Plugins navigation cycles actually mount both views and release presentation work', async ({ page }) => {
   test.setTimeout(TEST_BUDGET_MS.lifecycle);
   const capture = await installFakeHost(page, emptyState());
-  await page.goto('/');
-  await waitForFrontend(page);
-  await expect(page.locator(SEL.feedStream)).toBeVisible();
+  await test.step('open the feed and wait for it to render', async () => {
+    await page.goto('/');
+    await waitForFrontend(page);
+    await expect(page.locator(SEL.feedStream)).toBeVisible();
+  });
   const read = () => page.evaluate(() => (window as unknown as {
     __tiktools_frontend_diagnostics__(): {
       ownedTimers: number;
@@ -103,36 +115,42 @@ test('100 Feed to Plugins navigation cycles actually mount both views and releas
       };
     };
   }).__tiktools_frontend_diagnostics__());
-  await expect.poll(async () => (await read()).control.pending).toBe(0);
-  // Warm the lazy route's development styles before measuring retained DOM.
-  await page.getByRole('link', { name: t('navigation.plugins'), exact: true }).click();
-  await expect(page.locator(SEL.pluginsPage)).toBeVisible();
-  await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
-  await expect(page.locator(SEL.feedStream)).toBeVisible();
-  await expect.poll(async () => (await read()).control.pending).toBe(0);
-  const baseline = await read();
-  for (let i = 0; i < 100; i += 1) {
-    await page.evaluate(() => (window as unknown as {
-      __tiktools_benchmark_controls__: { setTab(tab: string): void };
-    }).__tiktools_benchmark_controls__.setTab('plugins'));
+  await test.step('warm up the lazy plugins route before measuring', async () => {
+    await expect.poll(async () => (await read()).control.pending).toBe(0);
+    // Warm the lazy route's development styles before measuring retained DOM.
+    await page.getByRole('link', { name: t('navigation.plugins'), exact: true }).click();
     await expect(page.locator(SEL.pluginsPage)).toBeVisible();
-    await expect(page.locator(SEL.feedStream)).toHaveCount(0);
-    // Visibility gating is retired: streams stay active on every tab so no chat history is skipped.
-    expect((await read()).live.presentationActive).toBe(true);
-    await page.evaluate(() => (window as unknown as {
-      __tiktools_benchmark_controls__: { setTab(tab: string): void };
-    }).__tiktools_benchmark_controls__.setTab('feed'));
+    await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
     await expect(page.locator(SEL.feedStream)).toBeVisible();
-    await expect(page.locator(SEL.pluginsPage)).toHaveCount(0);
-  }
-  await expect.poll(async () => (await read()).control.pending).toBe(0);
-  const final = await read();
-  expect(final.control.topicSubscriptions).toBe(baseline.control.topicSubscriptions);
-  expect(final.control.pushSubscriptions).toBe(baseline.control.pushSubscriptions);
-  expect(final.domNodes).toBe(baseline.domNodes);
-  expect(final.ownedTimers).toBe(0);
-  expect(final.iframeCount).toBe(0);
-  expect(final.live.frames).toBe(0);
-  await assertNoUnhandledCalls(page);
-  capture.assertClean();
+    await expect.poll(async () => (await read()).control.pending).toBe(0);
+  });
+  const baseline = await read();
+  await test.step('switch between the feed and plugins 100 times', async () => {
+    for (let i = 0; i < 100; i += 1) {
+      await page.evaluate(() => (window as unknown as {
+        __tiktools_benchmark_controls__: { setTab(tab: string): void };
+      }).__tiktools_benchmark_controls__.setTab('plugins'));
+      await expect(page.locator(SEL.pluginsPage)).toBeVisible();
+      await expect(page.locator(SEL.feedStream)).toHaveCount(0);
+      // Visibility gating is retired: streams stay active on every tab so no chat history is skipped.
+      expect((await read()).live.presentationActive).toBe(true);
+      await page.evaluate(() => (window as unknown as {
+        __tiktools_benchmark_controls__: { setTab(tab: string): void };
+      }).__tiktools_benchmark_controls__.setTab('feed'));
+      await expect(page.locator(SEL.feedStream)).toBeVisible();
+      await expect(page.locator(SEL.pluginsPage)).toHaveCount(0);
+    }
+  });
+  await test.step('compare the final state with the baseline', async () => {
+    await expect.poll(async () => (await read()).control.pending).toBe(0);
+    const final = await read();
+    expect(final.control.topicSubscriptions).toBe(baseline.control.topicSubscriptions);
+    expect(final.control.pushSubscriptions).toBe(baseline.control.pushSubscriptions);
+    expect(final.domNodes).toBe(baseline.domNodes);
+    expect(final.ownedTimers).toBe(0);
+    expect(final.iframeCount).toBe(0);
+    expect(final.live.frames).toBe(0);
+    await assertNoUnhandledCalls(page);
+    capture.assertClean();
+  });
 });

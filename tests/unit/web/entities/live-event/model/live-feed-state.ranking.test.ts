@@ -13,6 +13,7 @@ describe('authoritative core likes ranking', () => {
         creatorId: 'creator', roomId: FIXTURE_ID.roomA, leaders: [preconnectLeader],
       } as never);
       harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: FIXTURE_ID.roomA } as never);
+      // Assert: the pre-connection ranking is already shown, so the board does not wait for live.connected
       expect(live.likeLeaders.value).toEqual([preconnectLeader]);
       const alice = { rank: 1, score: 150, uniqueId: 'alice', nickname: 'Alice', userId: '1' };
       const bob = { rank: 2, score: 90, uniqueId: 'bob', nickname: 'Bob', userId: '2' };
@@ -22,8 +23,10 @@ describe('authoritative core likes ranking', () => {
         leaders: [alice, bob],
       } as never);
       expect(live.likeLeaders.value).toEqual([alice, bob]);
+      // Assert: ranking updates never add feed events, so the board is independent of the feed history
       expect(live.events.value).toHaveLength(0);
 
+      // Act: a ranking for another room, with a far higher score, must be rejected rather than merged
       harness.emit(TOPIC.liveLikesRanking, {
         creatorId: 'creator',
         roomId: 'other-room',
@@ -31,6 +34,7 @@ describe('authoritative core likes ranking', () => {
       } as never);
       expect(live.likeLeaders.value).toEqual([alice, bob]);
 
+      // Act: a fresh ranking for the joined room reorders the board, so leaders follow the new scores
       harness.emit(TOPIC.liveLikesRanking, {
         creatorId: 'creator',
         roomId: FIXTURE_ID.roomA,
@@ -41,6 +45,7 @@ describe('authoritative core likes ranking', () => {
       // Rejoining the same room does not clear authoritative session totals.
       harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: FIXTURE_ID.roomA } as never);
       expect(live.likeLeaders.value).toHaveLength(2);
+      // Act: joining a different room starts a new session, which resets the authoritative totals
       harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: 'room-b' } as never);
       expect(live.likeLeaders.value).toHaveLength(0);
     } finally {

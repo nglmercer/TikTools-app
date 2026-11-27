@@ -1,4 +1,3 @@
-const t = (key: string): string => testMessage('en', key);
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { flushPromises } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
@@ -10,6 +9,8 @@ import { nativeDefinitionHost } from '@/entities/automation/testing/native-defin
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import CloudLibrary from '../../../../../../src/web/features/cloud-library/ui/CloudLibrary.vue';
 import { ACCOUNT_STATE, ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+
+const t = (key: string): string => testMessage('en', key);
 
 const firstId = '00000000-0000-4000-8000-000000000001';
 const nextId = '00000000-0000-4000-8000-000000000002';
@@ -117,6 +118,7 @@ describe('CloudLibrary', () => {
       if (method === 'cloudLibrary.read') return pending;
       throw new Error(`unexpected ${method}`);
     });
+    // Arrange: capture the context-invalidated topic and the event-gap handler so the test can fire each one
     client.onTopic = (topic, handler) => {
       if (topic === 'cloud.context.invalidated') cloudInvalidated = () => handler({} as never);
       return () => { cloudInvalidated = () => {}; };
@@ -133,15 +135,19 @@ describe('CloudLibrary', () => {
     await wrapper.findAll('select')[0]!.setValue('mine');
     await flushPromises();
     await button(wrapper, 'Private title').trigger('click');
+    // Act: a same-host context change clears the open private detail before its read returns
     cloudInvalidated();
     await nextTick();
     expect(wrapper.text()).not.toContain('Private title');
+    // Assert: the late response for the cleared detail is discarded instead of repainting it
     resolveDetail({ meta: summary(firstId, 'Private title'), document: { title: 'Old detail' } });
     await flushPromises();
     expect(wrapper.text()).not.toContain('Old detail');
+    // Act: a fresh search reloads the private list, so the document is visible again before the gap
     await wrapper.get('form').trigger('submit');
     await flushPromises();
     expect(wrapper.text()).toContain('Private title');
+    // Act: a dropped event means the state can no longer be trusted, so private content clears again
     gap();
     await nextTick();
     expect(wrapper.text()).not.toContain('Private title');

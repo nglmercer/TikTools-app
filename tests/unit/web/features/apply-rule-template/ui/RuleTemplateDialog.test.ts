@@ -17,6 +17,7 @@ const t = (key: string): string => testMessage('en', key);
 afterEach(() => activateLocale('en'));
 test('oversized expansion reports an error while retaining the configured template and parameters, then allows a bounded correction', async () => {
   await activateLocale('en');
+  // Arrange: a template repeating its parameter 500 times, so a large value overflows the limit
   const parsed = parseRuleTemplate({
     templateVersion: 1,
     id: 'bounded-template',
@@ -43,18 +44,22 @@ test('oversized expansion reports an error while retaining the configured templa
     attachTo: document.body,
   });
   await wrapper.findAll('.rule-templates__card').find((card) => card.text().includes('Bounded template'))!.trigger('click');
+  // Act: enter a value large enough to overflow the expansion limit, then apply
   const value = 'x'.repeat(256 * 1024);
   const form = wrapper.getComponent(BaseSchemaForm);
   form.vm.$emit('update:modelValue', { value });
   await flushPromises();
   await wrapper.get('.base-button--primary').trigger('click');
+  // Assert: the overflow is explained, and the dialog stays open with the entered parameters and no apply
   expect(wrapper.get('[role="alert"]').text()).toContain('expanded rules are too large');
   expect(form.props('modelValue')).toEqual({ value });
   expect(wrapper.emitted('apply')).toBeUndefined();
   expect(wrapper.get('dialog').attributes('open')).toBeDefined();
+  // Act: correct the value to something small; the same configured template now applies
   form.vm.$emit('update:modelValue', { value: 'safe' });
   await flushPromises();
   await wrapper.get('.base-button--primary').trigger('click');
+  // Assert: the bounded correction applies exactly once
   expect(wrapper.emitted('apply')).toHaveLength(1);
 });
 

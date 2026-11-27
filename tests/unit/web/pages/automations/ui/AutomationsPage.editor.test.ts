@@ -222,7 +222,7 @@ it('offers the sync panel for the events and for the actions, but not on the var
     expect(wrapper.findAll('.automation-library__type-icon')).toHaveLength(1);
   });
 
-  it('shows recent runs', async () => {
+  it('lists the recent automation runs with their action and result', async () => {
     const { wrapper } = await mountPage();
     expect(wrapper.get('.automation-runs').text()).toContain('Log gift');
     expect(wrapper.get('.automation-runs').text()).toContain('logged');

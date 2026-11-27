@@ -1,4 +1,3 @@
-const t = (key: string): string => testMessage('en', key);
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { flushPromises } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
@@ -9,6 +8,8 @@ import { useAppUpdaterStore } from '../../../../../../src/web/features/app-updat
 import AppUpdater from '../../../../../../src/web/features/app-updater/ui/AppUpdater.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import { RPC } from '../../../../../shared/index.ts';
+
+const t = (key: string): string => testMessage('en', key);
 
 function status(overrides: Partial<UpdateStatus> = {}): UpdateStatus {
   return {

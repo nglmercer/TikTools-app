@@ -1,4 +1,3 @@
-const t = (key: string): string => testMessage('en', key);
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { describe, expect, it } from 'vitest';
 import { ref } from 'vue';
@@ -6,6 +5,8 @@ import type { WidgetStyle } from '../../../../../../src/widgets/sdk/template.ts'
 import type { WidgetKind } from '../../../../../../src/widgets/sdk/templates.ts';
 import { scalarControls, type ControlLabels } from '../../../../../../src/web/features/edit-overlay-design/lib/design-controls.ts';
 import { useDesignEditor } from '../../../../../../src/web/features/edit-overlay-design/model/use-design-editor.ts';
+
+const t = (key: string): string => testMessage('en', key);
 
 const labels = new Proxy({}, { get: (_, key) => String(key) }) as ControlLabels;
 const controls = scalarControls(labels);

@@ -1,4 +1,3 @@
-const t = (key: string): string => testMessage('en', key);
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test } from '@playwright/test';
 
@@ -10,6 +9,8 @@ import {
   readHostState,
 } from './fixtures/tiktools-host.ts';
 import { RPC } from '../shared/index.ts';
+
+const t = (key: string): string => testMessage('en', key);
 
 async function openConnections(page: Parameters<typeof installFakeHost>[0]): Promise<void> {
   const tab = page.getByRole('link', { name: t('navigation.connections') });

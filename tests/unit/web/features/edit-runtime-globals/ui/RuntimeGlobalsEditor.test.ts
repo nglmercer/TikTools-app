@@ -58,7 +58,7 @@ describe('RuntimeGlobalsEditor', () => {
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
   });
 
-  it('removes a row', async () => {
+  it('removes the first global row and enables saving', async () => {
     const { wrapper } = await mountEditor(() => ({ globals: { a: '1', b: '2' } }));
     await wrapper.findAll('button[aria-label="Remove global"]')[0]!.trigger('click');
     expect(wrapper.findAll('input').map((input) => input.element.value)).toEqual(['b', '2']);

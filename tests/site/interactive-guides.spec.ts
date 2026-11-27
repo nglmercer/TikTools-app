@@ -55,51 +55,61 @@ for (const locale of docLocales) {
 
   // Fixtures are identical in every locale, so this check runs once, in English.
   if (locale === 'en') test(`${locale}: article zoom preserves a desktop viewport, working controls and existing state`, async ({ page }) => {
-    await page.goto(`${locale}/user/live/feed.html`);
+    await test.step('open the feed demo page', async () => {
+      await page.goto(`${locale}/user/live/feed.html`);
+    });
     const panel = page.locator('.demo-frame');
     const frame = (await (await panel.locator('iframe').elementHandle())!.contentFrame())!;
-    await expect(frame.locator(selector.demoControls)).toBeHidden();
-    await expect(panel.getByTestId(frameTestId.step)).toBeEnabled();
-    expect(await frame.evaluate(() => innerWidth)).toBe(viewport.laptop.width);
-    await panel.getByTestId(frameTestId.step).click();
-    await expect(frame.locator(selector.liveFeed)).toContainText(FIRST_CHAT_MESSAGE);
+    await test.step('check the demo is isolated at laptop width and play its first step', async () => {
+      await expect(frame.locator(selector.demoControls)).toBeHidden();
+      await expect(panel.getByTestId(frameTestId.step)).toBeEnabled();
+      expect(await frame.evaluate(() => innerWidth)).toBe(viewport.laptop.width);
+      await panel.getByTestId(frameTestId.step).click();
+      await expect(frame.locator(selector.liveFeed)).toContainText(FIRST_CHAT_MESSAGE);
+    });
     const search = frame.locator(`${selector.liveFeed} input[type="search"]`);
     const instance = new URL(frame.url()).searchParams.get('instance');
-    for (const [scale,width] of [['0.5',640],['0.75',960],['1',1280]] as const) {
-      await panel.getByTestId(frameTestId.zoom).selectOption(scale);
-      expect(await frame.evaluate(() => innerWidth)).toBe(viewport.laptop.width);
-      expect(Math.round((await panel.locator('iframe').boundingBox())!.width)).toBe(width);
-      expect(new URL(frame.url()).searchParams.get('instance')).toBe(instance);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    }
-    await panel.getByTestId(frameTestId.zoom).selectOption('0.5');
-    await search.click();
-    await search.fill('Luna');
-    await panel.getByTestId(frameTestId.zoom).selectOption('fit');
-    await expect(search).toHaveValue('Luna');
-    const alignment = await frame.locator('.feed-page').evaluate(node => {
-      const stream=node.querySelector('.feed-page__stream')!.getBoundingClientRect();
-      const inspector=node.querySelector('.feed-page__inspector')!.getBoundingClientRect();
-      return { top:Math.abs(stream.top-inspector.top), right:inspector.left >= stream.right };
-    });
-    expect(alignment.top).toBeLessThan(2);
-    expect(alignment.right).toBe(true);
-    await panel.getByTestId(frameTestId.reset).click();
-    await expect(search).toHaveValue('');
-    await expect(panel.getByTestId(frameTestId.step)).toBeEnabled();
-    expect(new URL(frame.url()).searchParams.get('instance')).toBe(instance);
-    await panel.getByTestId(frameTestId.play).click();
-    await expect(panel.getByTestId(frameTestId.play)).toHaveAttribute('aria-pressed','true');
-    await panel.getByTestId(frameTestId.play).click();
-    await expect(panel.getByTestId(frameTestId.play)).toHaveAttribute('aria-pressed','false');
-    // Review-only captures: no assertion follows, so the whole block is skipped outside QA runs.
-    if (qaArtifacts) {
-      await panel.getByTestId(frameTestId.step).click();
-      await panel.scrollIntoViewIfNeeded();
-      await qaScreenshot(panel, 'tiktools-scaled-feed-fit.png');
+    await test.step('zoom through each scale, then search and check the fit layout', async () => {
+      for (const [scale,width] of [['0.5',640],['0.75',960],['1',1280]] as const) {
+        await panel.getByTestId(frameTestId.zoom).selectOption(scale);
+        expect(await frame.evaluate(() => innerWidth)).toBe(viewport.laptop.width);
+        expect(Math.round((await panel.locator('iframe').boundingBox())!.width)).toBe(width);
+        expect(new URL(frame.url()).searchParams.get('instance')).toBe(instance);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      }
       await panel.getByTestId(frameTestId.zoom).selectOption('0.5');
-      await qaScreenshot(panel, 'tiktools-scaled-feed-50.png');
-    }
+      await search.click();
+      await search.fill('Luna');
+      await panel.getByTestId(frameTestId.zoom).selectOption('fit');
+      await expect(search).toHaveValue('Luna');
+      const alignment = await frame.locator('.feed-page').evaluate(node => {
+        const stream=node.querySelector('.feed-page__stream')!.getBoundingClientRect();
+        const inspector=node.querySelector('.feed-page__inspector')!.getBoundingClientRect();
+        return { top:Math.abs(stream.top-inspector.top), right:inspector.left >= stream.right };
+      });
+      expect(alignment.top).toBeLessThan(2);
+      expect(alignment.right).toBe(true);
+    });
+    await test.step('reset the demo and toggle autoplay', async () => {
+      await panel.getByTestId(frameTestId.reset).click();
+      await expect(search).toHaveValue('');
+      await expect(panel.getByTestId(frameTestId.step)).toBeEnabled();
+      expect(new URL(frame.url()).searchParams.get('instance')).toBe(instance);
+      await panel.getByTestId(frameTestId.play).click();
+      await expect(panel.getByTestId(frameTestId.play)).toHaveAttribute('aria-pressed','true');
+      await panel.getByTestId(frameTestId.play).click();
+      await expect(panel.getByTestId(frameTestId.play)).toHaveAttribute('aria-pressed','false');
+    });
+    await test.step('capture review screenshots when QA artifacts are enabled', async () => {
+      // Review-only captures: no assertion follows, so the whole block is skipped outside QA runs.
+      if (qaArtifacts) {
+        await panel.getByTestId(frameTestId.step).click();
+        await panel.scrollIntoViewIfNeeded();
+        await qaScreenshot(panel, 'tiktools-scaled-feed-fit.png');
+        await panel.getByTestId(frameTestId.zoom).selectOption('0.5');
+        await qaScreenshot(panel, 'tiktools-scaled-feed-50.png');
+      }
+    });
   });
 
   test(`${locale}: product landing shows one quiet demo and keeps the guides reachable`, async ({ page, baseURL }) => {

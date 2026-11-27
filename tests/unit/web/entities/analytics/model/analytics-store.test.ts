@@ -42,7 +42,7 @@ describe('useAnalyticsStore', () => {
     expect(store.summary).toEqual({ startDay: 2 });
   });
 
-  it('reports failures', async () => {
+  it('exposes the host error and stops loading when the analytics call fails', async () => {
     const { store } = setup(() => {
       throw new Error('host down');
     });

@@ -1,4 +1,3 @@
-const t = (key: string): string => testMessage('en', key);
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { describe, expect, it } from 'vitest';
 import type { EventFilter } from '../../../../../../src/automation/behavior/types.ts';
@@ -13,6 +12,8 @@ import {
   withValues,
 } from '../../../../../../src/web/entities/automation/lib/conditions.ts';
 import { EVENT_KIND } from '../../../../../shared/index.ts';
+
+const t = (key: string): string => testMessage('en', key);
 
 const filter = (patch: Partial<EventFilter>): EventFilter => ({ path: 'event.data.comment', operator: 'eq', value: '', ...patch });
 

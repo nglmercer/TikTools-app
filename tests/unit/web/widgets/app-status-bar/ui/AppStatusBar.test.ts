@@ -1,8 +1,9 @@
-const t = (key: string): string => testMessage('en', key);
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { describe, expect, it } from 'vitest';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import AppStatusBar from '../../../../../../src/web/widgets/app-status-bar/ui/AppStatusBar.vue';
+
+const t = (key: string): string => testMessage('en', key);
 
 function mountStatusBar(props: Record<string, unknown>) {
   return mountWithPlugins(AppStatusBar, { props: { creator: '', viewers: 0, ...props } as never });

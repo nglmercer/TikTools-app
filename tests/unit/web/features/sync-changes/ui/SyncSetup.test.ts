@@ -36,6 +36,7 @@ it('retains the migration blocker and never migrates without a successful review
 
 
 it('requires explicit confirmation of the reviewed inventory and rechecks migration afterwards', async () => {
+  // Arrange: migration is blocked by a missing plugin; the repair must reuse the reviewed inventory digest
   const review = 'a'.repeat(64);
   let repaired = false;
   const { client, calls } = createFakeControlClient(method => {
@@ -74,11 +75,14 @@ it('requires explicit confirmation of the reviewed inventory and rechecks migrat
   };
   await click(t('syncChanges.prepare'));
   await click(t('syncChanges.inventoryReview'));
+  // Assert: the reviewed inventory lists the missing plugin and promises that pending changes are kept
   expect(wrapper.text()).toContain('missing.plugin');
   expect(wrapper.text()).toContain('pending changes are kept');
   expect(calls.some(call => call.method === 'sync.v2.inventory.repair')).toBe(false);
+  // Act: the repair runs only on an explicit click, and it sends back the exact digest the user reviewed
   await click(t('syncChanges.inventoryRepair'));
   expect(calls.find(call => call.method === 'sync.v2.inventory.repair')?.params).toEqual({ review });
+  // Assert: migration is rechecked after the repair, and it is still never started automatically
   expect(calls.filter(call => call.method === 'sync.v2.preview')).toHaveLength(2);
   expect(calls.some(call => call.method === 'sync.v2.migrate')).toBe(false);
 });

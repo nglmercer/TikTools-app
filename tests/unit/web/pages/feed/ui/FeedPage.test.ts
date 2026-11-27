@@ -154,6 +154,7 @@ describe('FeedPage', () => {
         roomId: string;
       }
     >();
+    // Arrange: a host ranking engine that serves gift-diamond totals for General and like totals for Likes
     const call = (async (method: string, params: Record<string, unknown> = {}) => {
       if (method === RPC.rankingsList) return { rankings: [...definitions.values()] };
       if (method === RPC.rankingsCreate) {
@@ -173,15 +174,18 @@ describe('FeedPage', () => {
     await flushPromises();
     await nextTick();
 
+    // Assert: General comes from the host ranking, ordered by gift diamonds, not the legacy projection
     expect(wrapper.text()).toContain(t('feed.viewers.sourceRanking'));
     expect(wrapper.findAll('.top-viewers__row').map((row) => row.text())).toEqual([
       expect.stringContaining('900'),
       expect.stringContaining('30'),
     ]);
+    // Act: switch the viewer filter to Likes, which must show the engine's total rather than the legacy 7
     await wrapper.findAll('.feed-inspector__viewer-filter button').find((button) => button.text() === t('feed.filters.like'))!.trigger('click');
     expect(wrapper.findAll('.top-likes__row')).toHaveLength(1);
     expect(wrapper.get('.top-likes__row').text()).toContain('5,000');
 
+    // Act: a pushed ranking update for the likes board must replace its rows with the new total
     emit(TOPIC.rankingUpdated, { snapshot: rankingSnapshot('feed-top-likes', 'luna', 'room-42', [6000, 12], 2) });
     await nextTick();
     expect(wrapper.findAll('.top-likes__row')).toHaveLength(2);
@@ -232,7 +236,7 @@ describe('FeedPage', () => {
     expect(wrapper.find('.feed-inspector').exists()).toBe(true);
   });
 
-  it('clears the stream', async () => {
+  it('empties the feed when Clear feed is pressed', async () => {
     const { wrapper, push } = await mountFeed();
     await push({ kind: 'chat', author: 'luna', text: 'bye', msgId: 'c1' });
     await wrapper.get('button[aria-label="Clear feed"]').trigger('click');

@@ -188,6 +188,7 @@ test('profile names slug to valid unique ids', () => {
 });
 
 test('switch enables the target, disables everything else, prunes deleted rules', async () => {
+  // Arrange: profile A owns ea and aa plus 'gone', a rule the host no longer has; profile B owns eb
   const store: Record<string, string> = {
     [RPC.behaviorProfilesPacks]: JSON.stringify([
       { id: 'a', name: 'A', description: '', eventIds: ['ea'], actionIds: ['aa', 'gone'] },
@@ -229,6 +230,7 @@ test('switch enables the target, disables everything else, prunes deleted rules'
   const state = useRuleProfiles(client, () => false);
   await state.loadProfiles();
   expect(state.activeId.value).toBe('a');
+  // Act: switch to B, so A's rules are disabled, B's are enabled, and unowned 'loose' is disabled too
   await state.switchProfile('b', { eventIds: ['ea', 'eb', 'loose'], actionIds: ['aa'] });
   expect(toggled).toEqual([
     { kind: 'event', id: 'ea', enabled: false },
@@ -238,10 +240,12 @@ test('switch enables the target, disables everything else, prunes deleted rules'
     { kind: 'action', id: 'gone', enabled: false },
   ]);
   expect(state.activeId.value).toBe('b');
+  // Assert: the deleted 'gone' rule is pruned from A without failing the switch or reporting an error
   expect(state.packs.value.find((pack) => pack.id === 'a')?.actionIds).toEqual(['aa']);
   expect(state.error.value).toBeNull();
 
   // Switching back to default revives exactly the leftovers.
+  // Act: switch back to default, which re-enables only the leftovers that no named profile owns
   toggled.length = 0;
   await state.switchProfile(DEFAULT_PROFILE_ID, { eventIds: ['ea', 'eb', 'loose'], actionIds: ['aa'] });
   expect(toggled).toEqual([
@@ -358,6 +362,7 @@ test('hand-saved rules adopt into the active non-default pack only', async () =>
 });
 
 test('export mirrors the CLI profile shape and skips action-less events', () => {
+  // Arrange: one event with a real action and a stray action ID, plus one event that has no actions
   const exported = buildProfileDoc(
     { id: 'pack-a', name: 'A', description: '', eventIds: ['e1', 'e2'], actionIds: ['a1'] },
     [
@@ -386,6 +391,7 @@ test('export mirrors the CLI profile shape and skips action-less events', () => 
     ],
     [{ id: 'a1', name: 'Act', typeId: ACTION_TYPE.coreLog, enabled: true, config: { message: 'hi' } }],
   );
+  // Assert: only the event with an action is exported; the action-less event is counted as skipped
   expect(exported.entries).toBe(1);
   expect(exported.skipped).toBe(1);
   expect(exported.doc['id']).toBe('pack-a');
@@ -396,6 +402,7 @@ test('export mirrors the CLI profile shape and skips action-less events', () => 
     };
     params: unknown;
   }>;
+  // Assert: the template keeps the CLI's shape: a stable export ID, its one action, and no parameters
   expect(templates[0]?.template.id).toBe('export-e1');
   expect(templates[0]?.template.actions).toHaveLength(1);
   expect(templates[0]?.params).toEqual({});

@@ -256,6 +256,7 @@ test('strict definition metadata rejects added source, malformed revisions and m
 test('fresh delete acknowledgement supports complete cascades and rejects cross-target or duplicate metadata', () => {
   const input: DefinitionWrite = { operation: 'delete', kind: 'action', id: 'saved', expectedRevision: '1' };
   const intent = { commandId: `owner-definition-${'a'.repeat(32)}`, ...input, hostInstanceId: 'instance', recordDigest: null, createdAt: 1 };
+  // Arrange: deleting the action cascades to 600 events, so the ack must carry 601 resource versions
   const versions = [
     { kind: 'automation', scope: 'action', id: 'saved', revision: '2' },
     ...Array.from({ length: 600 }, (_, i) => ({ kind: 'automation', scope: 'event', id: `event-${String(i).padStart(4, '0')}`, revision: '9' })),
@@ -288,10 +289,13 @@ test('fresh delete acknowledgement supports complete cascades and rejects cross-
       hostInstanceId: 'instance',
     },
   };
+  // Assert: the full cascade is accepted with every version kept
   expect(parseDefinitionSubmission(raw, input, state).acknowledgement?.resourceVersions).toHaveLength(601);
+  // Act: an acknowledgement whose value names another record belongs to a different target and is refused
   expect(() =>
     parseDefinitionSubmission({ ...raw, acknowledgement: { ...raw.acknowledgement, value: { id: 'other', deleted: true } } }, input, state),
   ).toThrow();
+  // Act: a duplicated version entry makes the metadata ambiguous, so the whole acknowledgement is refused
   expect(() =>
     parseDefinitionSubmission(
       { ...raw, acknowledgement: { ...raw.acknowledgement, resourceVersions: [versions[0], ...versions.slice(1, -1), versions[1]] } },
@@ -299,6 +303,7 @@ test('fresh delete acknowledgement supports complete cascades and rejects cross-
       state,
     ),
   ).toThrow();
+  // Assert: a revision-0 outcome that reports the record as still present is accepted as fresh
   const zeroInput = { ...input, expectedRevision: '0' };
   const zero = { state: { ...state, recent: [{ ...state.recent[0]!, intent: { ...intent, expectedRevision: '0' },
     receipt: { revision: '0', recordDigest: null, enabled: null, deleted: false, affectedResources: 1 } }] }, acknowledgement: {

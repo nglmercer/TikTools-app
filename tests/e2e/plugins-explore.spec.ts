@@ -1,4 +1,3 @@
-const t = (key: string): string => testMessage('en', key);
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test } from '@playwright/test';
 
@@ -6,6 +5,8 @@ import { installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
 import { ROUTE, RPC } from '../shared/index.ts';
 import { SEL } from './support/selectors.ts';
+
+const t = (key: string): string => testMessage('en', key);
 
 /**
  * Plugins, Explore lists the Cloud catalog when the host announces `catalog.items`;

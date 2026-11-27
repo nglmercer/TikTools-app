@@ -112,6 +112,7 @@ describe('plugin sync adapter', () => {
   });
 
   it('lists a settings change by key names only and never reads or shows a value', async () => {
+    // Arrange: three settings records whose values carry LEAK markers that must never leave the adapter
     const held = (state: 'present' | 'deleted', value: unknown): WorkspaceValue => ({
       state,
       revision: 2,
@@ -142,18 +143,21 @@ describe('plugin sync adapter', () => {
       },
     });
     const idle = entry({ collection: 'plugin-settings', key: 'gamma', remote: held('present', { settings: { x: 'LEAK-IDLE' } }) });
+    // Act: list the records; only the two with pending edits appear, each with just its changed key names
     const { adapter } = setup([queued, clash, idle], []);
     const changes = await adapter.list();
     expect(changes.map((change) => [change.id, change.kind, change.status, change.side, change.changedKeys])).toEqual([
       ['plugin-settings/alpha', 'pluginSettings', 'modified', 'local', ['apiKey', 'volume']],
       ['plugin-settings/beta', 'pluginSettings', 'conflict', 'conflict', ['token']],
     ]);
+    // Assert: no change row carries a value, version or Cloud copy, since only key names may be shown
     for (const change of changes) {
       expect(change.before).toBeUndefined();
       expect(change.after).toBeUndefined();
       expect(change.remote).toBeUndefined();
       expect(change.base).toBeUndefined();
     }
+    // Assert: serialized, the entire list holds none of the leak markers, however the rows are rendered
     expect(JSON.stringify(changes)).not.toContain('LEAK');
   });
 

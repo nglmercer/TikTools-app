@@ -1,4 +1,3 @@
-const t = (key: string): string => testMessage('en', key);
 const te = (key: string): string => testMessage('es', key);
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test } from '@playwright/test';
@@ -22,6 +21,8 @@ import {
 } from './fixtures/states.ts';
 import { SEL, PLUGIN_TITLE } from './support/selectors.ts';
 import { WAIT_MS } from './support/timeouts.ts';
+
+const t = (key: string): string => testMessage('en', key);
 
 /**
  * Deterministic screenshot coverage. Every visual test first asserts

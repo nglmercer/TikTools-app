@@ -11,21 +11,25 @@ import { ERROR_CODE, RPC, TOPIC } from '../../../shared/index.ts';
 
 describe('public demo host', () => {
   it('populates the feed, profiles, gift catalog and analytics from the same six fictional viewers', async () => {
+    // Arrange: the public demo host runs the Spanish feed scenario with its fictional viewers
     const host = createDemoHost('feed', 'es');
     const client = createControlClient({ transport: host.transport });
     client.attach();
+    // Act: advance the scripted activity one step at a time, letting each step settle before the next
     for (let i = 0; i < DEMO_ACTIVITY_LENGTH; i++) {
       host.step();
       await Promise.resolve();
     }
     const events = host.state.feedJournal!.map((row) => row.event as unknown as UiEvent);
+    // Assert: the opening events come from six viewers, and the feed covers every kind of activity
     expect(new Set(events.slice(0, 9).map((event) => event.author)).size).toBe(6);
     expect(new Set(events.map((event) => event.kind))).toEqual(new Set(['chat', 'like', 'gift', 'member', 'social']));
     expect(events[6]).toMatchObject({ author: 'milo', text: 'Saludos desde Lima 👋' });
     expect(host.state.automationRuns).toEqual(expect.arrayContaining([expect.objectContaining({ summary: 'Hello Kai', test: false })]));
-    const catalog = await client.call<{ gifts: GiftCatalogEntry[] }>('gifts.list', {});
+    const catalog =await client.call<{ gifts: GiftCatalogEntry[] }>('gifts.list', {});
     expect(catalog.gifts[0]).toMatchObject({ id: 'demo-rose', iconUrl: expect.any(String) });
     expect(events.filter((event) => event.kind === 'gift').map((event) => event.giftDetails?.count)).toEqual([1, 3, 2, 5, 1]);
+    // Assert: every author is a leaderboard viewer, and points and level match each latest event
     for (const event of events) {
       expect(host.state.leaderboard.some((viewer) => viewer.uniqueId === event.author)).toBe(true);
       if (event.kind === 'gift') expect(event.giftDetails?.imageUrl).toBe(catalog.gifts[0]!.iconUrl);
@@ -34,6 +38,7 @@ describe('public demo host', () => {
       const last = events.findLast((event) => event.author === viewer.uniqueId)!;
       expect(viewer).toMatchObject({ points: last.points, level: last.level });
     }
+    // Assert: analytics totals are exact sums of the six top viewers, so the dashboard matches the feed
     const { summary } = await client.call<{
       summary: {
         totals: AnalyticsTotals;

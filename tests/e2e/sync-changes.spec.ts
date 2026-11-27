@@ -1,4 +1,3 @@
-import {  } from '../../src/web/shared/testing/host-messages.ts';
 import { expect, test } from '@playwright/test';
 
 import { readHostState, installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
@@ -74,65 +73,75 @@ test('the Events tab lists what changed since the last snapshot and asks before 
 
 test('Plugins send the whole pass and resolve a conflict through the v2 contract', async ({ page }) => {
   const state = sonicboomConnectedState();
-  state.announcedMethods = [
-    RPC.cloudStatus,
-    RPC.syncStatus,
-    'sync.v2.section',
-    'sync.v2.selected',
-    'sync.v2.changes.list',
-    'sync.v2.now',
-    'sync.v2.conflict.review',
-    'sync.v2.conflict.resolve',
-  ];
-  const value = (enabled: boolean, revision: number) => ({
-    state: 'present',
-    revision,
-    version: '1.0.0',
-    enabled,
-    value: { schemaVersion: 1, pluginId: SONICBOOM_ID, version: '1.0.0', enabled },
+  await test.step('seed a connected sync state with a conflict and a queued settings change', async () => {
+    state.announcedMethods = [
+      RPC.cloudStatus,
+      RPC.syncStatus,
+      'sync.v2.section',
+      'sync.v2.selected',
+      'sync.v2.changes.list',
+      'sync.v2.now',
+      'sync.v2.conflict.review',
+      'sync.v2.conflict.resolve',
+    ];
+    const value = (enabled: boolean, revision: number) => ({
+      state: 'present',
+      revision,
+      version: '1.0.0',
+      enabled,
+      value: { schemaVersion: 1, pluginId: SONICBOOM_ID, version: '1.0.0', enabled },
+    });
+    const hidden = (revision: number | null) => ({ state: 'present', revision, version: null, enabled: null, value: null });
+    state.sync = {
+      signedIn: true, enabled: true, lastSyncedAt: null, resolved: [],
+      entries: [
+        {
+          collection: 'plugin-selections',
+          key: SONICBOOM_ID,
+          remote: value(false, 4),
+          pending: { status: 'conflict', base: value(true, 3), local: value(true, 3), changedKeys: null },
+          hasNewer: false,
+        },
+        // The host never sends settings values: only the names of the keys that changed.
+        {
+          collection: 'plugin-settings',
+          key: 'other.plugin',
+          remote: hidden(2),
+          pending: { status: 'queued', base: hidden(2), local: hidden(null), changedKeys: ['apiKey', 'volume'] },
+          hasNewer: false,
+        },
+      ],
+    };
   });
-  const hidden = (revision: number | null) => ({ state: 'present', revision, version: null, enabled: null, value: null });
-  state.sync = {
-    signedIn: true, enabled: true, lastSyncedAt: null, resolved: [],
-    entries: [
-      {
-        collection: 'plugin-selections',
-        key: SONICBOOM_ID,
-        remote: value(false, 4),
-        pending: { status: 'conflict', base: value(true, 3), local: value(true, 3), changedKeys: null },
-        hasNewer: false,
-      },
-      // The host never sends settings values: only the names of the keys that changed.
-      {
-        collection: 'plugin-settings',
-        key: 'other.plugin',
-        remote: hidden(2),
-        pending: { status: 'queued', base: hidden(2), local: hidden(null), changedKeys: ['apiKey', 'volume'] },
-        hasNewer: false,
-      },
-    ],
-  };
   const capture = await installFakeHost(page, state);
-  await page.goto(ROUTE.plugins);
-  await waitForFrontend(page);
+  await test.step('open the Plugins sync changes panel', async () => {
+    await page.goto(ROUTE.plugins);
+    await waitForFrontend(page);
 
-  await page.getByRole('button', { name: t('syncChanges.buttonCount', { count: 2 }) }).click();
+    await page.getByRole('button', { name: t('syncChanges.buttonCount', { count: 2 }) }).click();
+  });
   const panel = page.getByRole('dialog', { name: new RegExp(`${t('syncChanges.title')} · Plugins`) });
-  await expect(panel.locator('.sync-review__side--local')).toHaveCount(1);
-  await expandCard(panel, 'other.plugin');
-  await expect(panel.locator('.sync-panel__keys')).toContainText('Changed settings: apiKey, volume');
-  await expect(panel.locator(SEL.baseJsonDiff)).toHaveCount(0);
-  await expandCard(panel, 'SonicBoom Server');
-  await expect(panel.locator('.sync-review__side--conflict')).toHaveCount(1);
-  await expect(panel.getByRole('button', { name: t('syncChanges.sync'), exact: true })).toBeVisible();
-  // No selective send, no force and no history on this section.
-  await expect(panel.getByRole('button', { name: t('syncChanges.push') })).toHaveCount(0);
-  await expect(panel.getByRole('button', { name: t('syncChanges.more') })).toHaveCount(0);
-  await panel.getByRole('button', { name: t('syncChanges.allCloud') }).click();
-  await expect.poll(async () => (await readHostState(page)).sync?.resolved).toEqual(['takeCloud']);
-  await panel.getByRole('button', { name: t('syncChanges.sync'), exact: true }).click();
-  await expect.poll(async () => (await readHostState(page)).calls.some((call) => call.method === RPC.syncV2Section)).toBe(true);
-  capture.assertClean();
+  await test.step('check the local settings card and the conflicting plugin card', async () => {
+    await expect(panel.locator('.sync-review__side--local')).toHaveCount(1);
+    await expandCard(panel, 'other.plugin');
+    await expect(panel.locator('.sync-panel__keys')).toContainText('Changed settings: apiKey, volume');
+    await expect(panel.locator(SEL.baseJsonDiff)).toHaveCount(0);
+    await expandCard(panel, 'SonicBoom Server');
+    await expect(panel.locator('.sync-review__side--conflict')).toHaveCount(1);
+    await expect(panel.getByRole('button', { name: t('syncChanges.sync'), exact: true })).toBeVisible();
+  });
+  await test.step('resolve the conflict by taking the cloud copy', async () => {
+    // No selective send, no force and no history on this section.
+    await expect(panel.getByRole('button', { name: t('syncChanges.push') })).toHaveCount(0);
+    await expect(panel.getByRole('button', { name: t('syncChanges.more') })).toHaveCount(0);
+    await panel.getByRole('button', { name: t('syncChanges.allCloud') }).click();
+    await expect.poll(async () => (await readHostState(page)).sync?.resolved).toEqual(['takeCloud']);
+  });
+  await test.step('sync the section and confirm the send reached the host', async () => {
+    await panel.getByRole('button', { name: t('syncChanges.sync'), exact: true }).click();
+    await expect.poll(async () => (await readHostState(page)).calls.some((call) => call.method === RPC.syncV2Section)).toBe(true);
+    capture.assertClean();
+  });
 });
 
 test('the Plugins button explains why it is disabled when sync is off', async ({ page }) => {

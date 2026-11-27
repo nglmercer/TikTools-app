@@ -101,64 +101,72 @@ test('card styles preview, discard, save per widget, and reset', async ({ page }
 });
 
 test('rapid replay and tab changes never place alert cards side by side', async ({ page }) => {
-  await installFakeHost(page, emptyState(), { theme: 'dark' });
-  await page.goto('/');
-  await waitForFrontend(page);
-  await page.getByRole('link', { name: 'Overlays', exact: true }).click();
-  await expect(page.locator(SEL.followCard)).toBeVisible();
-  // Observe every animation frame, including the intermediate transition
-  // states that a final visibility assertion would miss.
-  await page.evaluate(() => {
-    const violations: string[] = [];
-    const target = window as unknown as {
-      widgetTransitionViolations: string[];
-      stopWidgetMonitor: () => void;
-    };
-    target.widgetTransitionViolations = violations;
-    let frame = 0;
-    const sample = () => {
-      const host = document.querySelector('.widget-host');
-      const cards = host?.querySelectorAll('[role="alert"]') ?? [];
-      if (cards.length > 1) violations.push('multiple cards');
-      const bounds = host?.getBoundingClientRect();
-      if (bounds) {
-        for (const card of Array.from(cards)) {
-          const rect = card.getBoundingClientRect();
-          if (Math.abs(rect.x + rect.width / 2 - bounds.x - bounds.width / 2) > 2) {
-            violations.push('card moved off center');
+  await test.step('open the Overlays page and its Follow preview', async () => {
+    await installFakeHost(page, emptyState(), { theme: 'dark' });
+    await page.goto('/');
+    await waitForFrontend(page);
+    await page.getByRole('link', { name: 'Overlays', exact: true }).click();
+    await expect(page.locator(SEL.followCard)).toBeVisible();
+  });
+  await test.step('sample every animation frame for overlapping or off-center cards', async () => {
+    // Observe every animation frame, including the intermediate transition
+    // states that a final visibility assertion would miss.
+    await page.evaluate(() => {
+      const violations: string[] = [];
+      const target = window as unknown as {
+        widgetTransitionViolations: string[];
+        stopWidgetMonitor: () => void;
+      };
+      target.widgetTransitionViolations = violations;
+      let frame = 0;
+      const sample = () => {
+        const host = document.querySelector('.widget-host');
+        const cards = host?.querySelectorAll('[role="alert"]') ?? [];
+        if (cards.length > 1) violations.push('multiple cards');
+        const bounds = host?.getBoundingClientRect();
+        if (bounds) {
+          for (const card of Array.from(cards)) {
+            const rect = card.getBoundingClientRect();
+            if (Math.abs(rect.x + rect.width / 2 - bounds.x - bounds.width / 2) > 2) {
+              violations.push('card moved off center');
+            }
           }
         }
+        frame = requestAnimationFrame(sample);
+      };
+      sample();
+      target.stopWidgetMonitor = () => cancelAnimationFrame(frame);
+    });
+  });
+  await test.step('replay each preview and switch kinds rapidly', async () => {
+    for (const label of [
+      t('overlays.kinds.follow.name'),
+      'Gift alert',
+      t('overlays.kinds.share.name'),
+      t('overlays.kinds.subscribe.name'),
+      t('overlays.kinds.follow.name'),
+    ]) {
+      await page.getByRole('option', { name: label, exact: true }).click();
+      await expect(page.locator('.widget-host [role="alert"]')).toBeVisible();
+      for (let index = 0; index < 3; index++) {
+        await page.getByRole('button', { name: t('overlays.preview.replay') }).click();
+        await page.waitForTimeout(PAUSE_MS.replayGap);
       }
-      frame = requestAnimationFrame(sample);
-    };
-    sample();
-    target.stopWidgetMonitor = () => cancelAnimationFrame(frame);
-  });
-  for (const label of [
-    t('overlays.kinds.follow.name'),
-    'Gift alert',
-    t('overlays.kinds.share.name'),
-    t('overlays.kinds.subscribe.name'),
-    t('overlays.kinds.follow.name'),
-  ]) {
-    await page.getByRole('option', { name: label, exact: true }).click();
-    await expect(page.locator('.widget-host [role="alert"]')).toBeVisible();
-    for (let index = 0; index < 3; index++) {
-      await page.getByRole('button', { name: t('overlays.preview.replay') }).click();
-      await page.waitForTimeout(PAUSE_MS.replayGap);
     }
-  }
-  await page.waitForTimeout(PAUSE_MS.transitionEnd);
-  const violations = await page.evaluate(() => {
-    const target = window as unknown as {
-      widgetTransitionViolations: string[];
-      stopWidgetMonitor: () => void;
-    };
-    target.stopWidgetMonitor();
-    return target.widgetTransitionViolations;
+    await page.waitForTimeout(PAUSE_MS.transitionEnd);
   });
-  expect(violations).toEqual([]);
-  await expect(page.locator(SEL.followCard)).toHaveCount(1);
+  await test.step('stop sampling and expect no overlapping or off-center cards', async () => {
+    const violations = await page.evaluate(() => {
+      const target = window as unknown as {
+        widgetTransitionViolations: string[];
+        stopWidgetMonitor: () => void;
+      };
+      target.stopWidgetMonitor();
+      return target.widgetTransitionViolations;
+    });
+    expect(violations).toEqual([]);
+    await expect(page.locator(SEL.followCard)).toHaveCount(1);
+  });
 });
 
 test('all widget previews render locally without a gateway and replay', async ({ page }, testInfo) => {

@@ -218,25 +218,29 @@ test('docs load demo iframes automatically without native IPC or external reques
 
 test('two same-origin demo frames isolate preferences and reset preserves app plus other frame storage', async ({ page, baseURL }) => {
   const network = await localNetworkOnly(page, baseURL!);
-  await page.goto('en/user/live/feed.html');
-  await page.evaluate(() => {
-    localStorage.setItem('tiktok-live-locale', 'fr');
-    localStorage.setItem('tiktok-live-username', 'real-app-sentinel');
-    localStorage.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, feed: { searchQuery: 'real-app-query' } }));
-    sessionStorage.setItem('real-app-session-sentinel', 'keep-session');
+  await test.step('open the feed and seed the real app storage', async () => {
+    await page.goto('en/user/live/feed.html');
+    await page.evaluate(() => {
+      localStorage.setItem('tiktok-live-locale', 'fr');
+      localStorage.setItem('tiktok-live-username', 'real-app-sentinel');
+      localStorage.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, feed: { searchQuery: 'real-app-query' } }));
+      sessionStorage.setItem('real-app-session-sentinel', 'keep-session');
+    });
   });
   const first = await readyPanelFrame(page);
   const firstId = new URL(first.url()).searchParams.get('instance')!;
-  const secondURL = new URL(first.url());
-  secondURL.searchParams.set('instance', `${firstId.slice(0, 50)}-b`);
-  await page.evaluate((url) => {
-    const frame = document.createElement('iframe');
-    frame.id = 'isolated-second-demo';
-    frame.title = 'Second isolated demo';
-    frame.src = url;
-    frame.style.cssText = 'display:block;width:100%;height:650px';
-    document.body.append(frame);
-  }, secondURL.href);
+  await test.step('open a second demo frame on the same origin', async () => {
+    const secondURL = new URL(first.url());
+    secondURL.searchParams.set('instance', `${firstId.slice(0, 50)}-b`);
+    await page.evaluate((url) => {
+      const frame = document.createElement('iframe');
+      frame.id = 'isolated-second-demo';
+      frame.title = 'Second isolated demo';
+      frame.src = url;
+      frame.style.cssText = 'display:block;width:100%;height:650px';
+      document.body.append(frame);
+    }, secondURL.href);
+  });
   const second = (await (await page.locator('#isolated-second-demo').elementHandle())!.contentFrame())!;
   await expect(second.locator(selector.appLayout)).toBeVisible();
   const secondId = new URL(second.url()).searchParams.get('instance')!;
@@ -244,43 +248,47 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
   expect(secondId).not.toBe(firstId);
   const firstSearch = first.locator(`${selector.liveFeed} input[type="search"]`);
   const secondSearch = second.locator(`${selector.liveFeed} input[type="search"]`);
-  await expect(firstSearch).toHaveValue('');
-  await expect(secondSearch).toHaveValue('');
-  await firstSearch.fill('only-first-frame');
-  await secondSearch.fill('only-second-frame');
-  await expect.poll(() => page.evaluate((id) => localStorage.getItem(`tiktools.demo.${id}.tiktok-live-view-state`), firstId)).toContain('only-first-frame');
-  await expect.poll(() => page.evaluate((id) => localStorage.getItem(`tiktools.demo.${id}.tiktok-live-view-state`), secondId)).toContain('only-second-frame');
-  await page.evaluate((ids) => {
-    ids.forEach((id, index) => {
-      const value = index === 0 ? 'first' : 'second';
-      localStorage.setItem(`tiktools.demo.${id}.review-sentinel`, value);
-      sessionStorage.setItem(`tiktools.demo.${id}.review-sentinel`, value);
+  await test.step('fill each frame search, reset only the first frame, and compare stored values', async () => {
+    await expect(firstSearch).toHaveValue('');
+    await expect(secondSearch).toHaveValue('');
+    await firstSearch.fill('only-first-frame');
+    await secondSearch.fill('only-second-frame');
+    await expect.poll(() => page.evaluate((id) => localStorage.getItem(`tiktools.demo.${id}.tiktok-live-view-state`), firstId)).toContain('only-first-frame');
+    await expect.poll(() => page.evaluate((id) => localStorage.getItem(`tiktools.demo.${id}.tiktok-live-view-state`), secondId)).toContain('only-second-frame');
+    await page.evaluate((ids) => {
+      ids.forEach((id, index) => {
+        const value = index === 0 ? 'first' : 'second';
+        localStorage.setItem(`tiktools.demo.${id}.review-sentinel`, value);
+        sessionStorage.setItem(`tiktools.demo.${id}.review-sentinel`, value);
+      });
+    }, [firstId, secondId]);
+    await page.locator('.demo-frame').getByTestId(frameTestId.reset).click();
+    await expect(page.locator('.demo-frame').getByTestId(frameTestId.reset)).toBeEnabled();
+    await expect(firstSearch).toHaveValue('');
+    await expect(secondSearch).toHaveValue('only-second-frame');
+    const stored = await page.evaluate(([a, b]) => ({
+      appLocale: localStorage.getItem('tiktok-live-locale'), appCreator: localStorage.getItem('tiktok-live-username'),
+      appView: localStorage.getItem('tiktok-live-view-state'), appSession: sessionStorage.getItem('real-app-session-sentinel'),
+      firstLocal: localStorage.getItem(`tiktools.demo.${a}.review-sentinel`), firstSession: sessionStorage.getItem(`tiktools.demo.${a}.review-sentinel`),
+      secondLocal: localStorage.getItem(`tiktools.demo.${b}.review-sentinel`), secondSession: sessionStorage.getItem(`tiktools.demo.${b}.review-sentinel`),
+    }), [firstId, secondId]);
+    expect(stored).toEqual({
+      appLocale: 'fr',
+      appCreator: 'real-app-sentinel',
+      appView: JSON.stringify({ version: 1, feed: { searchQuery: 'real-app-query' } }),
+      appSession: 'keep-session',
+      firstLocal: null,
+      firstSession: null,
+      secondLocal: 'second',
+      secondSession: 'second',
     });
-  }, [firstId, secondId]);
-  await page.locator('.demo-frame').getByTestId(frameTestId.reset).click();
-  await expect(page.locator('.demo-frame').getByTestId(frameTestId.reset)).toBeEnabled();
-  await expect(firstSearch).toHaveValue('');
-  await expect(secondSearch).toHaveValue('only-second-frame');
-  const stored = await page.evaluate(([a, b]) => ({
-    appLocale: localStorage.getItem('tiktok-live-locale'), appCreator: localStorage.getItem('tiktok-live-username'),
-    appView: localStorage.getItem('tiktok-live-view-state'), appSession: sessionStorage.getItem('real-app-session-sentinel'),
-    firstLocal: localStorage.getItem(`tiktools.demo.${a}.review-sentinel`), firstSession: sessionStorage.getItem(`tiktools.demo.${a}.review-sentinel`),
-    secondLocal: localStorage.getItem(`tiktools.demo.${b}.review-sentinel`), secondSession: sessionStorage.getItem(`tiktools.demo.${b}.review-sentinel`),
-  }), [firstId, secondId]);
-  expect(stored).toEqual({
-    appLocale: 'fr',
-    appCreator: 'real-app-sentinel',
-    appView: JSON.stringify({ version: 1, feed: { searchQuery: 'real-app-query' } }),
-    appSession: 'keep-session',
-    firstLocal: null,
-    firstSession: null,
-    secondLocal: 'second',
-    secondSession: 'second',
   });
-  await second.goto(secondReloadURL);
-  await expect(secondSearch).toHaveValue('only-second-frame');
-  expect(network.external).toEqual([]);
-  expect(network.sockets).toEqual([]);
+  await test.step('reload the second frame and check the network stayed local', async () => {
+    await second.goto(secondReloadURL);
+    await expect(secondSearch).toHaveValue('only-second-frame');
+    expect(network.external).toEqual([]);
+    expect(network.sockets).toEqual([]);
+  });
 });
 
 test('standalone demo remains usable at desktop and mobile sizes', async ({ page, baseURL }, testInfo) => {

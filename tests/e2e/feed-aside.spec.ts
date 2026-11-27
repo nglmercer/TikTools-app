@@ -1,4 +1,3 @@
-const t = (key: string): string => testMessage('en', key);
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test } from '@playwright/test';
 
@@ -6,6 +5,8 @@ import { assertNoUnhandledCalls, emitTopic, installFakeHost, waitForFrontend } f
 import { emptyState } from './fixtures/states.ts';
 import { SEL } from './support/selectors.ts';
 import { TOPIC } from '../shared/index.ts';
+
+const t = (key: string): string => testMessage('en', key);
 
 test('feed rows stay badge-free and open details in the shared panel', async ({ page }) => {
   const capture = await installFakeHost(page, emptyState());

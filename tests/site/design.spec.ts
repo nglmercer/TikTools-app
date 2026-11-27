@@ -19,47 +19,57 @@ test('demo toolbar shares real controls, contains menus and fits desktop and mob
   const errors = trackPageErrors(page);
   const more = page.getByTestId(demoTestId.more);
   const play = page.getByTestId(demoTestId.play);
-  await page.goto(demoUrl({ scenario: 'connection' }));
-  await expect(more).toBeEnabled();
-  await expect(play).toHaveClass(/base-button/);
-  await play.click();
-  await expect(play).toHaveAttribute('aria-pressed', 'true');
-  await play.click();
-  await expect(play).toHaveAttribute('aria-pressed', 'false');
-  await more.click();
-  await page.getByRole('menuitem', { name: 'Component reference', exact: true }).click();
-  await expect(page).toHaveURL(/#\/components\/buttons$/);
-  await expect(page.locator('.component-catalog')).toBeVisible();
-  await more.click();
-  await page.getByRole('menuitemcheckbox', { name: 'Simulate an action failure' }).click();
-  await more.click();
-  await expect(page.getByRole('menuitemcheckbox', { name: 'Simulate an action failure' })).toHaveAttribute('aria-checked', 'true');
-  await page.getByRole('menuitemcheckbox', { name: 'Simulate an action failure' }).click();
-  for (const width of [viewport.desktop.width, INTERMEDIATE_WIDTH, viewport.mobile.width]) {
-    await page.setViewportSize({ width, height: viewport.desktop.height });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    const toolbar = await page.locator(selector.demoControls).boundingBox();
-    const workspace = await page.locator('#app').boundingBox();
-    expect(toolbar && workspace && Math.abs(toolbar.y + toolbar.height - workspace.y) < LAYOUT_TOLERANCE_PX).toBe(true);
-    const shell = await page.locator(selector.appLayout).boundingBox();
-    expect(shell && shell.y + shell.height <= viewport.desktop.height + LAYOUT_TOLERANCE_PX).toBe(true);
-    await expect(page.getByRole('button', { name: /^Diagnostics/ })).toBeInViewport();
-    await expect(page.getByTestId(demoTestId.reset)).toBeInViewport();
-  }
-  // The section comes from workspace navigation now; the toolbar has no scenario picker.
-  await expect(page.getByRole('combobox', { name: 'Scenario', exact: true })).toHaveCount(0);
-  await page.setViewportSize(viewport.desktop);
-  await page.getByRole('link', { name: 'Points', exact: true }).click();
-  await expect(page).toHaveURL(/#\/points$/);
-  await expect(play).toBeVisible();
-  expect(errors).toEqual([]);
-  // Review-only captures at the end of the test; skipped outside QA runs.
-  if (qaArtifacts) {
-    await page.setViewportSize(viewport.laptop);
-    await qaScreenshot(page, 'tiktools-docs-design-demo-desktop.png');
-    await page.setViewportSize(viewport.mobile);
-    await qaScreenshot(page, 'tiktools-docs-design-demo-mobile.png');
-  }
+  await test.step('open the demo and toggle play', async () => {
+    await page.goto(demoUrl({ scenario: 'connection' }));
+    await expect(more).toBeEnabled();
+    await expect(play).toHaveClass(/base-button/);
+    await play.click();
+    await expect(play).toHaveAttribute('aria-pressed', 'true');
+    await play.click();
+    await expect(play).toHaveAttribute('aria-pressed', 'false');
+  });
+  await test.step('open the component reference and toggle the failure simulation on and off', async () => {
+    await more.click();
+    await page.getByRole('menuitem', { name: 'Component reference', exact: true }).click();
+    await expect(page).toHaveURL(/#\/components\/buttons$/);
+    await expect(page.locator('.component-catalog')).toBeVisible();
+    await more.click();
+    await page.getByRole('menuitemcheckbox', { name: 'Simulate an action failure' }).click();
+    await more.click();
+    await expect(page.getByRole('menuitemcheckbox', { name: 'Simulate an action failure' })).toHaveAttribute('aria-checked', 'true');
+    await page.getByRole('menuitemcheckbox', { name: 'Simulate an action failure' }).click();
+  });
+  await test.step('check the toolbar fits each viewport width without overflow', async () => {
+    for (const width of [viewport.desktop.width, INTERMEDIATE_WIDTH, viewport.mobile.width]) {
+      await page.setViewportSize({ width, height: viewport.desktop.height });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      const toolbar = await page.locator(selector.demoControls).boundingBox();
+      const workspace = await page.locator('#app').boundingBox();
+      expect(toolbar && workspace && Math.abs(toolbar.y + toolbar.height - workspace.y) < LAYOUT_TOLERANCE_PX).toBe(true);
+      const shell = await page.locator(selector.appLayout).boundingBox();
+      expect(shell && shell.y + shell.height <= viewport.desktop.height + LAYOUT_TOLERANCE_PX).toBe(true);
+      await expect(page.getByRole('button', { name: /^Diagnostics/ })).toBeInViewport();
+      await expect(page.getByTestId(demoTestId.reset)).toBeInViewport();
+    }
+  });
+  await test.step('check the scenario picker is gone, then open Points without errors', async () => {
+    // The section comes from workspace navigation now; the toolbar has no scenario picker.
+    await expect(page.getByRole('combobox', { name: 'Scenario', exact: true })).toHaveCount(0);
+    await page.setViewportSize(viewport.desktop);
+    await page.getByRole('link', { name: 'Points', exact: true }).click();
+    await expect(page).toHaveURL(/#\/points$/);
+    await expect(play).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+  await test.step('capture review screenshots when QA artifacts are enabled', async () => {
+    // Review-only captures at the end of the test; skipped outside QA runs.
+    if (qaArtifacts) {
+      await page.setViewportSize(viewport.laptop);
+      await qaScreenshot(page, 'tiktools-docs-design-demo-desktop.png');
+      await page.setViewportSize(viewport.mobile);
+      await qaScreenshot(page, 'tiktools-docs-design-demo-mobile.png');
+    }
+  });
 });
 
 test('the landing tour jumps between real views and docks the demo controls in the bar', async ({ page }) => {

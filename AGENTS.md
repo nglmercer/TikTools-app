@@ -122,3 +122,18 @@
 - `bun scripts/test-literals.ts [--dir=tests/unit] [--threshold=5] [--fail]` lists what is still repeated. i18n keys,
   DOM attribute names and the fixture data it names are ignored on purpose.
 
+
+## Readable tests
+
+- `scripts/lint-custom.ts` (part of `frontend-lint`) fails a test with a line over 160 characters or two
+  statements on one line. There is no formatter for tests, so write them already broken up: one
+  statement per line, one argument or property per line when a call does not fit.
+- A test longer than about 40 lines should show its phases: `await test.step('what happens', ...)` in
+  Playwright specs, `// Arrange` / `// Act` / `// Assert` (or a plain description of the scenario step) in
+  unit tests. Say why the step matters, not what the code literally does. Prefer splitting into separate
+  tests when the phases do not share state.
+- Titles say the behavior and the condition ("empties the feed when Clear feed is pressed"), not
+  "works" or "is idempotent".
+- Declare helpers such as `const t = ...` after the imports.
+- `as never` / `as unknown as` casts hide the shape of a fixture. Prefer a typed builder in the test's
+  `support/` folder; keep a cast only where the production type is private or intentionally too strict.

@@ -11,6 +11,7 @@ import { flushPromises } from '@vue/test-utils';
 import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, LIBRARY_OPERATION, RPC } from '../../../../../shared/index.ts';
 
 test('a delayed saved action adopts into the originating profile, independently of same-ID event membership', async () => {
+  // Arrange: profile A lists an event with the action's ID, which must not decide the action's adoption
   const snapshot: BehaviorSnapshot = { plugins: [], actions: [], actionTypes: [], translations: {}, events: [{
     schemaVersion: 1, id: 'same', name: 'Event in A', enabled: false, trigger: EVENT_KIND.tiktokChat, filters: [],
     cooldownMs: 0, cooldownScope: 'user', runMode: 'all', actionIds: [],
@@ -22,6 +23,7 @@ test('a delayed saved action adopts into the originating profile, independently 
     ]),
     [RPC.behaviorProfilesActive]: 'a',
   };
+  // Arrange: the create reply waits until released, so the save is still in flight during the switch
   let finish!: () => void;
   const pending = new Promise<void>((resolve) => { finish = resolve; });
   const { client } = createFakeControlClient(nativeDefinitionHost((method, params, options) => {
@@ -55,9 +57,11 @@ test('a delayed saved action adopts into the originating profile, independently 
   await profiles.loadProfiles();
   const action: LiveAction = { schemaVersion: 2, id: 'same', name: 'New action in A', enabled: false, typeId: ACTION_TYPE.coreLog, config: {} };
   const saving = profiles.saveAction(action, { create: true, revision: '0', host: automation.sourceHost });
+  // Act: switch to B mid-save; it must be refused so the pending save keeps its captured profile A
   await expect(profiles.switchProfile('b')).rejects.toMatchObject({ code: ERROR_CODE.commandPending });
   finish();
   await saving;
+  // Assert: the adoption review targets profile A, where the save began, not the profile switched to
   const library = libraryJournal(client);
   expect(library.draft.value?.mutation).toMatchObject({ operation: LIBRARY_OPERATION.assignRecord, kind: 'action', id: 'same', profileId: 'a' });
   await library.confirm();
@@ -70,6 +74,7 @@ test('a delayed saved action adopts into the originating profile, independently 
 test('a profile assignment failure reports the saved definition separately and never makes its editor repeat the save', async () => {
   let stored: LiveAction | null = null;
   let writes = 0;
+  // Arrange: every library submission fails, so only the profile assignment can fail after the save
   const profileState = {
     [RPC.behaviorProfilesPacks]: JSON.stringify([{ id: 'a', name: 'A', description: '', eventIds: [], actionIds: [] }]),
     [RPC.behaviorProfilesActive]: 'a',
@@ -109,6 +114,7 @@ test('a profile assignment failure reports the saved definition separately and n
     true,
     automation.sourceHost,
   );
+  // Act: save the definition; the record is written once and the profile assignment waits for review
   await editor.save();
   expect(writes).toBe(1);
   expect(editor.state.value?.revision).toBe('1');
@@ -116,11 +122,14 @@ test('a profile assignment failure reports the saved definition separately and n
   expect(editor.state.value?.create).toBe(false);
   const library = libraryJournal(client);
   expect(library.draft.value?.mutation.operation).toBe(LIBRARY_OPERATION.assignRecord);
+  // Act: confirming the assignment fails on its own, after the saved definition was already committed
   await library.confirm();
   library.dismiss();
   await flushPromises();
+  // Assert: the assignment failure is reported as a profile error, separately from the saved record
   expect(profiles.error).toBeTruthy();
   expect(profiles.error).toContain('profile assignment offline');
+  // Act: saving again must not repeat the record write or resubmit the already-saved definition
   await editor.save();
   expect(writes).toBe(1);
   expect(calls.filter((c) => c.method === RPC.automationDefinitionSubmit)).toHaveLength(1);
@@ -151,6 +160,7 @@ test.each([false, true])(
       }
       throw new Error(`Unexpected ${method}`);
     });
+    // Arrange: hold the first two library snapshot reads after the save, so they can finish out of order
     const held: Array<() => void> = [];
     const fake = createFakeControlClient(async (method, params, options) => {
       const response = await native.handle(method, params, options);
@@ -168,6 +178,7 @@ test.each([false, true])(
     const saving = profiles.saveAction(action, { create: true, revision: '0', host: automation.sourceHost });
     await flushPromises();
     expect(held).toHaveLength(1);
+    // Act: the user keeps editing while the save's snapshot read is held; the unsaved edit must survive
     action.name = 'Newer unsaved name';
     const library = libraryJournal(fake.client);
     const otherReview = newerReview
@@ -176,11 +187,13 @@ test.each([false, true])(
     const background = automation.refresh();
     await flushPromises();
     expect(held).toHaveLength(2);
+    // Act: finish the superseded save read after a newer background refresh has started
     held[0]!();
     const result = await saving;
     expect(result.revision).toBe('1');
     expect(result.record?.name).toBe('Known saved action');
     expect(action.name).toBe('Newer unsaved name');
+    // Assert: a newer review survives the stale read; otherwise the saved name is reviewed, not the edit
     if (newerReview) {
       expect(library.draft.value?.mutation).toMatchObject({ operation: LIBRARY_OPERATION.createProfile, id: 'newer-review', name: 'Newer review' });
       expect(profiles.error).toBeTruthy();
@@ -189,6 +202,7 @@ test.each([false, true])(
       expect(library.draft.value?.context.resourceVersions).toContainEqual({ kind: 'automation', scope: 'action', id: action.id, revision: '1' });
       expect(library.draft.value?.mutation).toMatchObject({ operation: LIBRARY_OPERATION.assignRecord, id: action.id, profileId: 'a' });
     }
+    // Act: release the background refresh, then dismiss the newer review or confirm the saved assignment
     held[1]!();
     await background;
     if (otherReview) {
@@ -242,6 +256,7 @@ test('a post-save snapshot missing the acknowledged target reports only membersh
 });
 
 test.each([false, true])('64-character profile name collisions terminate with distinct bounded IDs (persistence=%s)', async (persistence) => {
+  // Arrange: an existing profile uses the longest allowed ID and name, 64 characters long
   const longest = 'a'.repeat(64);
   const raw = {
     [RPC.behaviorProfilesPacks]: JSON.stringify([{ id: longest, name: longest, description: '', eventIds: [], actionIds: [] }]),
@@ -268,15 +283,18 @@ test.each([false, true])('64-character profile name collisions terminate with di
   await automation.refresh();
   await profiles.loadProfiles();
   expect(profiles.loading).toBe(false);
+  // Assert: without persistence the library journal stays idle and never reads a snapshot
   if (!persistence) {
     expect(libraryJournal(fake.client).snapshot.value).toBeNull();
     expect(fake.calls.some((call) => call.method === RPC.automationLibrarySnapshot)).toBe(false);
   }
+  // Act: create two more profiles from the same name, so each new ID must avoid the IDs already taken
   for (let i = 0; i < 2; ++i) {
     const creating = profiles.createProfile(longest);
     if (persistence) await libraryJournal(fake.client).confirm();
     await creating;
   }
+  // Assert: all three IDs are distinct and within 64 characters, with collisions resolved by suffixes
   const ids = profiles.packs.map((pack) => pack.id);
   expect(ids).toHaveLength(3);
   expect(new Set(ids).size).toBe(3);
@@ -284,6 +302,7 @@ test.each([false, true])('64-character profile name collisions terminate with di
   expect(ids).toContain(longest);
   expect(ids).toContain(`${'a'.repeat(62)}-2`);
   expect(ids).toContain(`${'a'.repeat(62)}-3`);
+  // Assert: only a host without persistence writes profile state through app-state keys
   expect(fake.calls.some((call) => call.method === RPC.appStateSet)).toBe(!persistence);
   automation.dispose();
 });

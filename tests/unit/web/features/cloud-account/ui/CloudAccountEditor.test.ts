@@ -1,4 +1,3 @@
-const t = (key: string): string => testMessage('en', key);
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -9,6 +8,8 @@ import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import CloudAccountEditor from '../../../../../../src/web/features/cloud-account/ui/CloudAccountEditor.vue';
 import { ACCOUNT_STATE, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
+
+const t = (key: string): string => testMessage('en', key);
 
 function signedIn(overrides: Partial<AccountStatus> = {}): AccountStatus {
   return {
@@ -120,6 +121,7 @@ describe('CloudAccountEditor', () => {
   });
 
   it('lays out the summary and plan beside the backups, with an icon-only sign out', async () => {
+    // Arrange: a signed-in free-plan account with no backups, so the layout is judged on structure alone
     const calls: string[] = [];
     const { client } = createFakeControlClient((method) => {
       calls.push(method);
@@ -146,6 +148,7 @@ describe('CloudAccountEditor', () => {
     });
     const wrapper = mountWithPlugins(CloudAccountEditor, { global: { plugins: storePlugins(client) } });
     await flushPromises();
+    // Assert: the summary and plan sit in the aside, while the backups sit in the main column
     const aside = wrapper.get('.cloud-workspace__aside');
     expect(aside.find('.account-summary').exists()).toBe(true);
     expect(aside.find('.cloud-plan').exists()).toBe(true);
@@ -154,7 +157,9 @@ describe('CloudAccountEditor', () => {
     expect(wrapper.get('.cloud-workspace__main').find('.backup-section').exists()).toBe(true);
     // The old framed "Account" group is gone once signed in.
     expect(wrapper.find('fieldset').exists()).toBe(false);
+    // Assert: the account guide anchor stays in the layout, so the guided tour can still point at it
     expect(wrapper.find('[data-guide-scope="account"]').exists()).toBe(true);
+    // Act: sign out from the aside's icon-only button, which must reach the Cloud logout call
     await aside.get(`button[aria-label="${t('account.signOut')}"]`).trigger('click');
     await flushPromises();
     expect(calls).toContain(RPC.cloudLogout);

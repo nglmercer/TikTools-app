@@ -1,10 +1,11 @@
-const t = (key: string): string => testMessage('en', key);
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test, type Page } from '@playwright/test';
 
 import { installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
 import { EVENT_KIND, RPC } from '../shared/index.ts';
+
+const t = (key: string): string => testMessage('en', key);
 
 /**
  * Ranking and competition RPCs are answered by a small in-page store layered

@@ -291,6 +291,7 @@ it('shows the registry steps in the detail screen and starts the selected driver
 });
 
 it('lists a plugin-contributed action guide and starts it as a dynamic tour', async () => {
+  // Arrange: a plugin action type with one text field, and a plugin guide that targets that field
   const textField = {
     key: 'text',
     label: { default: 'Text', i18key: '' },
@@ -330,6 +331,7 @@ it('lists a plugin-contributed action guide and starts it as a dynamic tour', as
       },
     },
   });
+  // Act: search by the plugin's name, which must surface its guide next to the built-in tours
   await wrapper.get('input[type="search"]').setValue('SonicBoom');
   await flushPromises();
 
@@ -337,9 +339,11 @@ it('lists a plugin-contributed action guide and starts it as a dynamic tour', as
   expect(card).toBeDefined();
   await card!.trigger('click');
   await flushPromises();
+  // Assert: the card opens the plugin guide's detail and shows its field step before anything starts
   expect(wrapper.get('.tutorial-catalog__detail h3').text()).toBe('Create a SonicBoom voice action');
   expect(wrapper.get('.tutorial-step-preview__body').text()).toContain('Choose what is spoken');
 
+  // Act: start the guide; it must run as a dynamic tour bound to the plugin's action type
   await wrapper.get('.tutorial-catalog__start').trigger('click');
   await flushPromises();
   expect(startDynamicTour).toHaveBeenCalledWith(

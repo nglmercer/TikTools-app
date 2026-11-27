@@ -1,4 +1,3 @@
-const t = (key: string): string => testMessage('en', key);
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { describe, expect, it } from 'vitest';
 
@@ -7,6 +6,8 @@ import type { ViewerRecord } from '../../../../../../src/shared/messages.ts';
 import { defaultPointsConfig } from '../../../../../../src/web/entities/points/model/default-config.ts';
 import { createPointsState } from '../../../../../../src/web/entities/points/model/points-state.ts';
 import { RPC, TOPIC } from '../../../../../shared/index.ts';
+
+const t = (key: string): string => testMessage('en', key);
 
 function viewer(uniqueId: string, points: number): ViewerRecord {
   return {

@@ -26,17 +26,20 @@ afterEach(() => resetResolutionPreference('automatic'));
 
 
 it('blocks profile and template changes until the initial coherent library is read and permits a read-only retry after failure', async () => {
+    // Arrange: the first library snapshot read stays pending, so the page has no coherent library yet
     let reject!: (failure: unknown) => void;
     const held = new Promise<never>((_resolve, fail) => { reject = fail; });
     let blocked = true;
     const f = await mountPage((method) => method === RPC.automationSnapshot && blocked ? held : undefined, false);
     const profile = f.wrapper.get('.profile-toolbar [role="combobox"]');
     const menu = f.wrapper.get('.profile-toolbar [aria-haspopup="menu"]');
+    // Assert: until the library is read, the profile and template controls stay disabled
     expect(profile.attributes('disabled')).toBeDefined();
     expect(menu.attributes('disabled')).toBeDefined();
     expect(buttonByLabel(f.wrapper, t('automations.templates.open')).attributes('disabled')).toBeDefined();
     expect(f.wrapper.get('[data-test="library-loading"]').text()).toContain('Loading saved profiles');
     expect(f.calls.some((call) => call.method === RPC.automationLibrarySubmit)).toBe(false);
+    // Act: retry while the read is pending, then let that read fail; the controls must stay locked
     await f.wrapper.get('[data-test="library-retry-loading"]').trigger('click');
     await flushPromises();
     blocked = false;
@@ -45,6 +48,7 @@ it('blocks profile and template changes until the initial coherent library is re
     await flushPromises();
     expect(f.wrapper.text()).toContain('initial snapshot unavailable');
     expect(menu.attributes('disabled')).toBeDefined();
+    // Act: a read-only retry succeeds, so the controls unlock without sending any write
     await f.wrapper.get('[data-test="library-retry-loading"]').trigger('click');
     await flushPromises();
     expect(profile.attributes('disabled')).toBeUndefined();
@@ -63,6 +67,7 @@ it('blocks profile and template changes until the initial coherent library is re
     documentButton(t('automations.profile.createConfirm')).click();
     await flushPromises();
     const library = libraryJournal(f.client);
+    // Assert: the staged create is a review carrying the loaded library, and nothing is submitted yet
     expect(library.draft.value?.context.definitions.actions[0]?.name).toBe('Log gift');
     expect(library.draft.value?.mutation).toMatchObject({ operation: LIBRARY_OPERATION.createProfile, name: 'Ready profile' });
     library.dismiss();

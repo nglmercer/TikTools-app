@@ -142,6 +142,7 @@ test('normalizes declarative and webview ui descriptors (Rust parity)', () => {
 });
 
 test('rejects ui descriptor mismatches, bad versions, and unsafe entries', () => {
+  // Arrange: a valid declarative descriptor that each case below breaks in exactly one way
   const base = {
     pluginId: PLUGIN_ID.sonicboomServer,
     apiVersion: 1,
@@ -150,6 +151,7 @@ test('rejects ui descriptor mismatches, bad versions, and unsafe entries', () =>
       { id: 'main', title: text, body: { type: 'separator' } },
     ],
   };
+  // Act: break one field at a time, so each rejection is caused only by the field its comment names
   // Declarative page without a body.
   expect(
     normalizeUiDescriptor({ ...base, pages: [{ id: 'main', title: text }] }),
@@ -192,6 +194,7 @@ test('rejects ui descriptor mismatches, bad versions, and unsafe entries', () =>
       pages: [{ id: 'main', title: text, body: { type: 'obs-scene' } }],
     }),
   ).toBeUndefined();
+  // Assert: every unsafe webview path is refused, including escapes, absolute paths and non-HTML files
   // Unsafe webview entries fail closed (same list as the Rust test).
   for (const entry of [
     '../escape.html',

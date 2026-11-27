@@ -46,6 +46,7 @@ test('a lost graph reply retains its reviewed source and current comparison with
   const f = fixture();
   await flushPromises();
   await f.journal.refreshSnapshot();
+  // Arrange: a template mutation frozen at request time, so later local edits must not reach the review
   const mutation: LibraryMutation = { operation: LIBRARY_OPERATION.applyTemplate, profileId: 'default', entry: {
     actions: [
       { schemaVersion: 2, id: FIXTURE_ID.actFrozen, name: 'Frozen action', enabled: false, typeId: ACTION_TYPE.coreLog, config: { message: 'private-source' } },
@@ -69,10 +70,12 @@ test('a lost graph reply retains its reviewed source and current comparison with
     const codeTab = records.findAll('[role="radio"]').find((radio) => radio.text() === 'Code')!;
     await codeTab.trigger('click');
     await flushPromises();
+    // Assert: the review shows the frozen source, never the configuration edited after the request
     const sources = records.text();
     expect(sources).toContain('Frozen event');
     expect(sources).toContain('private-source');
     expect(sources).not.toContain('Newer local configuration');
+    // Act: the host commits but its reply is lost, so the review must block a resend instead of retrying
     f.native.library.loseNextReply();
     await f.review.get('[data-test="library-confirm"]').trigger('click');
     await flushPromises();
@@ -92,6 +95,7 @@ test('a lost graph reply retains its reviewed source and current comparison with
     }
     const foundSource = currentReview.text();
     expect(foundSource).toContain('Frozen event');
+    // Assert: exactly one submission reached the host, and nothing was written to browser storage
     expect(f.calls.filter((call) => call.method === RPC.automationLibrarySubmit)).toHaveLength(1);
     expect(storing).not.toHaveBeenCalled();
     f.journal.dismiss();
