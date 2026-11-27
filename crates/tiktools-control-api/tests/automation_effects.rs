@@ -1,60 +1,14 @@
 #![cfg(feature = "persistence")]
 use serde_json::{json, Value};
-use std::sync::Arc;
-use tiktools_control_api::{ControlApi, RemoteSession, RequestContext};
-use tiktools_core::{
-    collaboration::{hash_secret, Capability, ClientKind, Collect, Grant, InviteCreate, Redeem},
-    paths::AppPaths,
-    AppCore, HostEmitter, NoopMediaHost,
-};
+use tiktools_control_api::{RemoteSession, RequestContext};
+use tiktools_core::collaboration::{hash_secret, Capability, ClientKind, Collect, Grant, InviteCreate, Redeem};
 
-struct Emitter;
-impl HostEmitter for Emitter {
-    fn emit(&self, _: tiktools_core::ipc::messages::HostMessage) {}
-}
-struct Fixture {
-    core: Arc<AppCore>,
-    api: ControlApi,
-    root: std::path::PathBuf,
-}
+mod support;
+use support::Fixture;
+
 impl Fixture {
     fn new() -> Self {
-        let root = std::env::temp_dir().join(format!(
-            "tt-effect-api-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let paths = AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("absent"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.clone(),
-        };
-        paths.ensure_directories().unwrap();
-        for file in [
-            paths.points_database(),
-            paths.automation_database(),
-            paths.analytics_database(),
-        ] {
-            std::fs::File::create(file).unwrap();
-        }
-        let core = Arc::new(AppCore::with_paths(
-            Arc::new(Emitter),
-            Arc::new(NoopMediaHost),
-            paths,
-        ));
-        Self {
-            api: ControlApi::new(core.clone()),
-            core,
-            root,
-        }
+        Self::with_prefix("tt-effect-api")
     }
     fn all_grants(&self) -> RequestContext {
         let service = self.core.collaboration().unwrap();
