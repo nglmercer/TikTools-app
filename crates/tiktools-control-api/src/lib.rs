@@ -36,6 +36,7 @@ pub use context::{RemoteCapability, RemoteSession, RequestContext};
 pub use error::ApiError;
 pub use metadata::{CallResult, RequestMetadata, ResponseMetadata};
 pub use registry::MethodMeta;
+pub use tiktools_core::wire;
 pub use request::{RpcId, RpcRequest};
 pub use response::RpcResponse;
 pub use router::ControlRouter;

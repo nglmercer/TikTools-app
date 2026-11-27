@@ -2,6 +2,7 @@
 //! repeats an operation or installs historical source into a current editor.
 use crate::{CallResult, ClientError, TikToolsClient};
 use serde_json::Value;
+use tiktools_control_api::wire::{self, canonical_id as canonical, digest};
 use std::collections::BTreeSet;
 use tiktools_control_api::modules::automation_definition::OwnerDefinitionEmpty;
 pub use tiktools_control_api::modules::automation_definition::{
@@ -36,25 +37,8 @@ fn exact<'a>(
 fn text(value: &Value) -> Result<&str, ClientError> {
     value.as_str().ok_or_else(protocol)
 }
-fn canonical(value: &str, max: usize) -> bool {
-    !value.is_empty()
-        && value.len() <= max
-        && value.trim() == value
-        && !value.contains('*')
-        && !value.chars().any(char::is_control)
-}
 fn decimal(value: &str, positive: bool) -> Result<i64, ClientError> {
-    value
-        .parse::<i64>()
-        .ok()
-        .filter(|n| *n >= i64::from(positive) && n.to_string() == value)
-        .ok_or_else(protocol)
-}
-fn digest(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    wire::decimal(value, positive).ok_or_else(protocol)
 }
 fn timestamp(value: &Value, positive: bool) -> Result<(), ClientError> {
     value

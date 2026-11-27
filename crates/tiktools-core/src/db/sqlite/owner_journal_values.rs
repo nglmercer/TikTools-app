@@ -3,6 +3,7 @@
 //! bounds of text columns read back from `control_commands`.
 
 use crate::control::AutomationKind;
+use crate::wire;
 use rusqlite::{types::ValueRef, Row};
 
 /// Byte bounds for the text columns of a `control_commands` row, in column
@@ -34,26 +35,14 @@ pub(super) fn text_columns_within(
 }
 
 pub(super) fn id(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && value.trim() == value
-        && !value.contains('*')
-        && !value.chars().any(char::is_control)
+    wire::canonical_id(value, 128)
 }
 
 pub(super) fn revision(value: &str) -> Option<i64> {
-    value
-        .parse::<i64>()
-        .ok()
-        .filter(|n| *n >= 0 && n.to_string() == value)
+    wire::decimal(value, false)
 }
 
-pub(super) fn digest(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-}
+pub(super) use crate::wire::digest;
 
 pub(super) fn scope(kind: AutomationKind) -> &'static str {
     match kind {

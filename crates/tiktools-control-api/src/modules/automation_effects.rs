@@ -18,12 +18,7 @@ pub struct EffectHistoryParams {
     pub limit: u32,
 }
 
-fn digest(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-}
+use tiktools_core::wire::digest;
 impl EffectGetParams {
     pub fn validate(&self) -> Result<(), ApiError> {
         if digest(&self.effect_id) {

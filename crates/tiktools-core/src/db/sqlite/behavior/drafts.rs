@@ -1,6 +1,7 @@
 //! Editor-safe structure for fresh remote drafts. This does not grant execution
 //! authority or validate the effects of unknown plugin action/trigger names.
 use super::*;
+use crate::wire;
 use serde_json::Map;
 
 const ITEMS: usize = 512;
@@ -11,13 +12,7 @@ fn invalid() -> DatabaseError {
 }
 
 fn canonical(value: &Value, bytes: usize) -> bool {
-    value.as_str().is_some_and(|s| {
-        !s.is_empty()
-            && s.len() <= bytes
-            && s.trim() == s
-            && !s.contains('*')
-            && !s.chars().any(char::is_control)
-    })
+    value.as_str().is_some_and(|s| wire::canonical_id(s, bytes))
 }
 
 fn schema(

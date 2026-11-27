@@ -1,5 +1,6 @@
 //! A review must bind the displayed graph to its complete version envelope.
 use super::*;
+use tiktools_control_api::wire::{self, canonical_id};
 use std::collections::BTreeSet;
 use tiktools_control_api::modules::automation::{
     AutomationReviewAuthority, AutomationReviewProvenance,
@@ -14,19 +15,7 @@ fn protocol() -> ClientError {
 }
 
 fn decimal(value: &str) -> Result<i64, ClientError> {
-    value
-        .parse::<i64>()
-        .ok()
-        .filter(|number| *number >= 0 && number.to_string() == value)
-        .ok_or_else(protocol)
-}
-
-fn canonical_id(value: &str, limit: usize) -> bool {
-    !value.is_empty()
-        && value.len() <= limit
-        && value.trim() == value
-        && !value.contains('*')
-        && !value.chars().any(char::is_control)
+    wire::decimal(value, false).ok_or_else(protocol)
 }
 
 fn entry(

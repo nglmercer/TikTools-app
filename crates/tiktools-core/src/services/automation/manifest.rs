@@ -159,18 +159,9 @@ struct Entry<'a> {
     record: Option<&'a Value>,
 }
 
-fn canonical_id(value: &str, limit: usize) -> bool {
-    !value.is_empty()
-        && value.len() <= limit
-        && value.trim() == value
-        && !value.contains('*')
-        && !value.chars().any(char::is_control)
-}
+use crate::wire::canonical_id;
 fn decimal(value: &str) -> Option<i64> {
-    value
-        .parse::<i64>()
-        .ok()
-        .filter(|n| *n >= 0 && n.to_string() == value)
+    crate::wire::decimal(value, false)
 }
 fn exact(value: &Value, fields: usize) -> Result<(), ManifestError> {
     if value.as_object().is_some_and(|o| o.len() == fields) {

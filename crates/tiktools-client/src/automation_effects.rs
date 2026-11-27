@@ -2,6 +2,7 @@
 //! never authorize dispatch and this SDK deliberately exposes no retry method.
 use crate::{CallResult, ClientError, TikToolsClient};
 use serde_json::Value;
+use tiktools_control_api::wire;
 pub use tiktools_control_api::modules::automation_effects::{
     EffectGetParams, EffectHistory, EffectHistoryParams, EffectKind, EffectReceipt, EffectState,
 };
@@ -16,12 +17,7 @@ fn protocol() -> ClientError {
 fn digest(value: &Value) -> Result<&str, ClientError> {
     value
         .as_str()
-        .filter(|value| {
-            value.len() == 64
-                && value
-                    .bytes()
-                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-        })
+        .filter(|value| wire::digest(value))
         .ok_or_else(protocol)
 }
 fn exact<'a>(

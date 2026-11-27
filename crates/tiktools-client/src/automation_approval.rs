@@ -2,6 +2,7 @@
 //! runtime permit or transfer delegated definitions into Owner authority.
 use crate::{CallResult, ClientError, RequestMetadata, TikToolsClient};
 use serde_json::Value;
+use tiktools_control_api::wire::{self, canonical_id as canonical, digest};
 use std::collections::BTreeSet;
 mod native;
 pub use native::*;
@@ -25,25 +26,8 @@ const REVOKE: &str = "automation.approval.revoke";
 fn protocol() -> ClientError {
     ClientError::new("protocol", "invalid automation approval receipt")
 }
-fn canonical(value: &str, max: usize) -> bool {
-    !value.is_empty()
-        && value.len() <= max
-        && value.trim() == value
-        && !value.contains('*')
-        && !value.chars().any(char::is_control)
-}
 fn decimal(value: &str, positive: bool) -> Result<i64, ClientError> {
-    value
-        .parse::<i64>()
-        .ok()
-        .filter(|n| *n >= i64::from(positive) && n.to_string() == value)
-        .ok_or_else(protocol)
-}
-fn digest(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    wire::decimal(value, positive).ok_or_else(protocol)
 }
 fn scope(kind: impl serde::Serialize) -> Result<String, ClientError> {
     serde_json::to_value(kind)

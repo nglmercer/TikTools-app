@@ -17,6 +17,7 @@ pub mod ipc;
 pub mod paths;
 pub mod platform;
 pub mod services;
+pub mod wire;
 pub use tiktools_collaboration as collaboration;
 
 mod automation_runtime;

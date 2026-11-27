@@ -1,6 +1,7 @@
 //! Owner manifest previews retain the exact complete version envelope. Digests
 //! are opaque host bindings, never execution tokens or candidate reconstruction.
 use super::*;
+use tiktools_control_api::wire::{self, canonical_id as canonical};
 use std::collections::BTreeSet;
 
 const BYTES: usize = 4 * 1024 * 1024;
@@ -21,26 +22,12 @@ fn object<'a>(
 fn text(v: &Value) -> Result<&str, ClientError> {
     v.as_str().ok_or_else(protocol)
 }
-fn canonical(v: &str, max: usize) -> bool {
-    !v.is_empty()
-        && v.len() <= max
-        && v.trim() == v
-        && !v.contains('*')
-        && !v.chars().any(char::is_control)
-}
 fn decimal(v: &Value, positive: bool) -> Result<i64, ClientError> {
     let raw = text(v)?;
-    raw.parse::<i64>()
-        .ok()
-        .filter(|n| *n >= i64::from(positive) && n.to_string() == raw)
-        .ok_or_else(protocol)
+    wire::decimal(raw, positive).ok_or_else(protocol)
 }
 fn digest(v: &Value) -> bool {
-    v.as_str().is_some_and(|s| {
-        s.len() == 64
-            && s.bytes()
-                .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
-    })
+    v.as_str().is_some_and(wire::digest)
 }
 
 fn binding(

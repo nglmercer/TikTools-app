@@ -2,6 +2,7 @@
 //! reservation; the collaboration authorization lock spans the actual commit.
 use super::*;
 use crate::collaboration::{ExecutionAuthorizations, ExecutionIdentity};
+use crate::wire;
 use serde::Serialize;
 use std::collections::HashSet;
 
@@ -59,23 +60,10 @@ fn invalid() -> DatabaseError {
     DatabaseError::Invalid("automation approval binding is inconsistent".into())
 }
 fn canonical_id(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 256
-        && value.trim() == value
-        && !value.contains('*')
-        && !value.chars().any(char::is_control)
+    wire::canonical_id(value, 256)
 }
 fn decimal(value: &str) -> Option<i64> {
-    value
-        .parse::<i64>()
-        .ok()
-        .filter(|n| *n >= 0 && n.to_string() == value)
-}
-fn hex(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    wire::decimal(value, false)
 }
 fn string<'a>(value: &'a Value, key: &str) -> Result<&'a str, DatabaseError> {
     value.get(key).and_then(Value::as_str).ok_or_else(invalid)
@@ -139,7 +127,7 @@ fn definition(value: &Value) -> Result<Definition, DatabaseError> {
         .ok_or_else(invalid)?;
     let content_digest = match value.get("contentDigest") {
         Some(Value::Null) if !present => None,
-        Some(Value::String(v)) if present && hex(v) => Some(v.clone()),
+        Some(Value::String(v)) if present && wire::digest(v) => Some(v.clone()),
         _ => return Err(invalid()),
     };
     let provenance_generation = match value.get("provenance") {
@@ -191,7 +179,7 @@ pub(super) fn validate_manifest(
         .filter(|v| *v > 0)
         .ok_or_else(invalid)?;
     let manifest_digest = string(manifest, "manifestDigest")?;
-    if !hex(manifest_digest) {
+    if !wire::digest(manifest_digest) {
         return Err(invalid());
     }
     let mut unsigned = manifest.clone();
@@ -460,7 +448,7 @@ impl DatabaseManager {
             tx.commit()?;
             return Ok((result, false));
         }
-        if !request.acknowledged || !hex(request.preview_digest) {
+        if !request.acknowledged || !wire::digest(request.preview_digest) {
             return Err(invalid());
         }
         review::check_versions(
@@ -650,7 +638,7 @@ pub(super) fn load(db: &Connection) -> Result<Vec<BehaviorApprovalSnapshot>, Dat
             || id.len() > 128
             || generation <= 0
             || policy_version == 0
-            || !hex(&manifest_digest)
+            || !wire::digest(&manifest_digest)
             || !(1..=256).contains(&principal_size)
             || !(1..=256).contains(&session_size)
             || size < 0

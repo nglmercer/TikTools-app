@@ -183,12 +183,7 @@ impl EffectExecution {
     }
 }
 
-pub(crate) fn valid_digest(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-}
+pub(crate) use crate::wire::digest as valid_digest;
 
 impl EffectKind {
     pub(crate) fn as_str(self) -> &'static str {
