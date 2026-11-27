@@ -474,6 +474,40 @@ async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and
 use cloud_client::{SyncError, WorkspaceEdit, WorkspaceKey, WorkspacePendingStatus};
 use std::cell::Cell;
 
+/// Stages the one-point `acme.plugin` decision for `account` and returns an
+/// upload that only accepts exactly that decision's digest.
+fn stage_exact_upload(
+    sync: &SyncCoordinator,
+    mock: &MockSync,
+    dir: &TempDir,
+    account: &str,
+) -> Arc<ExactUpload> {
+    let decision = crate::V2ProductDecision {
+        origin: mock.origin.clone(),
+        account_id: account.into(),
+        config_generation: sync.read_config().generation,
+        source_generation: 1,
+        plugin_id: "acme.plugin".into(),
+        selection: Some(PluginSelection {
+            schema_version: 1,
+            plugin_id: "acme.plugin".into(),
+            version: "1.0.0".into(),
+            enabled: true,
+        }),
+    };
+    sync.stage_v2_product_decision(&Source {
+        decision: decision.clone(),
+        fail_ack: Cell::new(false),
+        ack_attempts: Cell::new(0),
+    })
+    .unwrap();
+    Arc::new(ExactUpload {
+        fence: crate::ProductEmissionFence::open(dir.join("product-emission")).unwrap(),
+        digest: decision.digest().unwrap(),
+        calls: std::sync::atomic::AtomicUsize::new(0),
+    })
+}
+
 fn marked_preview(
     sync: &SyncCoordinator,
     session: &Arc<cloud_client::Session>,
@@ -1693,30 +1727,7 @@ async fn logout_during_epoch_read_does_not_prepare_or_emit() {
     sync.set_enabled(false).unwrap();
     let consent = sync.review_v2_resume(&session, None).unwrap();
     sync.confirm_v2_resume(&consent).unwrap();
-    let decision = crate::V2ProductDecision {
-        origin: mock.origin.clone(),
-        account_id: "epoch-logout-user".into(),
-        config_generation: sync.read_config().generation,
-        source_generation: 1,
-        plugin_id: "acme.plugin".into(),
-        selection: Some(PluginSelection {
-            schema_version: 1,
-            plugin_id: "acme.plugin".into(),
-            version: "1.0.0".into(),
-            enabled: true,
-        }),
-    };
-    sync.stage_v2_product_decision(&Source {
-        decision: decision.clone(),
-        fail_ack: Cell::new(false),
-        ack_attempts: Cell::new(0),
-    })
-    .unwrap();
-    let upload = Arc::new(ExactUpload {
-        fence: crate::ProductEmissionFence::open(dir.join("product-emission")).unwrap(),
-        digest: decision.digest().unwrap(),
-        calls: std::sync::atomic::AtomicUsize::new(0),
-    });
+    let upload = stage_exact_upload(&sync, &mock, &dir, "epoch-logout-user");
     mock.held_v2_epoch.armed.store(true, Ordering::SeqCst);
     let worker = sync.clone();
     let source = upload.clone();
@@ -1879,30 +1890,7 @@ async fn product_dispatch_requires_fresh_server_epoch_enforcement() {
         sync.set_enabled(false).unwrap();
         let consent = sync.review_v2_resume(&session, None).unwrap();
         sync.confirm_v2_resume(&consent).unwrap();
-        let decision = crate::V2ProductDecision {
-            origin: mock.origin.clone(),
-            account_id: "policy-user".into(),
-            config_generation: sync.read_config().generation,
-            source_generation: 1,
-            plugin_id: "acme.plugin".into(),
-            selection: Some(PluginSelection {
-                schema_version: 1,
-                plugin_id: "acme.plugin".into(),
-                version: "1.0.0".into(),
-                enabled: true,
-            }),
-        };
-        sync.stage_v2_product_decision(&Source {
-            decision: decision.clone(),
-            fail_ack: Cell::new(false),
-            ack_attempts: Cell::new(0),
-        })
-        .unwrap();
-        let upload = Arc::new(ExactUpload {
-            fence: crate::ProductEmissionFence::open(dir.join("product-emission")).unwrap(),
-            digest: decision.digest().unwrap(),
-            calls: std::sync::atomic::AtomicUsize::new(0),
-        });
+        let upload = stage_exact_upload(&sync, &mock, &dir, "policy-user");
         {
             let mut inner = mock.inner.lock().unwrap();
             inner.v2_epoch_required = required;
