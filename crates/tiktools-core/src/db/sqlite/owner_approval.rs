@@ -266,8 +266,14 @@ fn complete(
         recorded_at: at,
     });
     validate(&stored, &stored.host_id, false)?;
-    if db.execute("UPDATE owner_automation_approvals SET pending=0,payload_json=?2,updated_at=?3 WHERE command_id=?1 AND pending=1",params![stored.intent.command_id,encoded(&stored)?,at])?!=1{return Err(invalid());}
-    db.execute("DELETE FROM owner_automation_approvals WHERE pending=0 AND command_id NOT IN (SELECT command_id FROM owner_automation_approvals WHERE pending=0 ORDER BY rowid DESC LIMIT 16)",[])?;
+    owner_journal_values::retire_pending(
+        db,
+        "owner_automation_approvals",
+        &stored.intent.command_id,
+        &encoded(&stored)?,
+        at,
+        invalid,
+    )?;
     Ok(())
 }
 fn receipt(

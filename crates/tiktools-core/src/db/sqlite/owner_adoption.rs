@@ -153,11 +153,14 @@ fn complete(
         recorded_at,
     });
     validate(&stored, &stored.host_id, false)?;
-    let changed=db.execute("UPDATE owner_automation_adoptions SET pending=0,payload_json=?2,updated_at=?3 WHERE command_id=?1 AND pending=1",params![stored.intent.command_id,encoded(&stored)?,recorded_at])?;
-    if changed != 1 {
-        return Err(invalid());
-    }
-    db.execute("DELETE FROM owner_automation_adoptions WHERE pending=0 AND command_id NOT IN (SELECT command_id FROM owner_automation_adoptions WHERE pending=0 ORDER BY rowid DESC LIMIT 16)",[])?;
+    owner_journal_values::retire_pending(
+        db,
+        "owner_automation_adoptions",
+        &stored.intent.command_id,
+        &encoded(&stored)?,
+        recorded_at,
+        invalid,
+    )?;
     Ok(())
 }
 impl DatabaseManager {

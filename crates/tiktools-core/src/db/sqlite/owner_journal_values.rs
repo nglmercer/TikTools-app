@@ -56,6 +56,35 @@ pub(super) fn ensure_no_pending_owner_journal(
     Ok(())
 }
 
+/// Journal entries kept after completion, newest first; older completed rows are pruned.
+const COMPLETED_ENTRIES_KEPT: u32 = 16;
+
+/// Persists the completed form of a pending journal entry and prunes old
+/// completed rows. Exactly one pending row must match `command_id`, otherwise
+/// the journal changed underneath the caller and `invalid()` is returned.
+/// `table` is one of the journal table names, never caller-supplied text.
+pub(super) fn retire_pending(
+    db: &Connection,
+    table: &'static str,
+    command_id: &str,
+    payload_json: &str,
+    recorded_at: i64,
+    invalid: fn() -> DatabaseError,
+) -> Result<(), DatabaseError> {
+    let changed = db.execute(
+        &format!("UPDATE {table} SET pending=0,payload_json=?2,updated_at=?3 WHERE command_id=?1 AND pending=1"),
+        rusqlite::params![command_id, payload_json, recorded_at],
+    )?;
+    if changed != 1 {
+        return Err(invalid());
+    }
+    db.execute(
+        &format!("DELETE FROM {table} WHERE pending=0 AND command_id NOT IN (SELECT command_id FROM {table} WHERE pending=0 ORDER BY rowid DESC LIMIT {COMPLETED_ENTRIES_KEPT})"),
+        [],
+    )?;
+    Ok(())
+}
+
 /// How a pending owner journal entry ends.
 pub(super) enum Resolution {
     Succeeded,
