@@ -91,3 +91,14 @@
   only the spec files whose import graph touches the changed files (e.g. a tour definition selects
   `tours.spec.ts`). It cannot see code the browser loads from the built site (demo, landing), so run the
   full suite before committing a frontend change.
+
+## App e2e (`tests/e2e`, fake host)
+
+- The fake host defines `window.ipc`, so the app renders in native-chrome mode: the in-page menu bar is
+  hidden and menu actions arrive as pushes. Drive them with
+  `emitPush(page, { type: 'shell-menu-action', id: 'locale:es' | 'toggle-sidebar' | ... })`.
+- Edit `INIT_SCRIPT` in `fixtures/tiktools-host.ts` carefully: it is a template string run in the page,
+  so a stray brace breaks every spec at once (the symptom is a 30 s `waitForFrontend` timeout). Check it
+  with `node --check` on the extracted script.
+- Run the suite with `bunx playwright test` (about 2.5 minutes, one worker, shared dev server).
+
