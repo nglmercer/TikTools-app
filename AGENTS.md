@@ -63,3 +63,13 @@
 - Version matrix is pinned exact: oxlint + oxlint-plugin-vize + vize. The
   bridge validates specific oxlint versions — bump them together, never
   independently, and rerun the full lint before adopting.
+
+## Intro video (demo showcase)
+
+- The landing tour is the demo's own `?showcase=1` mode (`src/web/demo/showcase`), so the video is a
+  recording of the real UI. After `TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scripts/task.ts site build`, run
+  `bun scripts/task.ts site record-intro` (needs `bunx playwright install chromium --only-shell` and
+  `ffmpeg`). It writes `dist/intro-video/{intro.mp4,intro.webp,poster.png}`; copy `intro.webp` to
+  `assets/` for the README and attach `intro.mp4` to the release.
+- View Transitions are off in framed demos: `startViewTransition` inside the scaled docs iframe
+  crashed headless Chromium. Framed views use a CSS fade-in instead.

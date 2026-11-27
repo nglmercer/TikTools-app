@@ -10,6 +10,8 @@ including Termux on Android.
 [Latest stable](https://github.com/nglmercer/TikTools-app/releases/latest) ·
 [Interactive demo](https://nglmercer.github.io/TikTools-app/demo/)
 
+[![TikTools: connect to a LIVE, watch events, automate reactions, preview OBS overlays and reward viewers](assets/intro.webp)](https://nglmercer.github.io/TikTools-app/demo/)
+
 Documentation in your language:
 [English](docs/content/en/user/index.md) ·
 [Español](docs/content/es/user/index.md) ·
