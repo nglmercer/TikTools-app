@@ -7,7 +7,11 @@ import { checkAppImageSmokeInstallation, parseAppImageSmokeArgs } from '../../..
 
 describe('AppImage smoke launch modes', () => {
   test('defaults to strict mounted classification unless extraction is explicitly selected', () => {
-    expect(parseAppImageSmokeArgs(['release/TikTools.AppImage', '4.2.2'], 'linux')).toEqual({ imageArg: 'release/TikTools.AppImage', expectedVersion: '4.2.2', mode: 'mounted' });
+    expect(parseAppImageSmokeArgs(['release/TikTools.AppImage', '4.2.2'], 'linux')).toEqual({
+      imageArg: 'release/TikTools.AppImage',
+      expectedVersion: '4.2.2',
+      mode: 'mounted',
+    });
     expect(parseAppImageSmokeArgs(['release/TikTools.AppImage', '4.2.2', '--extracted-mode'], 'linux').mode).toBe('extracted');
   });
 
@@ -66,9 +70,20 @@ case "\${1:-}" in
 esac
 `);
     await chmod(fixture, 0o755);
-    const child = Bun.spawn([process.execPath, resolve(import.meta.dir, '../../../../scripts/smoke-appimage.ts'), fixture, '4.2.2', '--extracted-mode'], { env: { ...process.env, SMOKE_DESCENDANT_PID_FILE: pidFile, XDG_RUNTIME_DIR: '/tmp/existing-real-desktop-runtime' }, stdout: 'pipe', stderr: 'pipe' });
+    const child = Bun.spawn(
+      [process.execPath, resolve(import.meta.dir, '../../../../scripts/smoke-appimage.ts'), fixture, '4.2.2', '--extracted-mode'],
+      {
+        env: { ...process.env, SMOKE_DESCENDANT_PID_FILE: pidFile, XDG_RUNTIME_DIR: '/tmp/existing-real-desktop-runtime' },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    );
     const killer = setTimeout(() => child.kill('SIGKILL'), 8000);
-    const [out, err, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]).finally(() => clearTimeout(killer));
+    const [out, err, code] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]).finally(() => clearTimeout(killer));
     descendant = Number(await readFile(pidFile, 'utf8'));
     expect(await readFile(`${pidFile}.runtime`, 'utf8')).toMatch(/^\/tmp\/tiktools-appimage-smoke-[^/]+\/runtime 700\n$/);
     expect(out).toContain('reached frontend-ready with an isolated profile');
@@ -88,9 +103,15 @@ test.skipIf(process.platform !== 'linux')('extracted fixture still requires actu
   const fixture = join(root, 'fixture.AppImage');
   try {
     // This fixture deliberately does not launch a GUI or claim frontend-ready.
-    await writeFile(fixture, '#!/bin/sh\ncase "${1:-}" in\n--version) echo 4.2.2 ;;\n--update-installation-type) printf \'"unknown"\\n\' ;;\n*) exit 0 ;;\nesac\n');
+    await writeFile(
+      fixture,
+      '#!/bin/sh\ncase "${1:-}" in\n--version) echo 4.2.2 ;;\n--update-installation-type) printf \'"unknown"\\n\' ;;\n*) exit 0 ;;\nesac\n',
+    );
     await chmod(fixture, 0o755);
-    const child = Bun.spawn([process.execPath, resolve(import.meta.dir, '../../../../scripts/smoke-appimage.ts'), fixture, '4.2.2', '--extracted-mode'], { stdout: 'pipe', stderr: 'pipe' });
+    const child = Bun.spawn(
+      [process.execPath, resolve(import.meta.dir, '../../../../scripts/smoke-appimage.ts'), fixture, '4.2.2', '--extracted-mode'],
+      { stdout: 'pipe', stderr: 'pipe' },
+    );
     const [out, err, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
     expect(out).toContain('--version (extracted): "4.2.2"');
     expect(out).toContain('--update-installation-type (extracted): "\\"unknown\\""');
@@ -104,9 +125,17 @@ test.skipIf(process.platform !== 'linux')('mounted fixture clears inherited extr
   const root = await mkdtemp(join(tmpdir(), 'tiktools-smoke-mount-test-'));
   const fixture = join(root, 'fixture.AppImage');
   try {
-    await writeFile(fixture, '#!/bin/sh\ncase "${1:-}" in\n--version) echo 4.2.2 ;;\n--update-installation-type) if [ -n "${APPIMAGE_EXTRACT_AND_RUN:-}" ]; then echo inherited-extraction; else printf \'"unknown"\\n\'; fi ;;\n*) exit 0 ;;\nesac\n');
+    await writeFile(
+      fixture,
+      '#!/bin/sh\ncase "${1:-}" in\n--version) echo 4.2.2 ;;\n' +
+        '--update-installation-type) if [ -n "${APPIMAGE_EXTRACT_AND_RUN:-}" ]; then echo inherited-extraction; ' +
+        'else printf \'"unknown"\\n\'; fi ;;\n*) exit 0 ;;\nesac\n',
+    );
     await chmod(fixture, 0o755);
-    const child = Bun.spawn([process.execPath, resolve(import.meta.dir, '../../../../scripts/smoke-appimage.ts'), fixture, '4.2.2'], { env: { ...process.env, APPIMAGE_EXTRACT_AND_RUN: '1' }, stdout: 'pipe', stderr: 'pipe' });
+    const child = Bun.spawn(
+      [process.execPath, resolve(import.meta.dir, '../../../../scripts/smoke-appimage.ts'), fixture, '4.2.2'],
+      { env: { ...process.env, APPIMAGE_EXTRACT_AND_RUN: '1' }, stdout: 'pipe', stderr: 'pipe' },
+    );
     const [out, err, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
     expect(code).not.toBe(0);
     expect(err).toContain('mounted installation detection failed: received "unknown"; expected appImage');

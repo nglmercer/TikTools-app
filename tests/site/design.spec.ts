@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
-  demoTestId, demoUrl, docLocales, expectFirstChatMessage, frameTestId, guideLink, qaArtifacts, qaScreenshot, retiredLandingSelectors, selector, stageFrame, stageTestId, trackPageErrors, viewport,
+  demoTestId, demoUrl, docLocales, expectFirstChatMessage, frameTestId, guideLink, qaArtifacts, qaScreenshot,
+  retiredLandingSelectors, selector, stageFrame, stageTestId, trackPageErrors, viewport,
 } from './support/index.ts';
 import { docCopy } from '../../docs/locales.ts';
 import { experienceCopy } from '../../docs/experience/copy.ts';
@@ -131,7 +132,8 @@ test('the embedded demo hands vertical scroll back to the landing page', async (
 test('product landing pages show the real demo automatically and fit every viewport', async ({ page }) => {
   for (const route of ['', ...docLocales.map((locale) => `${locale}/`)]) {
     await page.goto(route);
-    const title = page.locator('h1'); await expect(title).toHaveCount(1);
+    const title = page.locator('h1');
+    await expect(title).toHaveCount(1);
     expect(await title.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(MIN_HERO_FONT_PX);
     await expect(page.locator('#choose-your-language')).toHaveCount(0);
     await expect(page.locator('.docs-home__eyebrow')).toHaveCSS('white-space', 'nowrap');
@@ -144,7 +146,14 @@ test('product landing pages show the real demo automatically and fit every viewp
     await expectFirstChatMessage(stageFrame(page));
     await page.setViewportSize(viewport.mobile);
     expect(await title.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeLessThanOrEqual(MAX_MOBILE_HERO_FONT_PX);
-    const layout = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth, overflow: [...document.querySelectorAll('main *')].filter((node) => node.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map((node) => ({ element: node.tagName, class: node.className, right: node.getBoundingClientRect().right })) }));
+    const layout = await page.evaluate(() => ({
+      width: document.documentElement.scrollWidth,
+      viewport: innerWidth,
+      overflow: [...document.querySelectorAll('main *')]
+        .filter((node) => node.getBoundingClientRect().right > innerWidth + 1)
+        .slice(0, 8)
+        .map((node) => ({ element: node.tagName, class: node.className, right: node.getBoundingClientRect().right })),
+    }));
     expect(layout.width, JSON.stringify(layout.overflow)).toBeLessThanOrEqual(layout.viewport);
     await qaScreenshot(page, `tiktools-docs-design-${route ? route.slice(0, 2) : 'root'}-mobile.png`, { fullPage: true });
     await page.setViewportSize(viewport.desktop);

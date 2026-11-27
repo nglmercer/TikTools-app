@@ -34,7 +34,8 @@ describe('guide contract', () => {
   it('uses explicit public taxonomy tags', () => {
     const publicModules = tourModules.filter((module) => !('lifecycle' in module) || module.lifecycle !== 'internal');
     for (const module of publicModules) {
-      for (const tag of module.tags) expect(tutorialTags, `${module.id}.${tag}`).toContain(tag);
+      for (const tag of module.tags)
+        expect(tutorialTags, `${module.id}.${tag}`).toContain(tag);
     }
   });
 
@@ -60,8 +61,12 @@ describe('guide contract', () => {
   it('declares action requirements for type-specific tours', () => {
     expect(tourRegistry.automationActionHttp.requirements?.automationActionType).toEqual({ typeId: ACTION_TYPE.coreFetch });
     expect(tourRegistry.automationActionMedia.requirements?.automationActionType).toEqual({ typeId: 'audio.play' });
-    expect(tourRegistry.automationActionHttp.steps.find((step) => step.id === 'settings')?.prepareActions).toEqual(['automation.openOrCreateActionType:core.fetch']);
-    expect(tourRegistry.automationActionMedia.steps.find((step) => step.id === 'settings')?.prepareActions).toEqual(['automation.openOrCreateActionType:audio.play']);
+    expect(tourRegistry.automationActionHttp.steps.find((step) => step.id === 'settings')?.prepareActions).toEqual([
+      'automation.openOrCreateActionType:core.fetch',
+    ]);
+    expect(tourRegistry.automationActionMedia.steps.find((step) => step.id === 'settings')?.prepareActions).toEqual([
+      'automation.openOrCreateActionType:audio.play',
+    ]);
     expect(tourRegistry.automationActionTts.requirements?.automationActionExample).toEqual({ tag: 'tts' });
     for (const id of ['automationActionHttp', 'automationActionMedia', 'automationActionTts'] as const) {
       for (const step of tourRegistry[id].steps.filter((step) => step.id === 'settings' || step.id === 'permissions')) {
@@ -82,7 +87,12 @@ describe('guide contract', () => {
 
   it('requires both an active action type and an existing matching record', () => {
     const fetchType = { id: ACTION_TYPE.coreFetch, tag: 'fetch', title: { default: 'Call a URL', i18key: '' }, source: { kind: 'builtin' as const } };
-    const ttsType = { id: ACTION_TYPE.demoTts, tag: 'tts', title: { default: 'Speak', i18key: '' }, source: { kind: 'plugin' as const, pluginId: 'demo.audio' } };
+    const ttsType = {
+      id: ACTION_TYPE.demoTts,
+      tag: 'tts',
+      title: { default: 'Speak', i18key: '' },
+      source: { kind: 'plugin' as const, pluginId: 'demo.audio' },
+    };
     const plugin = { installed: true, enabled: true, descriptor: { id: 'demo.audio' } };
     expect(automationActionExampleAvailable({ typeId: ACTION_TYPE.coreFetch }, {
       actions: [{ typeId: ACTION_TYPE.coreFetch }], actionTypes: [fetchType], plugins: [],

@@ -13,29 +13,69 @@ import RuleTemplateDialog from '../../../../../../src/web/features/apply-rule-te
 import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
-const t = (key: string): string => testMessage('en', key); afterEach(() => activateLocale('en'));
+const t = (key: string): string => testMessage('en', key);
+afterEach(() => activateLocale('en'));
 test('oversized expansion reports an error while retaining the configured template and parameters, then allows a bounded correction', async () => {
   await activateLocale('en');
-  const parsed = parseRuleTemplate({ templateVersion: 1, id: 'bounded-template', title: 'Bounded template', params: { type: 'object', properties: { value: { type: 'string', title: 'Value', default: 'small' } } },
-    actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: { message: '{{ params.value }}'.repeat(500) } }], event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat } });
+  const parsed = parseRuleTemplate({
+    templateVersion: 1,
+    id: 'bounded-template',
+    title: 'Bounded template',
+    params: { type: 'object', properties: { value: { type: 'string', title: 'Value', default: 'small' } } },
+    actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: { message: '{{ params.value }}'.repeat(500) } }],
+    event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat },
+  });
   if (!parsed.ok) throw new Error(parsed.errors.join('; '));
-  const wrapper = mountWithPlugins(RuleTemplateDialog, { props: { open: true, customTemplates: [{ ...parsed.template, custom: true }],
-    snapshot: { actions: [], events: [], plugins: [], translations: {}, actionTypes: [{ id: ACTION_TYPE.coreLog, title: { default: 'Log' }, source: { kind: 'builtin' }, requiredCapabilities: [] } as unknown as ActionTypeDefinition] } }, attachTo: document.body });
+  const wrapper = mountWithPlugins(RuleTemplateDialog, {
+    props: {
+      open: true,
+      customTemplates: [{ ...parsed.template, custom: true }],
+      snapshot: {
+        actions: [],
+        events: [],
+        plugins: [],
+        translations: {},
+        actionTypes: [
+          { id: ACTION_TYPE.coreLog, title: { default: 'Log' }, source: { kind: 'builtin' }, requiredCapabilities: [] } as unknown as ActionTypeDefinition,
+        ],
+      },
+    },
+    attachTo: document.body,
+  });
   await wrapper.findAll('.rule-templates__card').find((card) => card.text().includes('Bounded template'))!.trigger('click');
-  const value = 'x'.repeat(256 * 1024); const form = wrapper.getComponent(BaseSchemaForm);
-  form.vm.$emit('update:modelValue', { value }); await flushPromises();
+  const value = 'x'.repeat(256 * 1024);
+  const form = wrapper.getComponent(BaseSchemaForm);
+  form.vm.$emit('update:modelValue', { value });
+  await flushPromises();
   await wrapper.get('.base-button--primary').trigger('click');
   expect(wrapper.get('[role="alert"]').text()).toContain('expanded rules are too large');
-  expect(form.props('modelValue')).toEqual({ value }); expect(wrapper.emitted('apply')).toBeUndefined(); expect(wrapper.get('dialog').attributes('open')).toBeDefined();
-  form.vm.$emit('update:modelValue', { value: 'safe' }); await flushPromises();
+  expect(form.props('modelValue')).toEqual({ value });
+  expect(wrapper.emitted('apply')).toBeUndefined();
+  expect(wrapper.get('dialog').attributes('open')).toBeDefined();
+  form.vm.$emit('update:modelValue', { value: 'safe' });
+  await flushPromises();
   await wrapper.get('.base-button--primary').trigger('click');
   expect(wrapper.emitted('apply')).toHaveLength(1);
 });
 
-const snapshot = { actions: [], events: [], plugins: [], translations: {}, actionTypes: [{ id: ACTION_TYPE.coreLog, title: { default: 'Log' }, source: { kind: 'builtin' }, requiredCapabilities: [] } as unknown as ActionTypeDefinition] };
+const snapshot = {
+  actions: [],
+  events: [],
+  plugins: [],
+  translations: {},
+  actionTypes: [
+    { id: ACTION_TYPE.coreLog, title: { default: 'Log' }, source: { kind: 'builtin' }, requiredCapabilities: [] } as unknown as ActionTypeDefinition,
+  ],
+};
 
 const localTemplate = () => {
-  const parsed = parseRuleTemplate({ templateVersion: 1, id: 'local-one', title: 'Local one', actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: { message: 'hi' } }], event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat } });
+  const parsed = parseRuleTemplate({
+    templateVersion: 1,
+    id: 'local-one',
+    title: 'Local one',
+    actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: { message: 'hi' } }],
+    event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat },
+  });
   if (!parsed.ok) throw new Error(parsed.errors.join('; '));
   return { ...parsed.template, custom: true };
 };
@@ -47,7 +87,14 @@ function mountTemplates(props: { tab?: RuleTemplateTab } = {}) {
   });
   const stores = createStoreHarness(client);
   const wrapper = mountWithPlugins(RuleTemplateDialog, {
-    props: { open: true, customTemplates: [localTemplate()], snapshot, tab: 'templates' as RuleTemplateTab, 'onUpdate:tab': (value: RuleTemplateTab) => wrapper.setProps({ tab: value }), ...props },
+    props: {
+      open: true,
+      customTemplates: [localTemplate()],
+      snapshot,
+      tab: 'templates' as RuleTemplateTab,
+      'onUpdate:tab': (value: RuleTemplateTab) => wrapper.setProps({ tab: value }),
+      ...props,
+    },
     attachTo: document.body,
     global: { plugins: stores.plugins },
   });
@@ -55,13 +102,21 @@ function mountTemplates(props: { tab?: RuleTemplateTab } = {}) {
 }
 
 const templateJson = (id: string, title: string) => ({
-  templateVersion: 1, id, title, actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: { message: 'hi' } }], event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat },
+  templateVersion: 1,
+  id,
+  title,
+  actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: { message: 'hi' } }],
+  event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat },
 });
 
 test('the templates modal has Templates, Cloud and Import tabs and starts on the local templates', async () => {
   await activateLocale('en');
   const wrapper = mountTemplates();
-  expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual([t('importDialog.templatesTab'), t('importDialog.cloudTab'), t('importDialog.manualTab')]);
+  expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual([
+    t('importDialog.templatesTab'),
+    t('importDialog.cloudTab'),
+    t('importDialog.manualTab'),
+  ]);
   expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe(t('importDialog.templatesTab'));
   expect(wrapper.findAll('.rule-templates__card').length).toBeGreaterThan(0);
   // The old "Import templates…" button is the third tab now, never a second control.
@@ -125,7 +180,11 @@ test('configuring a template replaces the tabs and goes back to the list', async
   expect(wrapper.find('[role="tablist"]').exists()).toBe(false);
   expect(wrapper.find('.rule-templates__card').exists()).toBe(false);
   await wrapper.findAll('.base-dialog__footer button').at(-1)!.trigger('click');
-  expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual([t('importDialog.templatesTab'), t('importDialog.cloudTab'), t('importDialog.manualTab')]);
+  expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual([
+    t('importDialog.templatesTab'),
+    t('importDialog.cloudTab'),
+    t('importDialog.manualTab'),
+  ]);
   expect(wrapper.findAll('.rule-templates__card').length).toBeGreaterThan(0);
 });
 

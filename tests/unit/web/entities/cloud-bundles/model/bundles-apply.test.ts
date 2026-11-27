@@ -11,12 +11,18 @@ import { ACCOUNT_STATE, ACTION_TYPE, EVENT_KIND, FIXTURE_ID, RPC } from '../../.
 const id = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
 
 function host(preflight: unknown, stored: Record<string, string> = {}) {
-  const writes: Array<{ key: string; value: string }> = [];
+  const writes: Array<{
+    key: string;
+    value: string
+  }> = [];
   const { client, calls } = createFakeControlClient((method, params) => {
     if (method === RPC.rpcDiscover) return { methods: [{ name: RPC.bundlesPackagesPreflight }] };
     if (method === RPC.bundlesPackagesPreflight) return preflight;
     if (method === RPC.appStateSet) {
-      const write = params as { key: string; value: string };
+      const write = params as {
+        key: string;
+        value: string
+      };
       writes.push(write);
       stored[write.key] = write.value;
       return { state: {} };
@@ -31,7 +37,9 @@ const report = (items: unknown[], canApply: boolean) => ({ packageVersion: 1, it
 
 describe('package apply', () => {
   it('refuses to apply a package whose last check did not allow it', async () => {
-    const { stores, writes } = host(report([{ kind: 'overlay', id, version: null, revision: 2, required: true, status: 'revisionChanged', permissions: 'none' }], false));
+    const { stores, writes } = host(
+      report([{ kind: 'overlay', id, version: null, revision: 2, required: true, status: 'revisionChanged', permissions: 'none' }], false),
+    );
     await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
     const bundles = stores.use(() => useBundlesStore());
     await bundles.checkPackage(id);
@@ -84,12 +92,17 @@ describe('package apply with Cloud templates and profiles', () => {
     const native = nativeDefinitionHost((method, params, options) => {
       if (method === RPC.rpcDiscover) return { methods: [{ name: RPC.bundlesPackagesPreflight }] };
       if (method === RPC.bundlesPackagesPreflight) return report(items, true);
-      if (method === RPC.automationSnapshot) { options?.onMetadata?.({ resourceVersions: [] }); return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} }; }
+      if (method === RPC.automationSnapshot) {
+        options?.onMetadata?.({ resourceVersions: [] });
+        return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} };
+      }
       if (method === RPC.appStateGet) return { state: {} };
       if (method === RPC.appStateSet) return { state: {} };
       if (method === 'cloudLibrary.read') return { meta: { id: documentId, revision: '4', sha256: 'a'.repeat(64) }, document: template };
       if (method === RPC.automationCreate) {
-        options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }] });
+        options?.onMetadata?.({
+          resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }],
+        });
         return params?.record;
       }
       throw new Error(`unexpected ${method}`);
@@ -109,14 +122,16 @@ describe('package apply with Cloud templates and profiles', () => {
     const applying = confirmed.bundles.applyPackage();
     await vi.waitFor(() => expect(confirmed.journal.draft.value).not.toBeNull());
     expect(confirmed.bundles.journal?.entries[0]?.status).toBe('running');
-    await confirmed.journal.confirm(); await applying;
+    await confirmed.journal.confirm();
+    await applying;
     expect(confirmed.bundles.journal?.entries[0]?.status).toBe('done');
     expect(confirmed.calls.filter((call) => call.method === RPC.automationLibrarySubmit)).toHaveLength(1);
 
     const discarded = await ownerHost();
     const second = discarded.bundles.applyPackage();
     await vi.waitFor(() => expect(discarded.journal.draft.value).not.toBeNull());
-    discarded.journal.dismiss(); await second;
+    discarded.journal.dismiss();
+    await second;
     expect(discarded.bundles.journal?.entries[0]).toMatchObject({ status: 'skipped', message: 'the template import was discarded' });
     expect(discarded.calls.some((call) => call.method === RPC.automationLibrarySubmit)).toBe(false);
   });

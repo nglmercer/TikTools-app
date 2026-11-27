@@ -19,7 +19,10 @@ function idle(overrides: Partial<SyncStatus> = {}): SyncStatus {
 }
 
 function harness(handler: (method: string, params: RpcParams | undefined) => unknown) {
-  const calls: { method: string; params: RpcParams | undefined }[] = [];
+  const calls: {
+    method: string;
+    params: RpcParams | undefined;
+  }[] = [];
   const client: ControlClient = {
     attach: () => {},
     detach: () => {},
@@ -104,7 +107,8 @@ describe('sync store', () => {
     });
     const old = store.refresh();
     store.invalidate();
-    await Promise.resolve(); await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     oldReply(idle({ enabled: true, conflicts: ['old-account'] }));
     await old;
     expect(store.status?.enabled).toBe(false);
@@ -137,7 +141,8 @@ describe('sync store', () => {
       return reads === 1 ? new Promise<SyncStatus>((resolve) => { finishRead = resolve; }) : idle({ enabled: false });
     });
     const syncing = store.syncNow();
-    await Promise.resolve(); await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     store.invalidate();
     finishRead(idle({ enabled: true }));
     expect(await syncing).toBeNull();
@@ -204,7 +209,8 @@ describe('automatic sync', () => {
     const { store, calls } = autoHarness();
     await store.refresh();
     store.invalidate();
-    await Promise.resolve(); await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     await vi.advanceTimersByTimeAsync(AUTO_SYNC_DEBOUNCE_MS - 1);
     expect(calls.filter((call) => call.method === 'sync.now')).toHaveLength(0);
     await vi.advanceTimersByTimeAsync(1);
@@ -217,7 +223,8 @@ describe('automatic sync', () => {
     await store.refresh();
     store.invalidate();
     store.invalidate();
-    await Promise.resolve(); await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     await vi.advanceTimersByTimeAsync(AUTO_SYNC_DEBOUNCE_MS + 1);
     expect(calls.filter((call) => call.method === 'sync.now')).toHaveLength(1);
     store.stopAutoSync();

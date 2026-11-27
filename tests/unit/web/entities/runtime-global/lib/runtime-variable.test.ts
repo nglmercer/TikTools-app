@@ -7,7 +7,8 @@ describe('lossless native numeric variables', () => {
     const value = JSON.parse('{"type":"number","value":9223372036854775807,"numberText":"9223372036854775807"}') as RuntimeVariable;
     expect(variableText(value)).toBe('9223372036854775807');
     expect(isRuntimeVariable(value)).toBe(true);
-    expect(variableFromRow({ id: 1, key: 'counter', kind: 'number', value: variableText(value) })).toMatchObject({ type: 'number', numberText: '9223372036854775807' });
+    expect(variableFromRow({ id: 1, key: 'counter', kind: 'number', value: variableText(value) }))
+      .toMatchObject({ type: 'number', numberText: '9223372036854775807' });
   });
   it('keeps the previous JSON shape for ordinary numbers', () => {
     expect(variableFromRow({ id: 1, key: 'port', kind: 'number', value: '46665' })).toEqual({ type: 'number', value: 46665 });

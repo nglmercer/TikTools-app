@@ -146,10 +146,20 @@ describe('FeedPage', () => {
   });
 
   it('ranks General by gift diamonds and Likes from the host ranking engine', async () => {
-    const definitions = new Map<string, { id: string; creatorId: string; roomId: string }>();
+    const definitions = new Map<
+      string,
+      {
+        id: string;
+        creatorId: string;
+        roomId: string;
+      }
+    >();
     const call = (async (method: string, params: Record<string, unknown> = {}) => {
       if (method === RPC.rankingsList) return { rankings: [...definitions.values()] };
-      if (method === RPC.rankingsCreate) { definitions.set(String(params['id']), params as never); return { ok: true }; }
+      if (method === RPC.rankingsCreate) {
+        definitions.set(String(params['id']), params as never);
+        return { ok: true };
+      }
       if (method === RPC.rankingsSnapshot) {
         const id = String(params['id']);
         return rankingSnapshot(id, 'luna', 'room-42', id === 'feed-top-gifters' ? [900, 30] : [5000]);

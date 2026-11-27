@@ -11,8 +11,13 @@ import { ERROR_CODE, RPC, TOPIC } from '../../../shared/index.ts';
 
 describe('public demo host', () => {
   it('populates the feed, profiles, gift catalog and analytics from the same six fictional viewers', async () => {
-    const host = createDemoHost('feed', 'es'); const client = createControlClient({ transport: host.transport }); client.attach();
-    for (let i = 0; i < DEMO_ACTIVITY_LENGTH; i++) { host.step(); await Promise.resolve(); }
+    const host = createDemoHost('feed', 'es');
+    const client = createControlClient({ transport: host.transport });
+    client.attach();
+    for (let i = 0; i < DEMO_ACTIVITY_LENGTH; i++) {
+      host.step();
+      await Promise.resolve();
+    }
     const events = host.state.feedJournal!.map((row) => row.event as unknown as UiEvent);
     expect(new Set(events.slice(0, 9).map((event) => event.author)).size).toBe(6);
     expect(new Set(events.map((event) => event.kind))).toEqual(new Set(['chat', 'like', 'gift', 'member', 'social']));
@@ -29,25 +34,44 @@ describe('public demo host', () => {
       const last = events.findLast((event) => event.author === viewer.uniqueId)!;
       expect(viewer).toMatchObject({ points: last.points, level: last.level });
     }
-    const { summary } = await client.call<{ summary: { totals: AnalyticsTotals; topViewers: Array<{ chats: number; likes: number; shares: number; diamonds: number }> } }>('analytics.summary', {});
+    const { summary } = await client.call<{
+      summary: {
+        totals: AnalyticsTotals;
+        topViewers: Array<{
+          chats: number;
+          likes: number;
+          shares: number;
+          diamonds: number;
+        }>;
+      };
+    }>('analytics.summary', {});
     expect(summary.topViewers).toHaveLength(6);
-    for (const [total, key] of [['chats', 'chats'], ['likes', 'likes'], ['shares', 'shares'], ['diamonds', 'diamonds']] as const) expect(summary.totals[total]).toBe(summary.topViewers.reduce((sum, viewer) => sum + viewer[key], 0));
-    client.detach(); host.dispose();
+    for (const [total, key] of [['chats', 'chats'], ['likes', 'likes'], ['shares', 'shares'], ['diamonds', 'diamonds']] as const)
+      expect(summary.totals[total]).toBe(summary.topViewers.reduce((sum, viewer) => sum + viewer[key], 0));
+    client.detach();
+    host.dispose();
   });
   it('awards the actual sender using the edited rates, toggles, subscriber bonus and gift quantity', async () => {
     const { host, client, dispose } = createDemoFixture('feed');
     const viewer = (id: string) => host.state.leaderboard.find((user) => user.uniqueId === id)!;
-    host.step(); await Promise.resolve();
+    host.step();
+    await Promise.resolve();
     expect(viewer('luna').points).toBe(121);
     await client.call(RPC.pointsConfigSet, { pointsPerLikeEnabled: false, pointsPerCoin: 2, pointsPerChat: 3, subBonusMultiplier: 100 });
-    host.step(); await Promise.resolve();
+    host.step();
+    await Promise.resolve();
     expect(viewer('milo')).toMatchObject({ points: 85, totalLikes: 42 });
     expect(viewer('luna').points).toBe(121);
-    host.step(); await Promise.resolve();
+    host.step();
+    await Promise.resolve();
     expect(viewer('sofia')).toMatchObject({ points: 66, totalCoins: 9 });
-    host.step(); await Promise.resolve();
+    host.step();
+    await Promise.resolve();
     expect(viewer('kai')).toMatchObject({ points: 48, totalChats: 10 });
-    for (let i = 0; i < 5; i++) { host.step(); await Promise.resolve(); }
+    for (let i = 0; i < 5; i++) {
+      host.step();
+      await Promise.resolve();
+    }
     expect(viewer('nora')).toMatchObject({ points: 34, totalCoins: 5 });
     expect(viewer('leo').points).toBe(20);
     dispose();
@@ -73,7 +97,9 @@ describe('public demo host', () => {
     expect(host.state.automationRuns.at(-1)).toMatchObject({ status: 'error', error: expect.stringContaining('simulated action failure') });
     expect(host.state.liveStatus.connected).toBe(true);
     host.simulateError(false);
-    host.step(); host.step(); host.step();
+    host.step();
+    host.step();
+    host.step();
     expect(host.state.automationRuns.at(-1)).toMatchObject({ status: 'ok' });
     host.dispose();
   });
@@ -85,19 +111,26 @@ describe('public demo host', () => {
     await new Promise((resolve) => setTimeout(resolve, 120));
     expect(feed.events.value.some((event) => event.text === 'Hello TikTools!')).toBe(true);
     expect(feed.diagnostics()).toMatchObject({ received: 1, cursor: 1 });
-    feed.dispose(); dispose();
+    feed.dispose();
+    dispose();
   });
   it('connects, delivers an event and records a simulated automation result', async () => {
     const { host, client, dispose } = createDemoFixture('connection');
-    const feed: unknown[] = []; const runs: unknown[] = [];
-    client.onTopic(TOPIC.liveUiEvent, (event) => feed.push(event)); client.onTopic('automation.run.completed', (run) => runs.push(run));
+    const feed: unknown[] = [];
+    const runs: unknown[] = [];
+    client.onTopic(TOPIC.liveUiEvent, (event) => feed.push(event));
+    client.onTopic('automation.run.completed', (run) => runs.push(run));
     expect(host.step()).toBe(false);
     await client.call(RPC.liveConnect, { uniqueId: 'fictional_creator' });
     expect(host.step()).toBe(true);
     await Promise.resolve();
-    expect(feed).toHaveLength(1); expect(runs).toHaveLength(1);
+    expect(feed).toHaveLength(1);
+    expect(runs).toHaveLength(1);
     expect(host.state.automationRuns[0]).toMatchObject({ summary: 'Hello Luna', test: false, status: 'ok' });
-    for (let i = 0; i < 400; i++) { host.step(); await Promise.resolve(); }
+    for (let i = 0; i < 400; i++) {
+      host.step();
+      await Promise.resolve();
+    }
     expect(host.diagnostics()).toMatchObject({ ticks: 300, events: 60, runs: 60 });
     dispose();
     expect(host.diagnostics()).toMatchObject({ callbacks: 0, queuedResponses: 0, disposed: true, events: 0, runs: 0 });
@@ -105,21 +138,43 @@ describe('public demo host', () => {
   it('rejects stale changes and never executes supplied code or network effects', async () => {
     const { client, dispose } = createDemoFixture('cloud');
     const call = () => client.call(RPC.syncV2VariablesApply, { review: 'demo-review-1' });
-    await call(); await expect(call()).rejects.toMatchObject({ code: 'conflict' });
+    await call();
+    await expect(call()).rejects.toMatchObject({ code: 'conflict' });
     await expect(client.call('automation.script.analyze', { source: 'throw new Error()' })).rejects.toMatchObject({ code: 'demo_unsupported' });
-    await expect(client.call('plugins.action.execute', { actionType: 'http', config: { url: 'https://example.com' } })).rejects.toMatchObject({ code: 'demo_unsupported' });
+    await expect(
+      client.call('plugins.action.execute', { actionType: 'http', config: { url: 'https://example.com' } }),
+    ).rejects.toMatchObject({ code: 'demo_unsupported' });
     await expect(client.call('shell.execute', {})).rejects.toMatchObject({ code: ERROR_CODE.methodNotFound });
     dispose();
   });
   it('has deterministic initial state and bounded explicit startup replies for every scenario', async () => {
     for (const id of Object.keys(scenarios) as Array<keyof typeof scenarios>) {
-      const a = createDemoHost(id); const b = createDemoHost(id);
+      const a = createDemoHost(id);
+      const b = createDemoHost(id);
       expect(a.state).toEqual(b.state);
-      const client = createControlClient({ transport: a.transport }); client.attach();
+      const client = createControlClient({ transport: a.transport });
+      client.attach();
       const status = await client.call<{ connected: boolean }>('live.status', {});
       expect(status.connected, `${id} should only be seeded live when it reads live events`).toBe(id === 'feed');
-      for (const method of [RPC.systemInfo, RPC.appStateGet, RPC.automationSnapshot, RPC.automationRuns, RPC.pointsConfigGet, RPC.pointsLeaderboard, 'live.status', 'live.monitor.status', 'creators.recent', RPC.globalsList, 'processors.status', 'widgets.status']) expect(await client.call(method, {})).toBeDefined();
-      expect(client.diagnostics?.().pending).toBe(0); client.detach(); a.dispose(); b.dispose();
+      for (const method of [
+        RPC.systemInfo,
+        RPC.appStateGet,
+        RPC.automationSnapshot,
+        RPC.automationRuns,
+        RPC.pointsConfigGet,
+        RPC.pointsLeaderboard,
+        'live.status',
+        'live.monitor.status',
+        'creators.recent',
+        RPC.globalsList,
+        'processors.status',
+        'widgets.status',
+      ])
+        expect(await client.call(method, {})).toBeDefined();
+      expect(client.diagnostics?.().pending).toBe(0);
+      client.detach();
+      a.dispose();
+      b.dispose();
     }
   });
   it('validates public parameters without promoting hidden screens', () => {
@@ -131,12 +186,29 @@ describe('public demo host', () => {
     for (const params of ['?framed=0', '?framed=true', '?framed=other', '?preview=0', '?preview=true']) expect(() => parseDemoOptions(params)).toThrow();
     expect(parseDemoOptions('?embed=feed').initialEvents).toBe(1);
     expect(parseDemoOptions('?embed=feed&events=9').initialEvents).toBe(9);
-    for (const params of ['?embed=feed&events=13', '?embed=feed&events=-1', '?embed=feed&events=1.5', '?events=9', '?embed=connection&events=9']) expect(() => parseDemoOptions(params)).toThrow();
+    for (const params of [
+      '?embed=feed&events=13',
+      '?embed=feed&events=-1',
+      '?embed=feed&events=1.5',
+      '?events=9',
+      '?embed=connection&events=9',
+    ]) expect(() => parseDemoOptions(params)).toThrow();
     expect(parseDemoOptions('?embed=connection').embed).toBe('connection');
-    for (const params of ['?embed=unknown', '?embed=connection&route=/feed', '?embed=connection&tour=connection']) expect(() => parseDemoOptions(params)).toThrow();
+    for (const params of [
+      '?embed=unknown',
+      '?embed=connection&route=/feed',
+      '?embed=connection&tour=connection',
+    ]) expect(() => parseDemoOptions(params)).toThrow();
     expect(parseDemoOptions('?scenario=feed&locale=fr').locale).toBe('fr');
     expect(parseDemoOptions('?scenario=feed&locale=zh-CN').locale).toBe('zh');
     expect(parseDemoOptions('?scenario=feed&locale=jp').locale).toBe('ja');
-    for (const params of ['?route=//evil.test', '?route=/rankings', '?tour=unknown', '?scenario=unknown', '?instance=../other', '?locale=xx']) expect(() => parseDemoOptions(params)).toThrow();
+    for (const params of [
+      '?route=//evil.test',
+      '?route=/rankings',
+      '?tour=unknown',
+      '?scenario=unknown',
+      '?instance=../other',
+      '?locale=xx',
+    ]) expect(() => parseDemoOptions(params)).toThrow();
   });
 });

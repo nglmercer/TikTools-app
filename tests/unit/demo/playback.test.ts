@@ -10,7 +10,16 @@ function fixture() {
   const demo = createDemoFixture('connection');
   const states: PlaybackState[] = [];
   const playback = createDemoPlayback(demo.host, demo.client, (state) => states.push(state));
-  return { host: demo.host, client: demo.client, playback, states, dispose() { playback.dispose(); demo.dispose(); } };
+  return {
+    host: demo.host,
+    client: demo.client,
+    playback,
+    states,
+    dispose() {
+      playback.dispose();
+      demo.dispose();
+    },
+  };
 }
 
 describe('demo playback controls', () => {
@@ -44,7 +53,10 @@ describe('demo playback controls', () => {
       f.playback.tick();
       expect(f.states.at(-1)).toMatchObject({ paused: true, status: 'disconnected' });
       await f.playback.play();
-      for (let index = 0; index < 310; index++) { f.playback.tick(); await Promise.resolve(); }
+      for (let index = 0; index < 310; index++) {
+        f.playback.tick();
+        await Promise.resolve();
+      }
       expect(f.states.at(-1)).toMatchObject({ events: 300, paused: true, status: 'limit' });
     } finally { f.dispose(); }
   });
@@ -71,7 +83,9 @@ describe('demo playback controls', () => {
 
 it('each selectable walkthrough prepares the matching fixtures and preserves locale/instance/base', () => {
   for (const id of Object.keys(demoTourScenarios) as Array<keyof typeof demoTourScenarios>) {
-    const url = new URL(demoTourUrl('https://example.test/sub/demo/?locale=fr&instance=own&scenario=connection&route=/feed#/feed', id));
+    const url = new URL(
+      demoTourUrl('https://example.test/sub/demo/?locale=fr&instance=own&scenario=connection&route=/feed#/feed', id),
+    );
     expect(url.pathname).toBe('/sub/demo/');
     expect(url.searchParams.get(demoParam.scenario)).toBe(demoTourScenarios[id]);
     expect(url.searchParams.get(demoParam.tour)).toBe(id);

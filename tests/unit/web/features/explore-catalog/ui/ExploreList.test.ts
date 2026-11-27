@@ -30,7 +30,9 @@ function wire(kind: string, id: string, title: string, extra: Record<string, unk
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => { resolve = done; });
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
   return { promise, resolve };
 }
 
@@ -59,7 +61,11 @@ const rowTitles = (wrapper: Awaited<ReturnType<typeof mountList>>['wrapper']) =>
 describe('ExploreList', () => {
   it('renders plugins, templates and profiles as rows with their own action', async () => {
     const { wrapper, calls } = await mountList(() => ({
-      items: [wire('plugin', PLUGIN_ID.acmeTts, 'Acme TTS'), wire('template', FIXTURE_ID.tpl1, t('overlays.kinds.gift.name')), wire('profile', FIXTURE_ID.prof1, 'Starter pack')],
+      items: [
+        wire('plugin', PLUGIN_ID.acmeTts, 'Acme TTS'),
+        wire('template', FIXTURE_ID.tpl1, t('overlays.kinds.gift.name')),
+        wire('profile', FIXTURE_ID.prof1, 'Starter pack'),
+      ],
       nextCursor: null,
     }));
     expect(calls.find((call) => call.method === RPC.catalogItems)?.params).toMatchObject({ limit: 25 });
@@ -97,7 +103,10 @@ describe('ExploreList', () => {
   });
 
   it('does not repeat plugins the page already lists itself', async () => {
-    const { wrapper } = await mountList(() => ({ items: [wire('plugin', 'bundled.tts', t('plugins.catalog.bundled')), wire('template', 'bundled.tts', 'Same id template')], nextCursor: null }));
+    const { wrapper } = await mountList(() => ({
+      items: [wire('plugin', 'bundled.tts', t('plugins.catalog.bundled')), wire('template', 'bundled.tts', 'Same id template')],
+      nextCursor: null,
+    }));
     expect(rowTitles(wrapper)).toEqual([t('plugins.catalog.bundled'), 'Same id template']);
     await wrapper.setProps({ hiddenIds: new Set(['bundled.tts']) });
     expect(rowTitles(wrapper)).toEqual(['Same id template']);
@@ -106,7 +115,10 @@ describe('ExploreList', () => {
   it('imports a template or a profile through the single library import', async () => {
     imports.importTemplate.mockResolvedValue(undefined);
     imports.importProfile.mockResolvedValue(undefined);
-    const { wrapper } = await mountList(() => ({ items: [wire('template', FIXTURE_ID.tpl1, t('overlays.kinds.gift.name')), wire('profile', FIXTURE_ID.prof1, 'Starter pack')], nextCursor: null }));
+    const { wrapper } = await mountList(() => ({
+      items: [wire('template', FIXTURE_ID.tpl1, t('overlays.kinds.gift.name')), wire('profile', FIXTURE_ID.prof1, 'Starter pack')],
+      nextCursor: null,
+    }));
     await wrapper.get('button[aria-label="Import template Gift alert"]').trigger('click');
     await flushPromises();
     expect(imports.importTemplate).toHaveBeenCalledWith({ id: FIXTURE_ID.tpl1, revision: 3 });

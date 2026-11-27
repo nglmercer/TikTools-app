@@ -3,12 +3,29 @@ import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import BaseFloatingPanel from '../../../../../../src/web/shared/ui/floating-panel/BaseFloatingPanel.vue';
 enableAutoUnmount(afterEach);
-afterEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ''; });
-const labels = { title: 'Activity', moveLabel: 'Move activity', closeLabel: 'Close activity', minimizeLabel: 'Minimize', restoreLabel: 'Restore', resetLabel: 'Reset position' };
+afterEach(() => {
+  vi.restoreAllMocks();
+  document.body.innerHTML = '';
+});
+const labels = {
+  title: 'Activity',
+  moveLabel: 'Move activity',
+  closeLabel: 'Close activity',
+  minimizeLabel: 'Minimize',
+  restoreLabel: 'Restore',
+  resetLabel: 'Reset position',
+};
 test('focuses a nonmodal panel, moves with keyboard and returns focus on close', async () => {
-  const launcher = document.createElement('button'); document.body.append(launcher); launcher.focus();
-  const wrapper = mountWithPlugins(BaseFloatingPanel, { attachTo: document.body, props: { ...labels, open: false }, slots: { default: '<button>Content action</button>' } });
-  await wrapper.setProps({ open: true }); await flushPromises();
+  const launcher = document.createElement('button');
+  document.body.append(launcher);
+  launcher.focus();
+  const wrapper = mountWithPlugins(BaseFloatingPanel, {
+    attachTo: document.body,
+    props: { ...labels, open: false },
+    slots: { default: '<button>Content action</button>' },
+  });
+  await wrapper.setProps({ open: true });
+  await flushPromises();
   const mover = wrapper.get('.base-floating-panel__move');
   expect(document.activeElement).toBe(mover.element);
   expect(wrapper.get('aside').attributes('aria-modal')).toBeUndefined();
@@ -19,7 +36,8 @@ test('focuses a nonmodal panel, moves with keyboard and returns focus on close',
   expect(parseInt((wrapper.get('aside').element as HTMLElement).style.left)).toBe(parseInt(before) + 16);
   await wrapper.get('button[aria-label="Close activity"]').trigger('click');
   expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false]);
-  await wrapper.setProps({ open: false }); await flushPromises();
+  await wrapper.setProps({ open: false });
+  await flushPromises();
   expect(document.activeElement).toBe(launcher);
 });
 test('minimizes, restores on new activation and clamps on viewport resize', async () => {
@@ -27,11 +45,13 @@ test('minimizes, restores on new activation and clamps on viewport resize', asyn
   await flushPromises();
   await wrapper.get('button[aria-label="Minimize"]').trigger('click');
   expect(wrapper.get('.base-floating-panel__body').isVisible()).toBe(false);
-  await wrapper.setProps({ activationKey: 1 }); await flushPromises();
+  await wrapper.setProps({ activationKey: 1 });
+  await flushPromises();
   expect(wrapper.get('.base-floating-panel__body').isVisible()).toBe(true);
   vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(320);
   vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(120);
-  window.dispatchEvent(new Event('resize')); await flushPromises();
+  window.dispatchEvent(new Event('resize'));
+  await flushPromises();
   expect((wrapper.get('aside').element as HTMLElement).style.left).toBe('0px');
   expect(parseInt((wrapper.get('aside').element as HTMLElement).style.top)).toBeLessThanOrEqual(60);
   expect(wrapper.emitted('viewportChange')?.at(-1)).toEqual([320]);

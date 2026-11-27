@@ -80,10 +80,24 @@ test('rejects unknown node types, bad bindings, and over-deep trees', () => {
   expect(normalizeNode({ type: 'button', action: { type: 'rpc' } })).toBeUndefined();
   expect(normalizeNode({ type: NODE_TYPE.actionStatus, action: { type: NODE_TYPE.refreshSource, source: 'x' } })).toBeUndefined();
   expect(normalizeNode({ type: NODE_TYPE.actionStatus, action: { type: NODE_TYPE.pluginAction, actionType: 'x.y' }, pollMs: 200 })).toBeUndefined();
-  expect(normalizeNode({ type: NODE_TYPE.actionStatus, action: { type: NODE_TYPE.pluginAction, actionType: 'x.y' }, pollMs: 2000, stateKey: 'phase' })).toBeDefined();
+  expect(
+    normalizeNode({ type: NODE_TYPE.actionStatus, action: { type: NODE_TYPE.pluginAction, actionType: 'x.y' }, pollMs: 2000, stateKey: 'phase' }),
+  ).toBeDefined();
   expect(normalizeNode({ type: NODE_TYPE.actionStatus, action: { type: NODE_TYPE.pluginAction, actionType: 'x.y' }, stateKey: 'bad key' })).toBeUndefined();
-  expect(normalizeNode({ type: 'button', action: { type: NODE_TYPE.pluginAction, actionType: 'x.y' }, disabledWhen: { bind: 'local.phase', values: ['connected'] } })).toBeDefined();
-  expect(normalizeNode({ type: 'button', action: { type: NODE_TYPE.pluginAction, actionType: 'x.y' }, disabledWhen: { bind: 'settings.phase', values: ['connected'] } })).toBeUndefined();
+  expect(
+    normalizeNode({
+      type: 'button',
+      action: { type: NODE_TYPE.pluginAction, actionType: 'x.y' },
+      disabledWhen: { bind: 'local.phase', values: ['connected'] },
+    }),
+  ).toBeDefined();
+  expect(
+    normalizeNode({
+      type: 'button',
+      action: { type: NODE_TYPE.pluginAction, actionType: 'x.y' },
+      disabledWhen: { bind: 'settings.phase', values: ['connected'] },
+    }),
+  ).toBeUndefined();
   expect(normalizeNode({ type: 'list' })).toBeUndefined();
   expect(normalizeNode({ type: 'stack', children: [] })).toBeUndefined();
   expect(
@@ -91,7 +105,8 @@ test('rejects unknown node types, bad bindings, and over-deep trees', () => {
   ).toBeUndefined();
 
   let deep: JsonValue = { type: 'text', text };
-  for (let i = 0; i < 12; i += 1) deep = { type: 'stack', children: [deep] };
+  for (let i = 0; i < 12; i += 1)
+    deep = { type: 'stack', children: [deep] };
   expect(normalizeNode(deep)).toBeUndefined();
 });
 

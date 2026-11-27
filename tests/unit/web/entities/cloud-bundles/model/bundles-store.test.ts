@@ -40,7 +40,12 @@ describe('bundles store', () => {
   it('shows the preflight for the requested package and never applies it', async () => {
     const { stores, calls } = host((method) => {
       if (method === RPC.bundlesPackagesPreflight) {
-        return { items: [{ kind: 'overlay', id, version: null, revision: 2, required: true, status: 'revisionChanged', permissions: 'none' }], blocking: [{}], canApply: false, applyMode: 'clientJournal' };
+        return {
+          items: [{ kind: 'overlay', id, version: null, revision: 2, required: true, status: 'revisionChanged', permissions: 'none' }],
+          blocking: [{}],
+          canApply: false,
+          applyMode: 'clientJournal',
+        };
       }
       throw new Error(method);
     });

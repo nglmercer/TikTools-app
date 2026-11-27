@@ -9,20 +9,41 @@ import ProfileImportDialog from '../../../../../../src/web/features/manage-rule-
 import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
-const t = (key: string): string => testMessage('en', key); afterEach(() => activateLocale('en'));
+const t = (key: string): string => testMessage('en', key);
+afterEach(() => activateLocale('en'));
 test('profile aggregate failure stays in the import dialog with its staged file and editable parameters', async () => {
-  const template = { templateVersion: 1, id: 'bounded-template', title: 'Bounded', params: { type: 'object', properties: { value: { type: 'string', title: 'Valor', default: 'small' } } },
-    actions: Array.from({ length: 4 }, (_, index) => ({ name: `Log ${index}`, typeId: ACTION_TYPE.coreLog, config: { message: '{{ params.value }}' } })), event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat } };
-  const source = JSON.stringify({ profileVersion: 1, id: 'bounded-profile', name: 'Perfil conservado', description: '', params: {}, templates: Array.from({ length: 32 }, () => ({ template, params: {} })) });
+  const template = {
+    templateVersion: 1,
+    id: 'bounded-template',
+    title: 'Bounded',
+    params: { type: 'object', properties: { value: { type: 'string', title: 'Valor', default: 'small' } } },
+    actions: Array.from({ length: 4 }, (_, index) => ({ name: `Log ${index}`, typeId: ACTION_TYPE.coreLog, config: { message: '{{ params.value }}' } })),
+    event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat },
+  };
+  const source = JSON.stringify({
+    profileVersion: 1,
+    id: 'bounded-profile',
+    name: 'Perfil conservado',
+    description: '',
+    params: {},
+    templates: Array.from({ length: 32 }, () => ({ template, params: {} })),
+  });
   const wrapper = mountWithPlugins(ProfileImportDialog, { props: { open: true }, attachTo: document.body });
-  wrapper.getComponent(BaseFileDrop).vm.$emit('content', source, 'perfil.tikprofile.json'); await flushPromises();
-  const value = '🌹'.repeat(20_000); const form = wrapper.getComponent(BaseSchemaForm);
-  form.vm.$emit('update:modelValue', { value }); await flushPromises();
+  wrapper.getComponent(BaseFileDrop).vm.$emit('content', source, 'perfil.tikprofile.json');
+  await flushPromises();
+  const value = '🌹'.repeat(20_000);
+  const form = wrapper.getComponent(BaseSchemaForm);
+  form.vm.$emit('update:modelValue', { value });
+  await flushPromises();
   await wrapper.get('.base-button--primary').trigger('click');
   expect(wrapper.get('[role="alert"]').text()).toContain('expanded rules are too large');
-  expect(wrapper.text()).toContain('Perfil conservado'); expect(form.props('modelValue')).toEqual({ value }); expect(wrapper.emitted('apply')).toBeUndefined();
-  form.vm.$emit('update:modelValue', { value: 'safe' }); await flushPromises();
-  await wrapper.get('.base-button--primary').trigger('click'); expect(wrapper.emitted('apply')).toHaveLength(1);
+  expect(wrapper.text()).toContain('Perfil conservado');
+  expect(form.props('modelValue')).toEqual({ value });
+  expect(wrapper.emitted('apply')).toBeUndefined();
+  form.vm.$emit('update:modelValue', { value: 'safe' });
+  await flushPromises();
+  await wrapper.get('.base-button--primary').trigger('click');
+  expect(wrapper.emitted('apply')).toHaveLength(1);
 });
 
 test('profile import is one manual source: no tab bar, a staged profile with clear, and a file size limit', async () => {
@@ -32,10 +53,30 @@ test('profile import is one manual source: no tab bar, a staged profile with cle
   const drop = wrapper.getComponent(BaseFileDrop);
   expect(drop.props('maxBytes')).toBeGreaterThan(0);
   expect(wrapper.get('.base-button--primary').attributes('disabled')).toBeDefined();
-  drop.vm.$emit('content', '{"nope":true}', 'bad.json'); await flushPromises();
+  drop.vm.$emit('content', '{"nope":true}', 'bad.json');
+  await flushPromises();
   expect(wrapper.get('[role="alert"]').text()).toBe(t('automations.import.notProfile'));
-  const profile = { profileVersion: 1, id: 'p1', name: 'Starter', description: '', params: {}, templates: [{ template: { templateVersion: 1, id: 't1', title: 'T', actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: {} }], event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat } }, params: {} }] };
-  drop.vm.$emit('content', JSON.stringify(profile), 'starter.tikprofile.json'); await flushPromises();
+  const profile = {
+    profileVersion: 1,
+    id: 'p1',
+    name: 'Starter',
+    description: '',
+    params: {},
+    templates: [
+      {
+        template: {
+          templateVersion: 1,
+          id: 't1',
+          title: 'T',
+          actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: {} }],
+          event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat },
+        },
+        params: {},
+      },
+    ],
+  };
+  drop.vm.$emit('content', JSON.stringify(profile), 'starter.tikprofile.json');
+  await flushPromises();
   expect(wrapper.get('.base-import-dialog__staged').text()).toContain('Profile “Starter” · 1 rules');
   expect(wrapper.get('.base-import-dialog__staged').text()).toContain('starter.tikprofile.json');
   expect(wrapper.get('.base-button--primary').text()).toBe('Create 1 rules');

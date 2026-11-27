@@ -2,7 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import { createLiveMonitorState } from '../../../../../../src/web/entities/connection/model/live-monitor-state.ts';
 
-const status = { enabled: true, uniqueId: 'alice', phase: 'waiting', pollIntervalSeconds: 30, checks: 0, failures: 0, lastCheckedAt: null, nextCheckAt: null, lastError: null };
+const status = {
+  enabled: true,
+  uniqueId: 'alice',
+  phase: 'waiting',
+  pollIntervalSeconds: 30,
+  checks: 0,
+  failures: 0,
+  lastCheckedAt: null,
+  nextCheckAt: null,
+  lastError: null,
+};
 describe('native monitor configuration', () => {
   it('starts and stops exclusively through the control API', async () => {
     const { client, calls } = createFakeControlClient((method) => method === 'live.monitor.stop' ? { ...status, enabled: false, phase: 'stopped' } : status);

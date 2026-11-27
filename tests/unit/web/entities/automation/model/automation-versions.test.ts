@@ -20,7 +20,11 @@ function fixture() {
   let metadata = true;
   let missing = false;
   let holdNextSnapshot: Promise<void> | undefined;
-  const requests: Array<{ method: string; meta: ControlCallOptions['meta']; params?: RpcParams }> = [];
+  const requests: Array<{
+    method: string;
+    meta: ControlCallOptions['meta'];
+    params?: RpcParams
+  }> = [];
   const meta = (id = 'same') => ({ resourceVersions: [{ kind: 'automation', scope: 'action', id, revision }] });
   const native = nativeDefinitionHost((method, params, options) => {
     requests.push({ method, params, meta: options?.meta });
@@ -28,8 +32,11 @@ function fixture() {
     if (method === RPC.automationRuns) return { runs: [] };
     if (method === RPC.automationSnapshot) {
       const body = structuredClone(snapshot);
-      if (metadata) options?.onMetadata?.({ resourceVersions: body.actions.map((record) => ({ kind: 'automation', scope: 'action', id: record.id, revision })) });
-      const hold = holdNextSnapshot; holdNextSnapshot = undefined;
+      if (metadata) options?.onMetadata?.({
+        resourceVersions: body.actions.map((record) => ({ kind: 'automation', scope: 'action', id: record.id, revision })),
+      });
+      const hold = holdNextSnapshot;
+      holdNextSnapshot = undefined;
       return hold ? hold.then(() => body) : body;
     }
     if (method === 'automation.get') {
@@ -44,7 +51,8 @@ function fixture() {
       if (method === RPC.automationUpdate && missing) throw new ControlCallError(ERROR_CODE.automationNotFound, 'Deleted', meta());
       revision = String(BigInt(method === RPC.automationCreate && !missing ? '0' : revision) + 1n);
       const record = structuredClone(params?.record) as LiveAction;
-      snapshot.actions = [record]; missing = false;
+      snapshot.actions = [record];
+      missing = false;
       if (metadata) options?.onMetadata?.(meta(record.id));
       return record;
     }
@@ -53,8 +61,15 @@ function fixture() {
   const { client, calls } = createFakeControlClient(native.handle);
   const automation = useAutomation(client);
   return { automation, snapshot, requests, native, calls,
-    changeHost(name: string, next: string) { snapshot.actions = [{ ...original, name }]; revision = next; },
-    setMissing(next: string) { missing = true; revision = next; snapshot.actions = []; },
+    changeHost(name: string, next: string) {
+      snapshot.actions = [{ ...original, name }];
+      revision = next;
+    },
+    setMissing(next: string) {
+      missing = true;
+      revision = next;
+      snapshot.actions = [];
+    },
     setPersistence(value: boolean | undefined) { persistence = value; },
     setMetadata(value: boolean) { metadata = value; },
     holdSnapshot(value: Promise<void>) { holdNextSnapshot = value; },
@@ -62,44 +77,62 @@ function fixture() {
 }
 
 test('body and revisions become visible in one projection, including synchronous observers', async () => {
-  const f = fixture(); await f.automation.refresh();
+  const f = fixture();
+  await f.automation.refresh();
   const seen: Array<[string | undefined, unknown]> = [];
   const stop = watch(() => f.automation.behavior.value, (body) => {
     seen.push([body.actions[0]?.name, f.automation.revisionFor('action', 'same')]);
   }, { flush: 'sync' });
-  f.changeHost('Second', '2'); await f.automation.refresh();
+  f.changeHost('Second', '2');
+  await f.automation.refresh();
   expect(seen).toEqual([['Second', '2']]);
   expect(f.automation.revisionFor('event', 'same')).toBeUndefined();
-  stop(); f.automation.dispose();
+  stop();
+  f.automation.dispose();
 });
 
 test('saved-base updates keep their precondition after refresh and never recreate a missing update', async () => {
-  const f = fixture(); await f.automation.refresh();
-  const base = f.automation.revisionFor('action', 'same'); expect(base).toBe('1');
-  f.changeHost('Host change', '2'); await f.automation.refresh();
-  await expect(f.automation.saveRecordAndRefresh('action', { ...original, name: 'Draft' }, { revision: base!, create: false, host: f.automation.sourceHost.value })).rejects.toMatchObject({ code: ERROR_CODE.revisionConflict });
+  const f = fixture();
+  await f.automation.refresh();
+  const base = f.automation.revisionFor('action', 'same');
+  expect(base).toBe('1');
+  f.changeHost('Host change', '2');
+  await f.automation.refresh();
+  await expect(
+    f.automation.saveRecordAndRefresh('action', { ...original, name: 'Draft' }, { revision: base!, create: false, host: f.automation.sourceHost.value }),
+  ).rejects.toMatchObject({ code: ERROR_CODE.revisionConflict });
   f.setMissing('2');
-  await expect(f.automation.saveRecordAndRefresh('action', original, { revision: '2', create: false, host: f.automation.sourceHost.value })).rejects.toMatchObject({ code: ERROR_CODE.notFound });
+  await expect(
+    f.automation.saveRecordAndRefresh('action', original, { revision: '2', create: false, host: f.automation.sourceHost.value }),
+  ).rejects.toMatchObject({ code: ERROR_CODE.notFound });
   expect(f.requests.filter((r) => r.method === RPC.automationUpdate).map((r) => r.meta)).toEqual([{ expectedRevision: '1' }, { expectedRevision: '2' }]);
   expect(f.requests.some((r) => r.method === RPC.automationCreate)).toBe(false);
   f.automation.dispose();
 });
 
 test('new records use explicit create with zero; missing records expose the retained tombstone for reviewed recreation', async () => {
-  const f = fixture(); await f.automation.refresh();
+  const f = fixture();
+  await f.automation.refresh();
   await f.automation.saveRecordAndRefresh('action', { ...original, id: 'fresh' }, { revision: '0', create: true, host: f.automation.sourceHost.value });
   expect(f.requests.find((r) => r.method === RPC.automationCreate)?.meta).toEqual({ expectedRevision: '0' });
   f.setMissing('4');
-  expect(await f.automation.readRecord('action', 'same')).toEqual({ record: null, revision: '4', host: { hostId: FIXTURE_ID.hostA, hostInstanceId: FIXTURE_ID.instanceA } });
+  expect(await f.automation.readRecord('action', 'same')).toEqual({
+    record: null,
+    revision: '4',
+    host: { hostId: FIXTURE_ID.hostA, hostInstanceId: FIXTURE_ID.instanceA },
+  });
   const result = await f.automation.saveRecordAndRefresh('action', original, { revision: '4', create: true, host: f.automation.sourceHost.value });
   expect(result.revision).toBe('5');
   f.automation.dispose();
 });
 
 test('a successful body without revision acknowledgement is unconfirmed and cannot silently downgrade CAS', async () => {
-  const f = fixture(); await f.automation.refresh();
+  const f = fixture();
+  await f.automation.refresh();
   f.setMetadata(false);
-  await expect(f.automation.saveRecordAndRefresh('action', original, { revision: '1', create: false, host: f.automation.sourceHost.value })).rejects.toMatchObject({ code: 'definition_journal_invalid' });
+  await expect(
+    f.automation.saveRecordAndRefresh('action', original, { revision: '1', create: false, host: f.automation.sourceHost.value }),
+  ).rejects.toMatchObject({ code: 'definition_journal_invalid' });
   expect(f.requests.filter((r) => r.method === RPC.automationUpdate)).toHaveLength(1);
   expect(f.requests.find((r) => r.method === RPC.automationUpdate)?.meta).toEqual({ expectedRevision: '1' });
   await f.automation.refresh();
@@ -111,7 +144,10 @@ test('a successful body without revision acknowledgement is unconfirmed and cann
 
 test('only explicitly non-persistent owner hosts allow an unversioned memory edit', async () => {
   for (const persistence of [false, true, undefined]) {
-    const f = fixture(); f.setMetadata(false); f.setPersistence(persistence); await f.automation.refresh();
+    const f = fixture();
+    f.setMetadata(false);
+    f.setPersistence(persistence);
+    await f.automation.refresh();
     const saving = f.automation.saveRecordAndRefresh('action', original, { revision: null, create: false });
     if (persistence === false) {
       expect(f.automation.revisionFor('action', 'same')).toBe(null);
@@ -126,47 +162,68 @@ test('only explicitly non-persistent owner hosts allow an unversioned memory edi
 });
 
 test('a snapshot started before a write cannot rewind the acknowledged projection when it completes later', async () => {
-  const f = fixture(); await f.automation.refresh();
+  const f = fixture();
+  await f.automation.refresh();
   let release!: () => void;
   f.holdSnapshot(new Promise<void>((resolve) => { release = resolve; }));
   const oldRead = f.automation.refresh();
-  await f.automation.saveRecordAndRefresh('action', { ...original, name: 'Committed new body' }, { revision: '1', create: false, host: f.automation.sourceHost.value });
-  release(); await oldRead;
+  await f.automation.saveRecordAndRefresh(
+    'action',
+    { ...original, name: 'Committed new body' },
+    { revision: '1', create: false, host: f.automation.sourceHost.value },
+  );
+  release();
+  await oldRead;
   expect(f.automation.behavior.value.actions[0]?.name).toBe('Committed new body');
   expect(f.automation.revisionFor('action', 'same')).toBe('2');
   f.automation.dispose();
 });
 
 test('a long-lived editor keeps its opening host when a replacement host has the same record revision', async () => {
-  const f = fixture(); await f.automation.refresh();
+  const f = fixture();
+  await f.automation.refresh();
   const editor = useAutomationEditor({ read: f.automation.readRecord, save: f.automation.saveRecordAndRefresh, remove: f.automation.deleteRecord });
   editor.open('action', original, '1', false, f.automation.sourceHost.value);
   editor.change({ ...original, name: 'Draft for the original host' });
   f.native.replaceState({ ...f.native.state(), hostId: 'replacement-host', hostInstanceId: 'replacement-instance' });
-  f.changeHost('Replacement source', '1'); await f.automation.refresh();
+  f.changeHost('Replacement source', '1');
+  await f.automation.refresh();
   await editor.save();
   expect(editor.state.value?.reviewRequired).toBe(true);
   expect(editor.state.value?.candidate.name).toBe('Draft for the original host');
   expect(editor.state.value?.host).toEqual({ hostId: FIXTURE_ID.hostA, hostInstanceId: FIXTURE_ID.instanceA });
   expect(f.calls.filter((call) => call.method === RPC.automationDefinitionSubmit)).toHaveLength(0);
-  await editor.readForReview(); expect(editor.adoptReview()).toBe(true);
+  await editor.readForReview();
+  expect(editor.adoptReview()).toBe(true);
   expect(editor.state.value?.host).toEqual({ hostId: 'replacement-host', hostInstanceId: 'replacement-instance' });
   await editor.save();
   expect(f.calls.filter((call) => call.method === RPC.automationDefinitionSubmit)).toHaveLength(1);
-  expect(f.calls.find((call) => call.method === RPC.automationDefinitionSubmit)?.params).toMatchObject({ hostId: 'replacement-host', hostInstanceId: 'replacement-instance' });
-  editor.dispose(); f.automation.dispose();
+  expect(f.calls.find((call) => call.method === RPC.automationDefinitionSubmit)?.params).toMatchObject({
+    hostId: 'replacement-host',
+    hostInstanceId: 'replacement-instance',
+  });
+  editor.dispose();
+  f.automation.dispose();
 });
 
 test('persistent helpers never borrow a background projection host when the opening host is omitted', async () => {
-  const f = fixture(); await f.automation.refresh();
+  const f = fixture();
+  await f.automation.refresh();
   f.native.replaceState({ ...f.native.state(), hostId: 'replacement-host', hostInstanceId: 'replacement-instance' });
-  f.changeHost('Replacement source', '1'); await f.automation.refresh();
+  f.changeHost('Replacement source', '1');
+  await f.automation.refresh();
   for (const writing of [
     () => f.automation.saveRecordAndRefresh('action', original, { create: false, revision: '1' }),
     () => f.automation.deleteRecord('action', 'same', '1'),
     () => f.automation.setRecordEnabled('action', 'same', false, '1'),
   ]) await expect(writing()).rejects.toMatchObject({ code: ERROR_CODE.capabilityUnavailable });
   expect(f.calls.filter((call) => call.method === RPC.automationDefinitionSubmit)).toHaveLength(0);
-  expect(f.requests.some((call) => ([RPC.automationCreate, RPC.automationUpdate, RPC.automationDelete, RPC.automationEnable, RPC.automationDisable] as string[]).includes(call.method))).toBe(false);
+  expect(f.requests.some((call) => ([
+    RPC.automationCreate,
+    RPC.automationUpdate,
+    RPC.automationDelete,
+    RPC.automationEnable,
+    RPC.automationDisable,
+  ] as string[]).includes(call.method))).toBe(false);
   f.automation.dispose();
 });

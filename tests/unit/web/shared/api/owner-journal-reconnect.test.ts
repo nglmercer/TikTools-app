@@ -16,12 +16,22 @@ function fixture() {
   let online = true;
   let hold: Promise<never> | undefined;
   const fake = createFakeControlClient((method, params, options) => {
-    if (hold && method === 'automation.definition.get') { const held = hold; hold = undefined; return held; }
+    if (hold && method === 'automation.definition.get') {
+      const held = hold;
+      hold = undefined;
+      return held;
+    }
     if (!online) throw new ControlCallError('transport', 'connection lost');
     return native.handle(method, params, options);
   });
   const gaps = new Set<() => void>();
-  fake.client.onGap = (handler) => { const notify = () => handler(0); gaps.add(notify); return () => { gaps.delete(notify); }; };
+  fake.client.onGap = (handler) => {
+    const notify = () => handler(0);
+    gaps.add(notify);
+    return () => {
+      gaps.delete(notify);
+    };
+  };
   const definitions = definitionJournal(fake.client);
   const library = libraryJournal(fake.client);
   const adoption = adoptionJournal(fake.client);
@@ -37,7 +47,10 @@ function fixture() {
   return { ...fake, definitions, library, journals, stop, gaps, committed,
     online: (value: boolean) => { online = value; },
     hold: (value: Promise<never>) => { hold = value; },
-    gap: () => { for (const notify of gaps) notify(); },
+    gap: () => {
+      for (const notify of gaps)
+        notify();
+    },
   };
 }
 
@@ -45,21 +58,29 @@ test('reconnect heals every native journal after history was opened offline, wit
   const f = fixture();
   try {
     await Promise.all(f.journals.map((journal) => journal.refresh()));
-    f.committed(); f.online(false);
+    f.committed();
+    f.online(false);
     await Promise.all(f.journals.map((journal) => journal.refresh()));
     expect(f.journals.every((journal) => journal.unavailable.value)).toBe(true);
     expect(f.definitions.state.value?.recent).toEqual([]);
-    f.calls.length = 0; f.online(true); f.gap(); await flushPromises();
+    f.calls.length = 0;
+    f.online(true);
+    f.gap();
+    await flushPromises();
     expect(f.journals.every((journal) => !journal.unavailable.value && journal.error.value === '')).toBe(true);
     expect(f.definitions.state.value?.recent[0]?.intent.id).toBe('original-id');
     expect(f.definitions.state.value?.recent[0]?.receipt?.revision).toBe('2');
-    expect(f.library.snapshot.value).toBeNull(); expect(f.library.draft.value).toBeNull();
+    expect(f.library.snapshot.value).toBeNull();
+    expect(f.library.draft.value).toBeNull();
     expect(f.calls.map((call) => call.method).sort()).toEqual([
       'automation.adoption.get', 'automation.approval.get', 'automation.definition.get', 'automation.library.get',
     ]);
   } finally { f.stop(); }
   expect(f.gaps.size).toBe(0);
-  const count = f.calls.length; f.gap(); await flushPromises(); expect(f.calls).toHaveLength(count);
+  const count = f.calls.length;
+  f.gap();
+  await flushPromises();
+  expect(f.calls).toHaveLength(count);
 });
 
 test('a reconnect overlapping a failed metadata read waits for its completion and the shared mutation gate', async () => {
@@ -68,13 +89,19 @@ test('a reconnect overlapping a failed metadata read waits for its completion an
   try {
     f.hold(new Promise<never>((_resolve, fail) => { reject = fail; }));
     const offlineRead = f.definitions.refresh();
-    f.committed(); f.gap(); f.gap();
+    f.committed();
+    f.gap();
+    f.gap();
     expect(f.calls).toHaveLength(1);
     let release!: () => void;
     const active = ownerMutationGate(f.client).run('library', () => new Promise<void>((resolve) => { release = resolve; }));
-    reject(new ControlCallError('transport', 'old connection lost')); await offlineRead; await flushPromises();
+    reject(new ControlCallError('transport', 'old connection lost'));
+    await offlineRead;
+    await flushPromises();
     expect(f.calls).toHaveLength(1);
-    release(); await active; await flushPromises();
+    release();
+    await active;
+    await flushPromises();
     expect(f.calls).toHaveLength(5);
     expect(f.definitions.unavailable.value).toBe(false);
     expect(f.definitions.state.value?.recent[0]?.outcome).toBe('succeeded');

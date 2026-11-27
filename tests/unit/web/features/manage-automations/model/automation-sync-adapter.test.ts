@@ -3,7 +3,9 @@ import type { LiveEvent } from '../../../../../../src/automation/behavior/types.
 import type { SectionSnapshot } from '@/entities/cloud-sync/lib/snapshot-store.ts';
 import { createAutomationSyncAdapter } from '../../../../../../src/web/features/manage-automations/model/automation-sync-adapter.ts';
 
-const event = (id: string, name: string, enabled = true): LiveEvent => ({ schemaVersion: 1, id, name, enabled, trigger: 'chat', filters: [], actionIds: [] }) as unknown as LiveEvent;
+const event = (id: string, name: string, enabled = true): LiveEvent => ({
+  schemaVersion: 1, id, name, enabled, trigger: 'chat', filters: [], actionIds: [],
+}) as unknown as LiveEvent;
 
 function setup(initial: LiveEvent[], loaded = true) {
   let records = initial;
@@ -24,7 +26,9 @@ function setup(initial: LiveEvent[], loaded = true) {
 describe('automation sync adapter', () => {
   it('declares reset and mark as reviewed only, and needs no Cloud account, because nothing travels to Cloud yet', () => {
     const { adapter } = setup([]);
-    expect(adapter.capabilities).toMatchObject({ reset: true, markReviewed: true, push: false, fetch: false, sync: false, force: false, history: false, merge: false });
+    expect(adapter.capabilities).toMatchObject({
+      reset: true, markReviewed: true, push: false, fetch: false, sync: false, force: false, history: false, merge: false,
+    });
     expect(adapter.requiresCloud).toBe(false);
     expect(adapter.scope.id).toBe('events');
   });
@@ -46,7 +50,11 @@ describe('automation sync adapter', () => {
     await adapter.list();
     set([event('a', 'A renamed'), event('c', 'C')]);
     const changes = await adapter.list();
-    expect(changes.map((change) => [change.id, change.status, change.side])).toEqual([['a', 'modified', 'local'], ['c', 'added', 'local'], ['b', 'deleted', 'local']]);
+    expect(changes.map((change) => [change.id, change.status, change.side])).toEqual([
+      ['a', 'modified', 'local'],
+      ['c', 'added', 'local'],
+      ['b', 'deleted', 'local'],
+    ]);
     const modified = changes[0]!;
     expect((modified.before as { name: string }).name).toBe('A');
     expect((modified.after as { name: string }).name).toBe('A renamed');

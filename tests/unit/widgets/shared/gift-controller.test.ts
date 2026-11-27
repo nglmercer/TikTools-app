@@ -27,7 +27,11 @@ function giftData(overrides: Partial<GiftAutomationData> = {}): GiftAutomationDa
   };
 }
 
-function setup(options: { visibleMs?: number; comboTimeoutMs?: number; minimumDiamonds?: number } = {}) {
+function setup(options: {
+  visibleMs?: number;
+  comboTimeoutMs?: number;
+  minimumDiamonds?: number;
+} = {}) {
   const fake = createFakeClock();
   const shown: GiftAlertView[] = [];
   const updated: GiftAlertView[] = [];

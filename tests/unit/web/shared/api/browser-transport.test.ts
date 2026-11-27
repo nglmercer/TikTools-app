@@ -11,8 +11,14 @@ class Socket {
   onerror?: () => void;
   sent: string[] = [];
   send(raw: string) { this.sent.push(raw); }
-  close() { this.readyState = 3; this.onclose?.(); }
-  open() { this.readyState = 1; this.onopen?.(); }
+  close() {
+    this.readyState = 3;
+    this.onclose?.();
+  }
+  open() {
+    this.readyState = 1;
+    this.onopen?.();
+  }
 }
 afterEach(() => vi.useRealTimers());
 
@@ -20,20 +26,29 @@ test('sends only while connected, delivers messages, and bounds buffered output'
   const socket = new Socket();
   const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', socket: () => socket as unknown as WebSocket });
   expect(() => transport.send('request')).toThrow('unavailable');
-  const connected = transport.connect(); socket.open(); await connected;
-  const receive = vi.fn(); transport.attach(receive, vi.fn(), vi.fn());
-  transport.send('request'); expect(socket.sent).toEqual(['request']);
-  socket.onmessage?.({ data: 'response' }); expect(receive).toHaveBeenCalledWith('response');
+  const connected = transport.connect();
+  socket.open();
+  await connected;
+  const receive = vi.fn();
+  transport.attach(receive, vi.fn(), vi.fn());
+  transport.send('request');
+  expect(socket.sent).toEqual(['request']);
+  socket.onmessage?.({ data: 'response' });
+  expect(receive).toHaveBeenCalledWith('response');
   socket.bufferedAmount = 1024 * 1024;
   expect(() => transport.send('request')).toThrow('queue is full');
   transport.detach();
 });
 
 test('large atomic library submits are scoped by method and still respect the bounded send queue', async () => {
-  const socket = new Socket(); const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', socket: () => socket as unknown as WebSocket });
-  const connected = transport.connect(); socket.open(); await connected;
+  const socket = new Socket();
+  const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', socket: () => socket as unknown as WebSocket });
+  const connected = transport.connect();
+  socket.open();
+  await connected;
   const source = 'x'.repeat(2 * 1024 * 1024);
-  transport.send(JSON.stringify({ method: RPC.automationLibrarySubmit, params: { source } })); expect(socket.sent).toHaveLength(1);
+  transport.send(JSON.stringify({ method: RPC.automationLibrarySubmit, params: { source } }));
+  expect(socket.sent).toHaveLength(1);
   expect(() => transport.send(JSON.stringify({ method: RPC.automationUpdate, params: { source } }))).toThrow('queue is full');
   socket.bufferedAmount = 7 * 1024 * 1024;
   expect(() => transport.send(JSON.stringify({ method: RPC.automationLibrarySubmit, params: { source } }))).toThrow('queue is full');
@@ -44,26 +59,35 @@ test('disconnect rejects transport work and reconnect never replays mutations', 
   vi.useFakeTimers();
   const sockets: Socket[] = [];
   const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', socket: () => {
-    const socket = new Socket(); sockets.push(socket); return socket as unknown as WebSocket;
+    const socket = new Socket();
+    sockets.push(socket);
+    return socket as unknown as WebSocket;
   } });
-  const connected = transport.connect(); sockets[0]!.open(); await connected;
+  const connected = transport.connect();
+  sockets[0]!.open();
+  await connected;
   const disconnected = vi.fn(), reconnected = vi.fn();
   transport.attach(vi.fn(), disconnected, reconnected);
-  transport.send('mutation'); sockets[0]!.close();
+  transport.send('mutation');
+  sockets[0]!.close();
   expect(disconnected).toHaveBeenCalledOnce();
   expect(() => transport.send('other')).toThrow('unavailable');
   await vi.advanceTimersByTimeAsync(500);
-  expect(sockets).toHaveLength(2); sockets[1]!.open();
+  expect(sockets).toHaveLength(2);
+  sockets[1]!.open();
   expect(reconnected).toHaveBeenCalledOnce();
   expect(sockets[1]!.sent).toEqual([]);
-  transport.detach(); await vi.advanceTimersByTimeAsync(60_000);
+  transport.detach();
+  await vi.advanceTimersByTimeAsync(60_000);
   expect(sockets).toHaveLength(2);
 });
 
 test('oversized or binary incoming data closes the transport', async () => {
   const socket = new Socket();
   const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', socket: () => socket as unknown as WebSocket });
-  const connected = transport.connect(); socket.open(); await connected;
+  const connected = transport.connect();
+  socket.open();
+  await connected;
   socket.onmessage?.({ data: new Uint8Array([1]) });
   expect(socket.readyState).toBe(3);
   transport.detach();
@@ -72,8 +96,11 @@ test('oversized or binary incoming data closes the transport', async () => {
 test('local owner response cap accommodates full reviews while request queue stays one MiB', async () => {
   const socket = new Socket();
   const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', socket: () => socket as unknown as WebSocket });
-  const connected = transport.connect(); socket.open(); await connected;
-  const receive = vi.fn(); transport.attach(receive, vi.fn(), vi.fn());
+  const connected = transport.connect();
+  socket.open();
+  await connected;
+  const receive = vi.fn();
+  transport.attach(receive, vi.fn(), vi.fn());
   const review = 'source'.repeat(400_000);
   socket.onmessage?.({ data: review });
   expect(receive).toHaveBeenCalledWith(review);
@@ -87,11 +114,14 @@ test('local owner response cap accommodates full reviews while request queue sta
 test('pre-attachment owner responses keep complete large messages within a bounded buffer', async () => {
   const socket = new Socket();
   const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', socket: () => socket as unknown as WebSocket });
-  const connected = transport.connect(); socket.open(); await connected;
+  const connected = transport.connect();
+  socket.open();
+  await connected;
   const source = 'x'.repeat(4 * 1024 * 1024);
   socket.onmessage?.({ data: `a${source}` });
   socket.onmessage?.({ data: `b${source}` });
-  const receive = vi.fn(), gap = vi.fn(); transport.attach(receive, vi.fn(), gap);
+  const receive = vi.fn(), gap = vi.fn();
+  transport.attach(receive, vi.fn(), gap);
   expect(receive).toHaveBeenCalledOnce();
   expect(receive).toHaveBeenCalledWith(`b${source}`);
   expect(gap).toHaveBeenCalledOnce();
@@ -101,10 +131,15 @@ test('pre-attachment owner responses keep complete large messages within a bound
 test('bounds events received before UI attachment and reports a gap', async () => {
   const socket = new Socket();
   const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', socket: () => socket as unknown as WebSocket });
-  const connected = transport.connect(); socket.open(); await connected;
-  for (let n = 0; n < 300; n++) socket.onmessage?.({ data: String(n) });
-  const receive = vi.fn(), gap = vi.fn(); transport.attach(receive, vi.fn(), gap);
-  expect(receive).toHaveBeenCalledTimes(256); expect(gap).toHaveBeenCalledOnce();
+  const connected = transport.connect();
+  socket.open();
+  await connected;
+  for (let n = 0; n < 300; n++)
+    socket.onmessage?.({ data: String(n) });
+  const receive = vi.fn(), gap = vi.fn();
+  transport.attach(receive, vi.fn(), gap);
+  expect(receive).toHaveBeenCalledTimes(256);
+  expect(gap).toHaveBeenCalledOnce();
   expect(receive).toHaveBeenNthCalledWith(1, '44');
   transport.detach();
 });
@@ -114,9 +149,11 @@ test('detach settles an opening connection and ignores late callbacks', async ()
   const socket = new Socket(), status = vi.fn();
   const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', status, socket: () => socket as unknown as WebSocket });
   const opening = expect(transport.connect()).rejects.toThrow('cancelled');
-  transport.detach(); await opening;
+  transport.detach();
+  await opening;
   const calls = status.mock.calls.length;
-  socket.open(); socket.onmessage?.({ data: 'stale' });
+  socket.open();
+  socket.onmessage?.({ data: 'stale' });
   await vi.advanceTimersByTimeAsync(60_000);
   expect(status).toHaveBeenCalledTimes(calls);
   expect(() => transport.send('request')).toThrow('unavailable');
@@ -125,13 +162,19 @@ test('detach settles an opening connection and ignores late callbacks', async ()
 test('a replacement connection ignores messages from the old socket', async () => {
   const sockets: Socket[] = [];
   const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', socket: () => {
-    const socket = new Socket(); sockets.push(socket); return socket as unknown as WebSocket;
+    const socket = new Socket();
+    sockets.push(socket);
+    return socket as unknown as WebSocket;
   } });
   const old = expect(transport.connect()).rejects.toThrow('cancelled');
-  const opening = transport.connect(); await old;
-  sockets[1]!.open(); await opening;
-  const receive = vi.fn(); transport.attach(receive, vi.fn(), vi.fn());
-  sockets[0]!.open(); sockets[0]!.onmessage?.({ data: 'stale' });
+  const opening = transport.connect();
+  await old;
+  sockets[1]!.open();
+  await opening;
+  const receive = vi.fn();
+  transport.attach(receive, vi.fn(), vi.fn());
+  sockets[0]!.open();
+  sockets[0]!.onmessage?.({ data: 'stale' });
   sockets[1]!.onmessage?.({ data: 'current' });
   expect(receive.mock.calls).toEqual([['current']]);
   transport.detach();
@@ -140,17 +183,25 @@ test('a replacement connection ignores messages from the old socket', async () =
 test('replacing an open connection invalidates pending work and old buffered events', async () => {
   const sockets: Socket[] = [];
   const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', socket: () => {
-    const socket = new Socket(); sockets.push(socket); return socket as unknown as WebSocket;
+    const socket = new Socket();
+    sockets.push(socket);
+    return socket as unknown as WebSocket;
   } });
-  const opening = transport.connect(); sockets[0]!.open(); await opening;
+  const opening = transport.connect();
+  sockets[0]!.open();
+  await opening;
   sockets[0]!.onmessage?.({ data: 'old buffered state' });
-  const second = transport.connect(); sockets[1]!.open(); await second;
+  const second = transport.connect();
+  sockets[1]!.open();
+  await second;
   const receive = vi.fn(), gap = vi.fn(), disconnected = vi.fn();
   transport.attach(receive, disconnected, gap);
-  expect(receive).not.toHaveBeenCalled(); expect(gap).toHaveBeenCalledOnce();
+  expect(receive).not.toHaveBeenCalled();
+  expect(gap).toHaveBeenCalledOnce();
   const third = transport.connect();
   expect(disconnected).toHaveBeenCalledWith(expect.stringContaining('connection replaced'));
-  sockets[2]!.open(); await third;
+  sockets[2]!.open();
+  await third;
   transport.detach();
 });
 
@@ -175,10 +226,16 @@ test('leaves reconnection to the owner when autoReconnect is disabled', async ()
   const transport = createBrowserTransport({
     url: 'ws://127.0.0.1/__local/ws',
     autoReconnect: false,
-    socket: () => { const socket = new Socket(); sockets.push(socket); return socket as unknown as WebSocket; },
+    socket: () => {
+      const socket = new Socket();
+      sockets.push(socket);
+      return socket as unknown as WebSocket;
+    },
     sessionState: (state) => states.push(state),
   });
-  const connected = transport.connect(); sockets[0]!.open(); await connected;
+  const connected = transport.connect();
+  sockets[0]!.open();
+  await connected;
   expect(states).toEqual(['ok']);
   sockets[0]!.close();
   expect(states).toEqual(['ok', 'reconnecting']);

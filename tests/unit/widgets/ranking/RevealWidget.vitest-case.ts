@@ -2,7 +2,22 @@ import { describe, expect, test } from 'vitest';
 import { mount } from '@vue/test-utils';
 import RevealWidget from '../../../../src/widgets/ranking/RevealWidget.vue';
 import { RevealController, parseRevealResult } from '../../../../src/widgets/shared/reveal-controller.ts';
-const event = { topic: 'competition.result', data: { result: { schemaVersion: 1, competitionId: 'poll', rankingId: 'r', generation: 1, selection: { mode: 'weighted_random', winner: 'b', eligible: [{ key: 'a', weight: 1 }, { key: 'b', weight: 3 }] } } } };
+const event = {
+  topic: 'competition.result',
+  data: {
+    result: {
+      schemaVersion: 1,
+      competitionId: 'poll',
+      rankingId: 'r',
+      generation: 1,
+      selection: {
+        mode: 'weighted_random',
+        winner: 'b',
+        eligible: [{ key: 'a', weight: 1 }, { key: 'b', weight: 3 }],
+      },
+    },
+  },
+};
 describe('committed result reveal', () => {
   test('reuses the committed selection and ignores refresh duplicates', async () => {
     const values: unknown[] = [];
@@ -31,8 +46,28 @@ describe('committed result reveal', () => {
     expect(controller.handleEnvelope(event)).toBe(true);
   });
   test('rejects invalid winners and unsafe weights', () => {
-    expect(parseRevealResult({ ...event, data: { result: { ...event.data.result, selection: { ...event.data.result.selection, winner: 'missing' } } } })).toBeNull();
-    expect(parseRevealResult({ ...event, data: { result: { ...event.data.result, selection: { ...event.data.result.selection, eligible: [{ key: 'a', weight: Number.MAX_SAFE_INTEGER + 1 }] } } } })).toBeNull();
+    expect(
+      parseRevealResult({
+        ...event,
+        data: {
+          result: {
+            ...event.data.result,
+            selection: { ...event.data.result.selection, winner: 'missing' },
+          },
+        },
+      }),
+    ).toBeNull();
+    expect(
+      parseRevealResult({
+        ...event,
+        data: {
+          result: {
+            ...event.data.result,
+            selection: { ...event.data.result.selection, eligible: [{ key: 'a', weight: Number.MAX_SAFE_INTEGER + 1 }] },
+          },
+        },
+      }),
+    ).toBeNull();
   });
   test('includes omitted candidates in the wheel without changing the stored winner', () => {
     const result = parseRevealResult({ ...event, data: { result: { ...event.data.result, eligibleCount: 4, otherWeight: 6 } } })!;

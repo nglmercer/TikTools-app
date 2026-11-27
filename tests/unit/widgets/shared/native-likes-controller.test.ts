@@ -28,7 +28,13 @@ describe('native likes snapshot', () => {
   test('renders wider native boards without accumulating feed rows', () => {
     let board: LikeBoardEntry[] = [];
     const controller = new NativeLikesController({ onBoard: (entries) => { board = entries; } }, 20);
-    const leaders = Array.from({ length: 25 }, (_, index) => ({ userId: String(index + 1), uniqueId: `u${index + 1}`, nickname: `User ${index + 1}`, rank: index + 1, score: 25 - index }));
+    const leaders = Array.from({ length: 25 }, (_, index) => ({
+      userId: String(index + 1),
+      uniqueId: `u${index + 1}`,
+      nickname: `User ${index + 1}`,
+      rank: index + 1,
+      score: 25 - index,
+    }));
     expect(controller.handleEnvelope({ topic: 'live.likes-ranking-full', data: { creatorId: 'c', roomId: 'r', leaders } })).toBe('updated');
     expect(board).toHaveLength(20);
     expect(board[19]?.total).toBe(6);
@@ -38,7 +44,12 @@ describe('native likes snapshot', () => {
   test('rejects malformed snapshots without replacing the board', () => {
     let calls = 0;
     const controller = new NativeLikesController({ onBoard: () => { calls += 1; } }, 10);
-    expect(controller.handleEnvelope({ topic: 'live.likes-ranking-full', data: { creatorId: 'c', roomId: 'r', leaders: [{ userId: '1', uniqueId: 'a', nickname: 'A', rank: 1, score: Number.MAX_SAFE_INTEGER + 1 }] } })).toBe('ignored');
+    expect(
+      controller.handleEnvelope({
+        topic: 'live.likes-ranking-full',
+        data: { creatorId: 'c', roomId: 'r', leaders: [{ userId: '1', uniqueId: 'a', nickname: 'A', rank: 1, score: Number.MAX_SAFE_INTEGER + 1 }] },
+      }),
+    ).toBe('ignored');
     expect(calls).toBe(0);
   });
   test('omits unsafe or credential-bearing avatar URLs', () => {

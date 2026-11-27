@@ -77,7 +77,8 @@ export function sonicboomTtsPage() {
 /**
  * Typed `ui` descriptor for a webview-mode page, as stamped by the host
  * snapshot (`pluginUis`). The legacy entry remains the compatibility
- * projection; typed pages are first-class navigation entries too.
+ * projection;
+ * typed pages are first-class navigation entries too.
  */
 export function sonicboomWebviewUi() {
   return {

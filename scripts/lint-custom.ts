@@ -13,6 +13,8 @@
  * 3. Unit tests must take RPC methods, topics, event kinds, plugin ids, error codes, account states and
  *    fixture ids from tests/shared instead of retyping them (see scripts/test-literals.ts). E2E specs are
  *    exempt: page-side scripts cannot import, so their literals stay.
+ * 4. Tests stay readable for review: lines of at most 160 characters and one statement per line
+ *    (a `for (;;)` header is fine). There is no formatter for tests, so this keeps the diffs reviewable.
  *
  * If oxlint gains selector/plugin support for these (or vize grows native
  * template-element rules), this script should retire in their favor; track
@@ -84,6 +86,24 @@ for (const file of walk(join(root, 'tests', 'unit'))) {
       const token = sharedValues.get(match[1]!);
       if (token) problems.push(`${file}:${index + 1} use ${token} from tests/shared instead of '${match[1]}'`);
     }
+  });
+}
+
+// Readability: line length and one statement per line in tests.
+const MAX_TEST_LINE = 160;
+const withoutLiterals = (line: string) => line
+  .replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`/g, "''")
+  .replace(/\/\/.*$/, '');
+for (const file of walk(join(root, 'tests'))) {
+  if (!file.endsWith('.ts') || file.includes('-snapshots')) continue;
+  readFileSync(file, 'utf8').split('\n').forEach((line, index) => {
+    const where = `${file}:${index + 1}`;
+    if (line.length > MAX_TEST_LINE && !line.includes('http') && !/^\s*(import|export)\b/.test(line)) {
+      problems.push(`${where} line has ${line.length} characters; split it (max ${MAX_TEST_LINE})`);
+    }
+    if (/^\s*(\*|\/\*|\/\/)/.test(line)) return;
+    const code = withoutLiterals(line);
+    if (/;\s+[^\s}/)]/.test(code) && !/\bfor\s*\(/.test(code)) problems.push(`${where} put each statement on its own line`);
   });
 }
 

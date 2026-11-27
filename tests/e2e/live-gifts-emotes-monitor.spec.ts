@@ -12,7 +12,15 @@ test('gift identities, hidden-page backfill, metadata search and broken artwork 
   await page.goto('/');
   await waitForFrontend(page);
   await emitTopic(page, TOPIC.liveConnected, { uniqueId: 'creator', roomId: 'room' });
-  const gift = { kind: 'gift', author: 'alice', text: 'sent gift', msgId: '0', roomId: 'room', creatorId: 'creator', giftDetails: { giftId: '5655', name: 'Rose', count: 1, diamonds: 1, imageUrl: 'https://cdn.example.test/broken.png' } };
+  const gift = {
+    kind: 'gift',
+    author: 'alice',
+    text: 'sent gift',
+    msgId: '0',
+    roomId: 'room',
+    creatorId: 'creator',
+    giftDetails: { giftId: '5655', name: 'Rose', count: 1, diamonds: 1, imageUrl: 'https://cdn.example.test/broken.png' },
+  };
   await page.route('https://cdn.example.test/**', (route) => route.fulfill({ status: 200, contentType: 'image/png', body: 'invalid image bytes' }));
   await emitTopic(page, TOPIC.liveUiEvent, { cursor: 1, event: { kind: 'chat', author: 'alice', text: 'chat', msgId: '42' } });
   await emitTopic(page, TOPIC.liveUiEvent, { cursor: 2, event: { ...gift, msgId: '42' } });
@@ -37,7 +45,15 @@ test('opaque emotes render alongside unchanged text and degrade on image failure
   await page.route('https://cdn.example.test/**', (route) => route.fulfill({ status: 200, contentType: 'image/png', body: 'invalid image bytes' }));
   await page.goto('/');
   await waitForFrontend(page);
-  await emitTopic(page, TOPIC.liveUiEvent, { event: { kind: 'chat', author: 'alice', text: 'Hola 👩🏽‍💻 世界', msgId: '1', emotes: [{ id: '98765', imageUrl: 'https://cdn.example.test/emote.png', packageId: 'creator' }] } });
+  await emitTopic(page, TOPIC.liveUiEvent, {
+    event: {
+      kind: 'chat',
+      author: 'alice',
+      text: 'Hola 👩🏽‍💻 世界',
+      msgId: '1',
+      emotes: [{ id: '98765', imageUrl: 'https://cdn.example.test/emote.png', packageId: 'creator' }],
+    },
+  });
   await expect(page.locator(SEL.eventCard)).toContainText('Hola 👩🏽‍💻 世界');
   await expect(page.locator('.event-card [role="img"][aria-label="TikTok emote"]')).toBeVisible();
   await emitTopic(page, TOPIC.liveUiEvent, { event: { kind: 'chat', author: 'alice', text: '', msgId: '2', emotes: [{ id: '98765' }] } });
@@ -59,7 +75,19 @@ test('monitor configuration survives page navigation and stops through the host'
   await expect(page.getByText('LIVE monitor: Waiting for LIVE')).toBeVisible();
   await expect(page.locator('#live-handle')).toBeDisabled();
   await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
-  await emitTopic(page, 'live.monitor', { status: { enabled: true, uniqueId: 'alice', phase: 'live', pollIntervalSeconds: 30, checks: 2, failures: 0, lastCheckedAt: Date.now(), nextCheckAt: null, lastError: null } });
+  await emitTopic(page, 'live.monitor', {
+    status: {
+      enabled: true,
+      uniqueId: 'alice',
+      phase: 'live',
+      pollIntervalSeconds: 30,
+      checks: 2,
+      failures: 0,
+      lastCheckedAt: Date.now(),
+      nextCheckAt: null,
+      lastError: null,
+    },
+  });
   await page.getByRole('link', { name: t('navigation.connections'), exact: true }).click();
   await expect(page.getByText('LIVE monitor: Connected; monitoring remains active')).toBeVisible();
   await page.getByRole('button', { name: t('connections.monitor.stop'), exact: true }).click();

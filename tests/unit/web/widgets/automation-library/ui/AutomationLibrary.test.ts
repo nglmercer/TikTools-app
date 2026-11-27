@@ -10,7 +10,18 @@ import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
 enableAutoUnmount(afterEach);
 
 const action: LiveAction = { schemaVersion: 2, id: 'action', name: 'Action', typeId: ACTION_TYPE.coreLog, enabled: false, config: { message: 'hello' } };
-const event: LiveEvent = { schemaVersion: 1, id: 'event', name: 'Event', enabled: false, trigger: EVENT_KIND.tiktokChat, filters: [], cooldownMs: 0, cooldownScope: 'global', runMode: 'all', actionIds: ['action'] };
+const event: LiveEvent = {
+  schemaVersion: 1,
+  id: 'event',
+  name: 'Event',
+  enabled: false,
+  trigger: EVENT_KIND.tiktokChat,
+  filters: [],
+  cooldownMs: 0,
+  cooldownScope: 'global',
+  runMode: 'all',
+  actionIds: ['action'],
+};
 
 it.each(['events', 'actions'] as const)('a %s switch requests a toggle without selecting the row before its change event', async (tab) => {
   const wrapper = mountWithPlugins(AutomationLibrary, {
@@ -39,7 +50,8 @@ it.each(['events', 'actions'] as const)('the %s row menu duplicates and deletes 
     attachTo: document.body,
     props: { tab, events: [event], actions: [action], actionTypes: [], availableTypes: new Set([ACTION_TYPE.coreLog]), eventTypes: [], runs: [] },
   });
-  const kebab = () => wrapper.get(`button[aria-label="${i18n.global.t('automations.library.rowActions', { name: tab === 'events' ? event.name : action.name })}"]`);
+  const kebab = () =>
+    wrapper.get(`button[aria-label="${i18n.global.t('automations.library.rowActions', { name: tab === 'events' ? event.name : action.name })}"]`);
   const item = (key: string) => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
     .find((entry) => entry.textContent?.trim() === i18n.global.t(key))!;
   await kebab().trigger('click');

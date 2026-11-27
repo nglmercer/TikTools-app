@@ -49,7 +49,10 @@ test('dynamic plugin tab appears, renders, and falls back when removed', async (
 
   // Host drops the plugin → refresh → tab falls back to Plugins, no crash.
   const dropped = await readHostState(page);
-  const snapshot = dropped.automationSnapshot as { pluginPages: unknown[]; plugins: unknown[] };
+  const snapshot = dropped.automationSnapshot as {
+    pluginPages: unknown[];
+    plugins: unknown[];
+  };
   snapshot.pluginPages = [];
   snapshot.plugins = [];
   await writeHostState(page, dropped);

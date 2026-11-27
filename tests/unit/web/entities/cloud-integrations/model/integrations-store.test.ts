@@ -14,7 +14,13 @@ function host(announced: string[], rows: unknown[] = []) {
   const { client, calls } = createFakeControlClient((method) => {
     if (method === RPC.rpcDiscover) return { methods: announced.map((name) => ({ name })) };
     if (method === RPC.integrationsConnections) return { items: rows };
-    if (method === RPC.integrationsConnect) return { connectionId: id, provider: 'webhook', label: 'Alerts', secret, deliveryPath: `/api/v3/integrations/webhook/${id}/deliveries` };
+    if (method === RPC.integrationsConnect) return {
+      connectionId: id,
+      provider: 'webhook',
+      label: 'Alerts',
+      secret,
+      deliveryPath: `/api/v3/integrations/webhook/${id}/deliveries`,
+    };
     if (method === RPC.integrationsDisconnect) return { id, status: 'revoked' };
     if (method === 'integrations.events') return { items: [], truncated: false };
     throw new Error(`unexpected ${method}`);
@@ -71,15 +77,21 @@ describe('cloud integrations store', () => {
 
   describe('late replies', () => {
     function deferred<T>() {
-      let resolve!: (value: T) => void; let reject!: (failure: unknown) => void;
-      const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+      let resolve!: (value: T) => void;
+      let reject!: (failure: unknown) => void;
+      const promise = new Promise<T>((done, fail) => {
+        resolve = done;
+        reject = fail;
+      });
       return { promise, resolve, reject };
     }
     const issuedSecret = { connectionId: id, provider: 'webhook', label: 'Alerts', secret, deliveryPath: `/api/v3/integrations/webhook/${id}/deliveries` };
     function held(extra: (method: string) => unknown = () => undefined) {
       const connect = deferred<unknown>();
       const { client, calls } = createFakeControlClient((method) => {
-        if (method === RPC.rpcDiscover) return { methods: [RPC.integrationsConnections, RPC.integrationsConnect, RPC.integrationsDisconnect, 'integrations.events'].map((name) => ({ name })) };
+        if (method === RPC.rpcDiscover) return {
+          methods: [RPC.integrationsConnections, RPC.integrationsConnect, RPC.integrationsDisconnect, 'integrations.events'].map((name) => ({ name })),
+        };
         if (method === RPC.integrationsConnect) return connect.promise;
         if (method === RPC.integrationsConnections) return { items: [row] };
         return extra(method) ?? { items: [], truncated: false };
@@ -150,11 +162,24 @@ describe('cloud integrations store', () => {
     });
 
     it('ends the context on the host notice and on an event gap', async () => {
-      let notice = () => {}; let gap = () => {};
+      let notice = () => {};
+      let gap = () => {};
       let listeners = 0;
-      const { client } = createFakeControlClient((method) => (method === RPC.rpcDiscover ? { methods: [{ name: RPC.integrationsConnections }] } : { items: [] }));
-      client.onTopic = (topic, handler) => { if (topic === 'cloud.context.invalidated') { notice = () => handler({} as never); listeners += 1; } return () => { listeners -= 1; }; };
-      client.onGap = (handler) => { gap = () => handler(1); listeners += 1; return () => { listeners -= 1; }; };
+      const { client } = createFakeControlClient((method) =>
+        (method === RPC.rpcDiscover ? { methods: [{ name: RPC.integrationsConnections }] } : { items: [] }),
+      );
+      client.onTopic = (topic, handler) => {
+        if (topic === 'cloud.context.invalidated') {
+          notice = () => handler({} as never);
+          listeners += 1;
+        }
+        return () => { listeners -= 1; };
+      };
+      client.onGap = (handler) => {
+        gap = () => handler(1);
+        listeners += 1;
+        return () => { listeners -= 1; };
+      };
       const stores = createStoreHarness(client);
       const integrations = stores.use(() => useIntegrationsStore());
       integrations.issued = { connectionId: id, provider: 'webhook', label: 'Alerts', secret, deliveryPath: '/x' } as never;

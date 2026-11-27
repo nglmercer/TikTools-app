@@ -2,7 +2,15 @@ import { describe, expect, test } from 'vitest';
 
 import { isModifierName, normalizeCapturedKey, normalizeKeyName } from '../../../../../../src/web/entities/automation/lib/key-capture.ts';
 
-function source(overrides: Partial<{ key: string; ctrlKey: boolean; shiftKey: boolean; altKey: boolean; metaKey: boolean }> = {}) {
+function source(
+  overrides: Partial<{
+    key: string;
+    ctrlKey: boolean;
+    shiftKey: boolean;
+    altKey: boolean;
+    metaKey: boolean;
+  }> = {},
+) {
   return {
     key: '',
     ctrlKey: false,

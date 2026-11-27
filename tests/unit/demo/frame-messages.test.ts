@@ -6,7 +6,15 @@ import { FIXTURE_ID } from '../../shared/index.ts';
 it('bounds frame state before accepting it into the document controls', () => {
   const state = stateMessage({ instance: 'docs-frame-1' });
   expect(isDemoFrameState(state)).toBe(true);
-  for (const override of [{ events: 301 }, { events: -1 }, { events: 1.5 }, { instance: '../other' }, { ready: 'true' }, { status: 'unexpected' }, { connectionCase: 'cookie' }]) expect(isDemoFrameState({ ...state, ...override })).toBe(false);
+  for (const override of [
+    { events: 301 },
+    { events: -1 },
+    { events: 1.5 },
+    { instance: '../other' },
+    { ready: 'true' },
+    { status: 'unexpected' },
+    { connectionCase: 'cookie' },
+  ]) expect(isDemoFrameState({ ...state, ...override })).toBe(false);
   for (const value of [null, [], 'state']) expect(isDemoFrameState(value)).toBe(false);
 });
 it('limits commands to this instance and the explicit playback/recovery actions', () => {

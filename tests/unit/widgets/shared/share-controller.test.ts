@@ -13,7 +13,10 @@ import {
 } from '../../../../src/widgets/shared/test-events.ts';
 import { FIXTURE_ID, TOPIC } from '../../../shared/index.ts';
 
-function setup(options: { visibleMs?: number; queueCapacity?: number } = {}) {
+function setup(options: {
+  visibleMs?: number;
+  queueCapacity?: number;
+} = {}) {
   const fake = createFakeClock();
   const shown: ShareAlert[] = [];
   const hidden: string[] = [];

@@ -46,7 +46,18 @@ describe('tokenizeJson', () => {
   it('follows JSON.stringify for unsupported values', () => {
     const value = { skipped: undefined, fn: () => 1, date: new Date(0), nan: Number.NaN, list: [undefined, () => 1, Symbol('s')], big: 12n };
     expect(linesText(tokenizeJson(value).lines)).toBe(
-      ['{', '  "date": "1970-01-01T00:00:00.000Z",', '  "nan": null,', '  "list": [', '    null,', '    null,', '    null', '  ],', '  "big": 12', '}'].join('\n'),
+      [
+        '{',
+        '  "date": "1970-01-01T00:00:00.000Z",',
+        '  "nan": null,',
+        '  "list": [',
+        '    null,',
+        '    null,',
+        '    null',
+        '  ],',
+        '  "big": 12',
+        '}',
+      ].join('\n'),
     );
   });
 

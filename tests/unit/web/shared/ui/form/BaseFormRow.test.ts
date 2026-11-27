@@ -3,9 +3,16 @@ import { describe, expect, it } from 'vitest';
 import BaseFormRow from '../../../../../../src/web/shared/ui/form/BaseFormRow.vue';
 describe('BaseFormRow associations', () => {
   it('preserves external descriptions while adding and removing hint and error links', async () => {
-    const wrapper = mount(BaseFormRow, { props: { label:'Name', for:'name', hint:'A hint', error:'Required' }, slots:{ default:'<input id="name" aria-describedby="external">' } });
+    const wrapper = mount(BaseFormRow, {
+      props: { label:'Name', for:'name', hint:'A hint', error:'Required' },
+      slots:{ default:'<input id="name" aria-describedby="external">' },
+    });
     const input = wrapper.get('input');
-    expect(input.attributes('aria-describedby')?.split(' ')).toEqual(['external', wrapper.get('.base-form-row__hint').attributes('id'), wrapper.get('[role="alert"]').attributes('id')]);
+    expect(input.attributes('aria-describedby')?.split(' ')).toEqual([
+      'external',
+      wrapper.get('.base-form-row__hint').attributes('id'),
+      wrapper.get('[role="alert"]').attributes('id'),
+    ]);
     expect(input.attributes('aria-invalid')).toBe('true');
     await wrapper.setProps({ hint:undefined, error:undefined });
     expect(input.attributes('aria-describedby')).toBe('external');
@@ -15,7 +22,10 @@ describe('BaseFormRow associations', () => {
     const wrapper = mount(BaseFormRow, { props:{ label:'Name', stacked:true }, slots:{default:'<input id="existing">'} });
     await wrapper.vm.$nextTick();
     expect(wrapper.get('label').attributes('for')).toBe('existing');
-    const group = mount(BaseFormRow, { props:{ label:'Choices', group:true, hint:'Choose one' }, slots:{default:'<button aria-label="First">A</button><button aria-label="Second">B</button>'} });
+    const group = mount(BaseFormRow, {
+      props:{ label:'Choices', group:true, hint:'Choose one' },
+      slots:{default:'<button aria-label="First">A</button><button aria-label="Second">B</button>'},
+    });
     expect(group.find('label').exists()).toBe(false);
     expect(group.get('[role="group"]').attributes('aria-labelledby')).toBe(group.get('.base-form-row__label').attributes('id'));
     expect(group.get('[role="group"]').attributes('aria-describedby')).toBe(group.get('.base-form-row__hint').attributes('id'));

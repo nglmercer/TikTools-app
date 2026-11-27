@@ -43,7 +43,10 @@ describe('normalizeVersion', () => {
 
 describe('cargo manifest helpers', () => {
   test('updates only matching workspace path dependency pins', () => {
-    const input = 'tiktools-api = { path = "../api", version = "0.3.3" }\nother = { path = "../other", version = "0.3.3" }\ntiktools-api-new = { path = "../api", version = "0.3.30" }\n';
+    const input =
+      'tiktools-api = { path = "../api", version = "0.3.3" }\n' +
+      'other = { path = "../other", version = "0.3.3" }\n' +
+      'tiktools-api-new = { path = "../api", version = "0.3.30" }\n';
     const updated = setPathDependencyVersions(input, ['tiktools-api', 'tiktools-api-new'], '0.3.3', '4.0.0');
     expect(updated).toContain('tiktools-api = { path = "../api", version = "4.0.0" }');
     expect(updated).toContain('other = { path = "../other", version = "0.3.3" }');

@@ -23,7 +23,13 @@ function response(status: number, body: unknown) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
 
-function mount(options: { hash?: string; languages?: string[]; initial?: () => Response } = {}) {
+function mount(
+  options: {
+    hash?: string;
+    languages?: string[];
+    initial?: () => Response;
+  } = {},
+) {
   document.body.innerHTML = bodyMarkup;
   const fetch = vi.fn<PairingEnvironment['fetch']>(async () => options.initial?.() ?? response(401, {}));
   const clearFragment = vi.fn();

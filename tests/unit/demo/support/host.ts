@@ -10,5 +10,12 @@ export function createDemoFixture(scenario: ScenarioId = 'connection', options: 
   const host = createDemoHost(scenario);
   const client = createControlClient({ transport: host.transport, ...options });
   client.attach();
-  return { host, client, dispose() { client.detach(); host.dispose(); } };
+  return {
+    host,
+    client,
+    dispose() {
+      client.detach();
+      host.dispose();
+    },
+  };
 }

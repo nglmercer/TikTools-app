@@ -147,7 +147,8 @@ for (const scenario of Object.keys(scenarios)) {
     await expectSettled(page);
     await expect(page.locator('body')).not.toContainText('Invalid automation snapshot');
     expect(await page.evaluate(() => typeof window.ipc)).toBe('undefined');
-    expect(failures).toEqual([]); expect(outbound).toEqual([]);
+    expect(failures).toEqual([]);
+    expect(outbound).toEqual([]);
   });
 }
 
@@ -159,7 +160,8 @@ test('connect → event → automation → result, then reset and direct refresh
   await page.getByTestId(demoTestId.step).click();
   await page.getByRole('link', { name: 'Automations', exact: true }).click();
   await expect(page.locator('body')).toContainText(AUTOMATION_RESULT);
-  await page.reload(); await expect(page.locator('#app')).not.toBeEmpty();
+  await page.reload();
+  await expect(page.locator('#app')).not.toBeEmpty();
   await page.getByTestId(demoTestId.reset).click();
   await expect(page.locator('body')).toContainText('No runs yet');
 });
@@ -243,12 +245,28 @@ test('copying a demo URL into another tab isolates preferences and reset', async
     await second.goto(page.url());
     await expect(second.locator(EXAMPLE_BUTTON)).toBeVisible();
     expect(new URL(second.url()).searchParams.get('instance')).not.toBe(firstInstance);
-    await page.evaluate((prefix) => localStorage.setItem(`${prefix}${new URL(location.href).searchParams.get('instance')}.isolation`, 'first'), DEMO_STORAGE_PREFIX);
-    await second.evaluate((prefix) => localStorage.setItem(`${prefix}${new URL(location.href).searchParams.get('instance')}.isolation`, 'second'), DEMO_STORAGE_PREFIX);
+    await page.evaluate(
+      (prefix) => localStorage.setItem(`${prefix}${new URL(location.href).searchParams.get('instance')}.isolation`, 'first'),
+      DEMO_STORAGE_PREFIX,
+    );
+    await second.evaluate(
+      (prefix) => localStorage.setItem(`${prefix}${new URL(location.href).searchParams.get('instance')}.isolation`, 'second'),
+      DEMO_STORAGE_PREFIX,
+    );
     await page.getByTestId(demoTestId.reset).click();
     await expect(page.locator(EXAMPLE_BUTTON)).toBeVisible();
     expect(new URL(page.url()).searchParams.get('instance')).toBe(firstInstance);
-    expect(await page.evaluate((prefix) => localStorage.getItem(`${prefix}${new URL(location.href).searchParams.get('instance')}.isolation`), DEMO_STORAGE_PREFIX)).toBeNull();
-    expect(await second.evaluate((prefix) => localStorage.getItem(`${prefix}${new URL(location.href).searchParams.get('instance')}.isolation`), DEMO_STORAGE_PREFIX)).toBe('second');
+    expect(
+      await page.evaluate(
+        (prefix) => localStorage.getItem(`${prefix}${new URL(location.href).searchParams.get('instance')}.isolation`),
+        DEMO_STORAGE_PREFIX,
+      ),
+    ).toBeNull();
+    expect(
+      await second.evaluate(
+        (prefix) => localStorage.getItem(`${prefix}${new URL(location.href).searchParams.get('instance')}.isolation`),
+        DEMO_STORAGE_PREFIX,
+      ),
+    ).toBe('second');
   } finally { await second.close(); }
 });

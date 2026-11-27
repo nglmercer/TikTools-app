@@ -5,7 +5,10 @@ import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
 import { PLUGIN_ID, RPC } from '../../../../../shared/index.ts';
 
 function harness(result: Promise<unknown>) {
-  const calls: Array<{method: string; params?: RpcParams}> = [];
+  const calls: Array<{
+    method: string;
+    params?: RpcParams;
+  }> = [];
   const client: ControlClient = {
     attach() {}, detach() {},
     call<T>(method: string, params?: RpcParams) {

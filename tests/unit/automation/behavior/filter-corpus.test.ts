@@ -10,9 +10,9 @@ import { filterOutcome, matchesAllFilters, recordOutcome } from '../../../../src
 
 /**
  * The corpus is shared with the Rust matcher (`filters.rs` `corpus_tests`).
- * Rust is the contract; this suite proves the test-support mirror agrees case
- * by case, and that the template builders still emit the stored filters the
- * production cases evaluate.
+ * Rust is the contract;
+ * this suite proves the test-support mirror agrees case by case, and that the template builders still emit the stored
+ * filters the production cases evaluate.
  */
 interface CorpusCase {
   label: string;

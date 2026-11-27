@@ -3,7 +3,16 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { PLUGIN_ID_PATTERN, assertPluginId, isValidPluginId } from '../../../../scripts/lib/plugin-id.ts';
 
-type Corpus = { valid: Array<{ label: string; id: string }>; invalid: Array<{ label: string; id: string }> };
+type Corpus = {
+  valid: Array<{
+    label: string;
+    id: string;
+  }>;
+  invalid: Array<{
+    label: string;
+    id: string;
+  }>;
+};
 
 const sdkRoot = resolve(import.meta.dir, '..', '..', '..', '..', 'packages', 'plugin-sdk');
 // The same file is read by the Rust host test (`validation.rs`).

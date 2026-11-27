@@ -40,7 +40,10 @@ afterAll(async () => {
   await rm(workspace, { recursive: true, force: true });
 });
 
-type Call = { command: string; args: string[] };
+type Call = {
+  command: string;
+  args: string[];
+};
 function recorder() {
   const execs: Call[] = [];
   const cargos: string[][] = [];

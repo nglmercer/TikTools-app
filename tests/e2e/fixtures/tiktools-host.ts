@@ -17,7 +17,8 @@ import type { VariableComparison } from '../../../src/web/features/edit-runtime-
 import type { RuntimeVariable } from '../../../src/web/entities/runtime-global/lib/runtime-variable.ts';
 
 export interface E2EHostState {
-  /** Methods announced through `rpc.discover`; none by default, so optional Cloud areas stay hidden. */
+  /** Methods announced through `rpc.discover`;
+   * none by default, so optional Cloud areas stay hidden. */
   announcedMethods?: string[];
   /** Cloud account and v2 workspace served to the sync panel (`cloud.status`, `sync.status`, `sync.v2.*`). */
   sync?: {
@@ -33,7 +34,11 @@ export interface E2EHostState {
     mine?: Array<Record<string, unknown>>;
     library?: Array<Record<string, unknown>>;
     dataState?: 'ready' | 'noActiveGeneration';
-    error?: { code: string; message: string; data?: unknown };
+    error?: {
+      code: string;
+      message: string;
+      data?: unknown
+    };
   };
   /** Runtime globals served by `globals.list` and written by `globals.set`. */
   globals?: Record<string, string>;
@@ -54,19 +59,52 @@ export interface E2EHostState {
   /** `plugins.settings.get/set` store, keyed by plugin id. */
   pluginSettings: Record<
     string,
-    { schema: Record<string, unknown>; uiHints?: Record<string, unknown>; values: Record<string, unknown> }
+    {
+      schema: Record<string, unknown>;
+      uiHints?: Record<string, unknown>;
+      values: Record<string, unknown>
+    }
   >;
   /** `plugins.options` store, keyed by source id. */
-  pluginOptions: Record<string, { options: Array<{ value: string; label: string }>; selected?: string | null }>;
+  pluginOptions: Record<
+    string,
+    {
+      options: Array<{
+        value: string;
+        label: string
+      }>;
+      selected?: string | null
+    }
+  >;
   /** `plugins.health` results, keyed by plugin id. */
-  pluginHealth: Record<string, { ok: boolean; latencyMs: number; error?: string | null; reachable?: boolean; gameplayReady?: boolean }>;
-  pluginTokenCandidates?: Record<string, Array<{ id: string; label: string }>>;
+  pluginHealth: Record<
+    string,
+    {
+      ok: boolean;
+      latencyMs: number;
+      error?: string | null;
+      reachable?: boolean;
+      gameplayReady?: boolean
+    }
+  >;
+  pluginTokenCandidates?: Record<
+    string,
+    Array<{
+      id: string;
+      label: string
+    }>
+  >;
   pluginSetupEndpoints?: Record<string, string>;
   pluginSetupHealth?: E2EHostState['pluginHealth'];
   /** `plugins.action.execute` results, keyed by action type. */
   actionOutcomes: Record<
     string,
-    { ok: boolean; summary: string; logs?: string[]; error?: string | null }
+    {
+      ok: boolean;
+      summary: string;
+      logs?: string[];
+      error?: string | null
+    }
   >;
   /** `app.state.*` key/value store. */
   appState: Record<string, string>;
@@ -80,15 +118,28 @@ export interface E2EHostState {
   };
   /** Page served for `live.channels` (read-only LIVE browse). */
   liveMonitor?: Record<string, unknown>;
-  feedJournal?: Array<{ cursor: number; event: Record<string, unknown> }>;
-  liveChannels: { rooms: Array<Record<string, unknown>>; nextOffset?: number };
+  feedJournal?: Array<{
+    cursor: number;
+    event: Record<string, unknown>
+  }>;
+  liveChannels: {
+    rooms: Array<Record<string, unknown>>;
+    nextOffset?: number
+  };
   /** Methods forced to fail: method -> message, or `{ code, message }` to
    *  exercise a specific JSON-RPC error code. */
-  failures: Record<string, string | { code: string; message: string }>;
+  failures: Record<string, string | {
+    code: string;
+    message: string
+  }>;
   /** Artificial delay (ms) for `plugins.action.execute` responses. */
   actionDelayMs: number;
   /** Every RPC call received, in order. */
-  calls: Array<{ method: string; params: Record<string, unknown>; meta?: Record<string, unknown> }>;
+  calls: Array<{
+    method: string;
+    params: Record<string, unknown>;
+    meta?: Record<string, unknown>
+  }>;
   /** Calls with no fake handler — must stay empty. */
   unhandled: string[];
   /** Legacy `type:` messages (plugin-ui-open/close), in order. */
@@ -199,12 +250,22 @@ const INIT_SCRIPT = `
   };
 
   const writeBehavior = (method, params, meta) => {
-    const kind = params.kind || 'event'; const id = params.id || params.record?.id;
-    const rows = behaviorRows(kind); const index = rows.findIndex((r) => r.id === id);
+    const kind = params.kind || 'event';
+    const id = params.id || params.record?.id;
+    const rows = behaviorRows(kind);
+    const index = rows.findIndex((r) => r.id === id);
     const before = behaviorRevision(kind, id);
-    if (meta?.expectedRevision !== before) throw { code: 'revision_conflict', message: 'Host record changed', data: { resourceVersions: [behaviorMeta(kind, id)] } };
+    if (meta?.expectedRevision !== before) throw {
+      code: 'revision_conflict',
+      message: 'Host record changed',
+      data: { resourceVersions: [behaviorMeta(kind, id)] },
+    };
     if (method === 'create' && index >= 0) throw { code: 'revision_conflict', message: 'Record already exists' };
-    if (['update', 'enable', 'disable'].includes(method) && index < 0) throw { code: 'automation_not_found', message: 'Record was deleted', data: { resourceVersions: [behaviorMeta(kind, id)] } };
+    if (['update', 'enable', 'disable'].includes(method) && index < 0) throw {
+      code: 'automation_not_found',
+      message: 'Record was deleted',
+      data: { resourceVersions: [behaviorMeta(kind, id)] },
+    };
     const affected = [];
     if (method !== 'delete' || index >= 0) state.automationVersions[kind + ':' + id] = String(BigInt(before) + 1n);
     if (method === 'delete') {
@@ -219,7 +280,8 @@ const INIT_SCRIPT = `
       return behaviorEnvelope({ id, deleted: index >= 0 }, [behaviorMeta(kind, id), ...affected]);
     }
     const record = method === 'enable' || method === 'disable' ? { ...rows[index], enabled: method === 'enable' } : { ...params.record, id };
-    if (index < 0) rows.push(record); else rows[index] = record;
+    if (index < 0) rows.push(record);
+    else rows[index] = record;
     return behaviorEnvelope(record, [behaviorMeta(kind, id)]);
   };
 
@@ -230,7 +292,8 @@ const INIT_SCRIPT = `
     'automation.snapshot': () => behaviorEnvelope(state.automationSnapshot,
       ['action', 'event'].flatMap((kind) => behaviorRows(kind).map((r) => behaviorMeta(kind, r.id)))),
     'automation.get': (params) => {
-      const kind = params.kind || 'event'; const record = behaviorRows(kind).find((r) => r.id === params.id);
+      const kind = params.kind || 'event';
+      const record = behaviorRows(kind).find((r) => r.id === params.id);
       if (!record) throw { code: 'automation_not_found', message: 'Record was deleted', data: { resourceVersions: [behaviorMeta(kind, params.id)] } };
       return behaviorEnvelope(record, [behaviorMeta(kind, params.id)]);
     },
@@ -253,19 +316,37 @@ const INIT_SCRIPT = `
       return { ok: true };
     },
     'points.reset': () => {
-      for (const viewer of state.leaderboard) viewer.points = 0;
+      for (const viewer of state.leaderboard)
+        viewer.points = 0;
       return { ok: true };
     },
     'creators.get': () => ({ creator: state.creator }),
     'creators.recent': () => ({ creators: state.recentCreators }),
     'gifts.list': () => ({ gifts: state.gifts }),
     'globals.list': () => ({ globals: { ...(state.globals ?? {}) } }),
-    'globals.typed.list': () => ({ revision: state.typedGlobalsRevision ?? 'a'.repeat(64), variables: state.typedGlobals ?? Object.fromEntries(Object.entries(state.globals ?? {}).map(([name, value]) => [name, { type: 'text', value }])) }),
+    'globals.typed.list': () => ({
+      revision: state.typedGlobalsRevision ?? 'a'.repeat(64),
+      variables:
+        state.typedGlobals ??
+        Object.fromEntries(Object.entries(state.globals ?? {}).map(([name, value]) => [name, { type: 'text', value }])),
+    }),
     'globals.typed.replace': (params) => {
-      if (params.expectedRevision !== (state.typedGlobalsRevision ?? 'a'.repeat(64))) throw { code: 'conflict', message: 'runtime variables changed; reload before saving' };
+      if (params.expectedRevision !== (state.typedGlobalsRevision ?? 'a'.repeat(64))) throw {
+        code: 'conflict',
+        message: 'runtime variables changed; reload before saving',
+      };
       state.typedGlobals = structuredClone(params.variables);
       state.typedGlobalsRevision = (BigInt('0x' + params.expectedRevision) + 1n).toString(16).padStart(64, '0');
-      state.globals = Object.fromEntries(Object.entries(state.typedGlobals).map(([name, variable]) => [name, variable.type === 'number' && variable.numberText !== undefined ? variable.numberText : typeof variable.value === 'string' ? variable.value : JSON.stringify(variable.value)]));
+      state.globals = Object.fromEntries(
+        Object.entries(state.typedGlobals).map(([name, variable]) => [
+          name,
+          variable.type === 'number' && variable.numberText !== undefined
+            ? variable.numberText
+            : typeof variable.value === 'string'
+              ? variable.value
+              : JSON.stringify(variable.value),
+        ]),
+      );
       return { revision: state.typedGlobalsRevision, variables: state.typedGlobals };
     },
     'globals.set': (params) => {
@@ -283,9 +364,29 @@ const INIT_SCRIPT = `
       if (!found) throw { code: 'not_found', message: 'catalog item not found' };
       return found;
     },
-    'cloud.status': () => ({ origin: 'http://127.0.0.1:3000', state: state.sync?.signedIn ? 'signed-in' : 'signed-out', accountId: 'tester', persistence: 'memory-only', error: null }),
-    'cloud.restore': () => ({ origin: 'http://127.0.0.1:3000', state: state.sync?.signedIn ? 'signed-in' : 'signed-out', accountId: 'tester', persistence: 'memory-only', error: null }),
-    'sync.status': () => ({ enabled: state.sync?.enabled ?? false, signedIn: state.sync?.signedIn ?? false, syncing: false, pending: state.sync?.entries.filter((entry) => entry.pending).length ?? 0, conflicts: [], lastError: null, lastSyncedAt: state.sync?.lastSyncedAt ?? null }),
+    'cloud.status': () => ({
+      origin: 'http://127.0.0.1:3000',
+      state: state.sync?.signedIn ? 'signed-in' : 'signed-out',
+      accountId: 'tester',
+      persistence: 'memory-only',
+      error: null,
+    }),
+    'cloud.restore': () => ({
+      origin: 'http://127.0.0.1:3000',
+      state: state.sync?.signedIn ? 'signed-in' : 'signed-out',
+      accountId: 'tester',
+      persistence: 'memory-only',
+      error: null,
+    }),
+    'sync.status': () => ({
+      enabled: state.sync?.enabled ?? false,
+      signedIn: state.sync?.signedIn ?? false,
+      syncing: false,
+      pending: state.sync?.entries.filter((entry) => entry.pending).length ?? 0,
+      conflicts: [],
+      lastError: null,
+      lastSyncedAt: state.sync?.lastSyncedAt ?? null,
+    }),
     'sync.v2.stagePreferences': () => null,
     'sync.v2.stagePluginSettings': () => null,
     'sync.v2.selected': () => true,
@@ -318,7 +419,10 @@ const INIT_SCRIPT = `
       return { pushed: 0, pulled: 0, workspacePending: 0, availableRecords: 0, conflicts: [], moreQueued: false };
     },
     'sync.v2.conflict.review': (params) => ({ handle: 'a'.repeat(64), collection: params.collection, key: params.key }),
-    'sync.v2.conflict.resolve': (params) => { state.sync?.resolved.push(String(params.choice)); return 'resolved'; },
+    'sync.v2.conflict.resolve': (params) => {
+      state.sync?.resolved.push(String(params.choice));
+      return 'resolved';
+    },
     'rpc.discover': () => ({ methods: (state.announcedMethods ?? []).map((name) => ({ name })) }),
     // Owner library is mounted once by the app shell; answer its read calls so
     // unrelated specs do not report unhandled RPCs.
@@ -397,8 +501,17 @@ const INIT_SCRIPT = `
     'plugins.token.import': (params) => {
       const id = String(params.pluginId);
       const candidates = state.pluginTokenCandidates?.[id] ?? [];
-      if (params.mode === 'auto') return { pluginId: id, ok: false, error: candidates.length ? null : 'No configuration found. Select the game folder.', candidates };
-      if (params.mode === 'candidate' && !candidates.some((candidate) => candidate.id === params.candidateId)) return { pluginId: id, ok: false, error: 'Configuration unavailable.' };
+      if (params.mode === 'auto') return {
+        pluginId: id,
+        ok: false,
+        error: candidates.length ? null : 'No configuration found. Select the game folder.',
+        candidates,
+      };
+      if (params.mode === 'candidate' && !candidates.some((candidate) => candidate.id === params.candidateId)) return {
+        pluginId: id,
+        ok: false,
+        error: 'Configuration unavailable.',
+      };
       const settings = state.pluginSettings[id];
       if (settings) {
         settings.values.apiToken = '••••••••';
@@ -408,14 +521,46 @@ const INIT_SCRIPT = `
       return { pluginId: id, ok: true, error: null };
     },
     'plugins.token.provision': (params) => ({ pluginId: params.pluginId, ok: true, error: null }),
-    'system.health': () => ({ liveIngress: { received: 12, decoded: 12, accepted: 11, processed: 11, effects: { queued: 0, dropped: 0 } }, liveDedup: { duplicates: 1 }, liveTotals: { unknownMethods: {} } }),
+    'system.health': () => ({
+      liveIngress: { received: 12, decoded: 12, accepted: 11, processed: 11, effects: { queued: 0, dropped: 0 } },
+      liveDedup: { duplicates: 1 },
+      liveTotals: { unknownMethods: {} },
+    }),
     'ui.feed.backfill': (params) => {
       const journal = state.feedJournal || [];
       const selected = journal.filter((entry) => entry.cursor > params.after).slice(0, 300);
-      return { oldestCursor: journal[0]?.cursor || 0, latestCursor: journal.at(-1)?.cursor || 0, depth: journal.length, gap: false, truncated: (selected.at(-1)?.cursor || params.after) < (journal.at(-1)?.cursor || 0), events: selected };
+      return {
+        oldestCursor: journal[0]?.cursor || 0,
+        latestCursor: journal.at(-1)?.cursor || 0,
+        depth: journal.length,
+        gap: false,
+        truncated: (selected.at(-1)?.cursor || params.after) < (journal.at(-1)?.cursor || 0),
+        events: selected,
+      };
     },
-    'live.monitor.status': () => state.liveMonitor || { enabled: false, phase: 'stopped', uniqueId: '', pollIntervalSeconds: 30, checks: 0, failures: 0, lastCheckedAt: null, nextCheckAt: null, lastError: null },
-    'live.monitor.start': (params) => (state.liveMonitor = { enabled: true, phase: 'waiting', uniqueId: params.uniqueId, pollIntervalSeconds: params.pollIntervalSeconds || 30, checks: 1, failures: 0, lastCheckedAt: Date.now(), nextCheckAt: Date.now() + 30000, lastError: null }),
+    'live.monitor.status': () =>
+      state.liveMonitor || {
+        enabled: false,
+        phase: 'stopped',
+        uniqueId: '',
+        pollIntervalSeconds: 30,
+        checks: 0,
+        failures: 0,
+        lastCheckedAt: null,
+        nextCheckAt: null,
+        lastError: null,
+      },
+    'live.monitor.start': (params) => (state.liveMonitor = {
+      enabled: true,
+      phase: 'waiting',
+      uniqueId: params.uniqueId,
+      pollIntervalSeconds: params.pollIntervalSeconds || 30,
+      checks: 1,
+      failures: 0,
+      lastCheckedAt: Date.now(),
+      nextCheckAt: Date.now() + 30000,
+      lastError: null,
+    }),
     'live.monitor.stop': () => (state.liveMonitor = { ...state.liveMonitor, enabled: false, phase: 'stopped' }),
     'live.status': () => state.liveStatus,
     'live.connect': (params) => {
@@ -486,7 +631,15 @@ const INIT_SCRIPT = `
         const result = handler(message.params || {}, message.meta);
         if (result && result.__e2e_meta) {
           const packet = JSON.parse(JSON.stringify(result));
-          const delay = ['automation.create', 'automation.update', 'automation.delete', 'automation.enable', 'automation.disable'].includes(message.method) ? state.automationDelayMs || 0 : 0;
+          const delay = [
+            'automation.create',
+            'automation.update',
+            'automation.delete',
+            'automation.enable',
+            'automation.disable',
+          ].includes(message.method)
+            ? state.automationDelayMs || 0
+            : 0;
           if (delay) setTimeout(() => respond(message.id, packet.__e2e_value, undefined, packet.__e2e_meta), delay);
           else respond(message.id, packet.__e2e_value, undefined, packet.__e2e_meta);
         } else if (result && typeof result.__e2e_delay_ms === 'number') {
@@ -495,7 +648,11 @@ const INIT_SCRIPT = `
           respond(message.id, result);
         }
       } catch (error) {
-        respond(message.id, undefined, { code: error && typeof error.code === 'string' ? error.code : 'e2e', message: error && error.message ? error.message : String(error), ...(error && error.data ? { data: error.data } : {}) });
+        respond(message.id, undefined, {
+          code: error && typeof error.code === 'string' ? error.code : 'e2e',
+          message: error && error.message ? error.message : String(error),
+          ...(error && error.data ? { data: error.data } : {}),
+        });
       }
     },
   };
@@ -511,7 +668,10 @@ export interface ConsoleCapture {
 export async function installFakeHost(
   page: Page,
   state: E2EHostState,
-  options: { locale?: string; theme?: string } = {},
+  options: {
+    locale?: string;
+    theme?: string
+  } = {},
 ): Promise<ConsoleCapture> {
   const errors: string[] = [];
   page.on('console', (message) => {
@@ -544,7 +704,8 @@ export async function installFakeHost(
 }
 
 /** Reads the current fake-host state from the page. */
-/** Legacy shell messages of one type; the shell also posts housekeeping messages the page tests ignore. */
+/** Legacy shell messages of one type;
+ * the shell also posts housekeeping messages the page tests ignore. */
 export async function legacyMessagesOf(page: Page, type: string): Promise<Array<Record<string, unknown>>> {
   return (await readHostState(page)).legacyMessages.filter((message) => message.type === type);
 }

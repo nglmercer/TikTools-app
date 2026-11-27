@@ -31,7 +31,14 @@ describe('cloud overlay geometry', () => {
   });
 
   it('yields no layout for a missing document or invalid canvas dimensions', () => {
-    for (const invalid of [null, undefined, { width: 0, height: 1080 }, { width: 1920, height: -1 }, { width: Number.NaN, height: 10 }, { width: Infinity, height: 10 }]) {
+    for (const invalid of [
+      null,
+      undefined,
+      { width: 0, height: 1080 },
+      { width: 1920, height: -1 },
+      { width: Number.NaN, height: 10 },
+      { width: Infinity, height: 10 },
+    ]) {
       expect(hasValidCanvas(invalid)).toBe(false);
       expect(overlayAspectRatio(invalid)).toBeNull();
       expect(overlayBoxStyle(invalid, { x: 0, y: 0, width: 10, height: 10 })).toBeNull();

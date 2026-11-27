@@ -15,21 +15,43 @@ function driverFixture() {
   let config: Config = {};
   let steps: DriveStep[] = [];
   let index = 0;
-  const invoke = (hook: Config['onHighlighted']) => hook?.(steps[index]?.element as Element | undefined, steps[index] ?? {}, { driver: engine, config, state: {}, index });
+  const invoke = (hook: Config['onHighlighted']) =>
+    hook?.(steps[index]?.element as Element | undefined, steps[index] ?? {}, { driver: engine, config, state: {}, index });
   const engine = {
     setSteps: vi.fn((next: DriveStep[]) => { steps = next; }),
     getConfig: () => config,
     setConfig: vi.fn((next: Config) => { config = next; }),
-    drive: vi.fn((next = 0) => { index = next; invoke(config.onHighlighted); }),
+    drive: vi.fn((next = 0) => {
+      index = next;
+      invoke(config.onHighlighted);
+    }),
     destroy: vi.fn(() => invoke(config.onDestroyed)),
     isLastStep: () => index === steps.length - 1,
     getActiveElement: () => steps[index]?.element,
-    moveNext: vi.fn(() => { index++; invoke(config.onHighlighted); }),
-    movePrevious: vi.fn(() => { index--; invoke(config.onHighlighted); }),
+    moveNext: vi.fn(() => {
+      index++;
+      invoke(config.onHighlighted);
+    }),
+    movePrevious: vi.fn(() => {
+      index--;
+      invoke(config.onHighlighted);
+    }),
   } as unknown as Driver;
-  const driver = vi.fn((next: Config) => { config = next; return engine; });
+  const driver = vi.fn((next: Config) => {
+    config = next;
+    return engine;
+  });
   const loadDriver = vi.fn(async () => ({ driver }));
-  return { driver, engine, loadDriver, config: () => config, steps: () => steps, next: () => invoke(config.onNextClick), close: () => invoke(config.onCloseClick), done: () => invoke(config.onDoneClick) };
+  return {
+    driver,
+    engine,
+    loadDriver,
+    config: () => config,
+    steps: () => steps,
+    next: () => invoke(config.onNextClick),
+    close: () => invoke(config.onCloseClick),
+    done: () => invoke(config.onDoneClick),
+  };
 }
 
 const owned: Array<ReturnType<typeof createTourCoordinator>> = [];
@@ -56,7 +78,8 @@ afterEach(() => {
 it('is lazy, restores focus, and records dismissal without completing the guide', async () => {
   const test = setup();
   const root = mountGuideTargets('points', ['points-rules', 'points-leaderboard']);
-  const trigger = document.createElement('button'); root.append(trigger);
+  const trigger = document.createElement('button');
+  root.append(trigger);
   expect(test.loadDriver).not.toHaveBeenCalled();
   const session = test.coordinator.startTour('points', { trigger });
   expect(await session.ready).toBe(true);
@@ -182,7 +205,10 @@ it('accepts a late target inside the bound and caps excessive waits', async () =
 
 it('cleans up a pending target wait on navigation, with no late restart', async () => {
   const test = setup();
-  const router = createRouter({ history: createMemoryHistory(), routes: ['/points', '/connections'].map((path) => ({ path, component: { template: '<div />' } })) });
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: ['/points', '/connections'].map((path) => ({ path, component: { template: '<div />' } })),
+  });
   await router.push('/points');
   const session = test.coordinator.startTour('points', { router });
   await Promise.resolve();
@@ -196,7 +222,10 @@ it('cleans up a pending target wait on navigation, with no late restart', async 
 it('navigates once to its declared route and destroys an active guide on leaving it', async () => {
   const test = setup();
   mountGuideTargets('points', ['points-rules']);
-  const router = createRouter({ history: createMemoryHistory(), routes: ['/points', '/connections'].map((path) => ({ path, component: { template: '<div />' } })) });
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: ['/points', '/connections'].map((path) => ({ path, component: { template: '<div />' } })),
+  });
   await router.push('/connections');
   const session = test.coordinator.startTour('points', { router });
   expect(await session.ready).toBe(true);
@@ -209,14 +238,19 @@ it('navigates once to its declared route and destroys an active guide on leaving
 it('keeps an existing desktop diagnostics panel in place without navigating to the mobile page', async () => {
   const test = setup();
   const root = mountGuideTargets('diagnostics', ['diagnostics-log', 'diagnostics-actions']);
-  const router = createRouter({ history: createMemoryHistory(), routes: ['/debug', '/connections'].map((path) => ({ path, component: { template: '<div />' } })) });
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: ['/debug', '/connections'].map((path) => ({ path, component: { template: '<div />' } })),
+  });
   await router.push('/connections');
   const push = vi.spyOn(router, 'push');
   const session = test.coordinator.startTour('diagnostics', { router, scope: root, taskState: { 'diagnostics.inspected': true } });
   expect(await session.ready).toBe(true);
   expect(router.currentRoute.value.path).toBe('/connections');
   expect(push).not.toHaveBeenCalled();
-  test.next(); await flushPromises(); test.done();
+  test.next();
+  await flushPromises();
+  test.done();
   expect(await session.done).toBe('completed');
 });
 
@@ -243,7 +277,10 @@ it('bounds navigation and lazy import waits and cancels a superseded load', asyn
 it('releases its navigation deadline when a route guard never settles', async () => {
   vi.useFakeTimers();
   const test = setup();
-  const router = createRouter({ history: createMemoryHistory(), routes: ['/points', '/connections'].map((path) => ({ path, component: { template: '<div />' } })) });
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: ['/points', '/connections'].map((path) => ({ path, component: { template: '<div />' } })),
+  });
   await router.push('/connections');
   const removeGuard = router.beforeEach((to) => to.path === '/points' ? new Promise<boolean>(() => {}) : true);
   const session = test.coordinator.startTour('points', { router, waitMs: 30 });
@@ -357,7 +394,10 @@ it('aborts a subsequent step wait when the user navigates away', async () => {
   vi.useFakeTimers();
   const test = setup();
   mountGuideTargets('points', ['points-rules']);
-  const router = createRouter({ history: createMemoryHistory(), routes: ['/points', '/connections'].map((path) => ({ path, component: { template: '<div />' } })) });
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: ['/points', '/connections'].map((path) => ({ path, component: { template: '<div />' } })),
+  });
   await router.push('/points');
   const session = test.coordinator.startTour('points', { router, waitMs: 50 });
   await vi.advanceTimersByTimeAsync(0);
@@ -374,7 +414,13 @@ it('escapes untrusted display text and respects reduced motion without losing ke
   const test = setup();
   const root = mountGuideTargets('inline', ['inline']);
   vi.stubGlobal('matchMedia', () => ({ matches: true }));
-  const session = test.coordinator.startInlineGuide({ id: 'inline', scope: root, steps: () => [{ id: 'one', selector: '[data-guide="inline"]', title: '<img onerror="bad">', description: '<script>bad</script>&' }] });
+  const session = test.coordinator.startInlineGuide({
+    id: 'inline',
+    scope: root,
+    steps: () => [
+      { id: 'one', selector: '[data-guide="inline"]', title: '<img onerror="bad">', description: '<script>bad</script>&' },
+    ],
+  });
   await session.ready;
   expect(test.steps()[0]!.popover?.title).toBe('&lt;img onerror=&quot;bad&quot;&gt;');
   expect(test.steps()[0]!.popover?.description).toBe('&lt;script&gt;bad&lt;/script&gt;&amp;');
@@ -386,11 +432,14 @@ it('escapes untrusted display text and respects reduced motion without losing ke
 it('stops for a modal or removed workspace and never steals focus behind a modal', async () => {
   const test = setup();
   const root = mountGuideTargets('points', ['points-rules']);
-  const trigger = document.createElement('button'); root.append(trigger);
+  const trigger = document.createElement('button');
+  root.append(trigger);
   const focus = vi.spyOn(trigger, 'focus');
   const session = test.coordinator.startTour('points', { trigger });
   await session.ready;
-  const modal = document.createElement('dialog'); modal.open = true; root.append(modal);
+  const modal = document.createElement('dialog');
+  modal.open = true;
+  root.append(modal);
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(await session.done).toBe('dismissed');
   expect(focus).not.toHaveBeenCalled();
@@ -423,7 +472,16 @@ describe('versioned registry and localized copy', () => {
       expect(tour.version).toBeGreaterThan(0);
       expect(tour.route.startsWith('/')).toBe(true);
       for (const [locale, catalog] of Object.entries(tourCatalogs)) {
-        const copy = (catalog as unknown as Record<string, Record<string, { title: string; description: string }>>)[tour.id]!;
+        const copy = (catalog as unknown as Record<
+          string,
+          Record<
+            string,
+            {
+              title: string;
+              description: string;
+            }
+          >
+        >)[tour.id]!;
         expect(Object.keys(copy)).toEqual(tour.steps.map((step) => step.id));
         for (const step of tour.steps) {
           expect(step.version).toBeGreaterThan(0);
@@ -473,7 +531,12 @@ describe('account and backup tour', () => {
     }
     const test = setup();
     const root = mountGuideTargets('account', tourRegistry.backup.steps.map((step) => step.target));
-    const session = test.coordinator.startTour('backup', { scope: root, locale: 'en', signedIn: true, capabilities: [RPC.cloudPlanGet, 'cloud.backup.createNamed', RPC.cloudBackupList] });
+    const session = test.coordinator.startTour('backup', {
+      scope: root,
+      locale: 'en',
+      signedIn: true,
+      capabilities: [RPC.cloudPlanGet, 'cloud.backup.createNamed', RPC.cloudBackupList],
+    });
     await flushPromises();
     expect(await session.ready).toBe(true);
     for (let index = 1; index < 4; index++) {
@@ -489,7 +552,12 @@ describe('account and backup tour', () => {
     for (const signedIn of [undefined, false, () => false] as const) {
       const test = setup();
       const root = mountGuideTargets('account', tourRegistry.backup.steps.map((step) => step.target));
-      const session = test.coordinator.startTour('backup', { scope: root, locale: 'en', signedIn, capabilities: [RPC.cloudPlanGet, 'cloud.backup.createNamed', RPC.cloudBackupList] });
+      const session = test.coordinator.startTour('backup', {
+        scope: root,
+        locale: 'en',
+        signedIn,
+        capabilities: [RPC.cloudPlanGet, 'cloud.backup.createNamed', RPC.cloudBackupList],
+      });
       await flushPromises();
       expect(await session.ready).toBe(false);
       expect(await session.done).toBe('unavailable');

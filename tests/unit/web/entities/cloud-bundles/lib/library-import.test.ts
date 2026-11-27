@@ -5,7 +5,11 @@ import { nativeDefinitionHost } from '@/entities/automation/testing/native-defin
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import { ControlCallError, type ControlClient } from '@/shared/api/control-client.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
-import { importLibraryDocument, readLibraryDocument, type LibraryImportEnvironment } from '../../../../../../src/web/entities/cloud-bundles/lib/library-import.ts';
+import {
+  importLibraryDocument,
+  readLibraryDocument,
+  type LibraryImportEnvironment,
+} from '../../../../../../src/web/entities/cloud-bundles/lib/library-import.ts';
 import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, FIXTURE_ID, LIBRARY_OPERATION, RPC } from '../../../../../shared/index.ts';
 
 const id = '00000000-0000-4000-8000-000000000001';
@@ -14,26 +18,44 @@ const template = { templateVersion: 1, id: 'cloud-template', title: 'Cloud templ
   actions: [{ name: 'act', typeId: ACTION_TYPE.coreLog, config: { message: 'hi' } }], event: { name: 'evt', trigger: EVENT_KIND.tiktokChat } };
 const profile = { profileVersion: 1, id: 'cloud-profile', name: 'Cloud profile', description: 'two', params: {},
   templates: [{ template, params: {} }] };
-const record = (document: unknown, revision = '3') => ({ meta: { id, kind: 'template', slug: 'x', revision, title: 'T', sha256, status: 'published' }, document });
+const record = (document: unknown, revision = '3') => ({
+  meta: { id, kind: 'template', slug: 'x', revision, title: 'T', sha256, status: 'published' },
+  document,
+});
 function deferred<T>() {
-  let resolve!: (value: T) => void; let reject!: (failure: unknown) => void;
-  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  let resolve!: (value: T) => void;
+  let reject!: (failure: unknown) => void;
+  const promise = new Promise<T>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
   return { promise, resolve, reject };
 }
 
 function fixture(read: (params: Record<string, unknown> | undefined) => unknown) {
   const source: BehaviorSnapshot = { actions: [], events: [], plugins: [], actionTypes: [], translations: {} };
   const native = nativeDefinitionHost((method, params, options) => {
-    if (method === RPC.automationSnapshot) { options?.onMetadata?.({ resourceVersions: [] }); return structuredClone(source); }
+    if (method === RPC.automationSnapshot) {
+      options?.onMetadata?.({ resourceVersions: [] });
+      return structuredClone(source);
+    }
     if (method === RPC.appStateGet) return { state: {} };
     if (method === RPC.automationCreate) {
-      options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }] });
+      options?.onMetadata?.({
+        resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }],
+      });
       return params?.record;
     }
     throw new Error(`unexpected ${method}`);
   });
   const fake = createFakeControlClient((method, params, options) => method === 'cloudLibrary.read' ? read(params) : native.handle(method, params, options));
-  const state = { identity: { origin: 'https://cloud.example', accountId: 'alice' } as { origin: string; accountId: string } | null, stamp: 0 };
+  const state = {
+    identity: { origin: 'https://cloud.example', accountId: 'alice' } as {
+      origin: string;
+      accountId: string;
+    } | null,
+    stamp: 0,
+  };
   const environment: LibraryImportEnvironment = {
     client: fake.client as ControlClient,
     identity: () => state.identity,
@@ -55,7 +77,8 @@ describe('Cloud library import coordinator', () => {
     expect(f.journal.draft.value?.context.hostId).toBe(FIXTURE_ID.hostA);
     expect(settled).toBe(false);
     expect(submits(f)).toHaveLength(0);
-    await f.journal.confirm(); await outcome;
+    await f.journal.confirm();
+    await outcome;
     expect(settled).toBe(true);
     expect(submits(f)).toHaveLength(1);
     expect(submits(f)[0]?.params?.provenance).toEqual({ origin: 'https://cloud.example', accountId: 'alice', documentId: id, revision: '3', sha256 });
@@ -69,7 +92,8 @@ describe('Cloud library import coordinator', () => {
     expect(mutation).toMatchObject({ operation: 'import-profile', profile: { id: 'cloud-profile' } });
     if (mutation?.operation !== 'import-profile') throw new Error('unexpected mutation');
     expect(mutation.entries).toHaveLength(1);
-    await f.journal.confirm(); await outcome;
+    await f.journal.confirm();
+    await outcome;
     expect(submits(f)).toHaveLength(1);
   });
 
@@ -84,7 +108,8 @@ describe('Cloud library import coordinator', () => {
     const again = importLibraryDocument(f.environment, 'template', { id, revision: 3 });
     await flushPromises();
     expect(f.journal.draft.value).not.toBeNull();
-    await f.journal.confirm(); await again;
+    await f.journal.confirm();
+    await again;
   });
 
   it('does not prepare a draft when the account changes while the document is being read', async () => {
@@ -92,7 +117,8 @@ describe('Cloud library import coordinator', () => {
     const f = fixture(() => read.promise);
     const outcome = importLibraryDocument(f.environment, 'template', { id, revision: 3 }).catch((failure: unknown) => failure);
     await flushPromises();
-    f.state.identity = { origin: 'https://cloud.example', accountId: 'bob' }; f.state.stamp += 1;
+    f.state.identity = { origin: 'https://cloud.example', accountId: 'bob' };
+    f.state.stamp += 1;
     read.resolve(record(template));
     expect(await outcome).toMatchObject({ code: 'stale_context' });
     expect(f.journal.draft.value).toBeNull();
@@ -125,7 +151,10 @@ describe('Cloud library import coordinator', () => {
   it('requires a signed-in account before reading anything', async () => {
     const f = fixture(() => record(template));
     f.state.identity = null;
-    await expect(importLibraryDocument(f.environment, 'template', { id, revision: 3 })).rejects.toMatchObject({ code: 'signed_out', message: 'sign in to Cloud to import this template' });
+    await expect(importLibraryDocument(f.environment, 'template', { id, revision: 3 })).rejects.toMatchObject({
+      code: 'signed_out',
+      message: 'sign in to Cloud to import this template',
+    });
     expect(f.calls).toHaveLength(0);
   });
 
@@ -144,7 +173,8 @@ describe('Cloud library import coordinator', () => {
     await flushPromises();
     expect(f.journal.draft.value?.provenance?.documentId).toBe(id);
     expect(f.calls.some((call) => call.method === 'cloudLibrary.read')).toBe(false);
-    f.journal.dismiss(); await outcome.catch(() => {});
+    f.journal.dismiss();
+    await outcome.catch(() => {});
   });
 });
 
@@ -156,7 +186,10 @@ describe('readLibraryDocument', () => {
   });
 
   it('tries the owner copy only when the public document is explicitly absent', async () => {
-    const f = fixture((params) => { if (params?.scope === 'public') throw new ControlCallError(ERROR_CODE.notFound, 'Cloud document not found'); return record(template); });
+    const f = fixture((params) => {
+      if (params?.scope === 'public') throw new ControlCallError(ERROR_CODE.notFound, 'Cloud document not found');
+      return record(template);
+    });
     await readLibraryDocument(f.environment.client, id, 3);
     expect(f.calls.map((call) => call.params?.scope)).toEqual(['public', 'mine']);
   });

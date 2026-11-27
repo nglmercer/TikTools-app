@@ -16,7 +16,10 @@ async function open(capabilities: Partial<SyncCapabilities>) {
 }
 
 async function openAdapter(adapter: SyncAdapter) {
-  const wrapper = mountWithPlugins(SyncPanel, { attachTo: document.body, props: { adapter, open: false, 'onUpdate:open': (value: boolean) => wrapper.setProps({ open: value }) } });
+  const wrapper = mountWithPlugins(SyncPanel, {
+    attachTo: document.body,
+    props: { adapter, open: false, 'onUpdate:open': (value: boolean) => wrapper.setProps({ open: value }) },
+  });
   await wrapper.setProps({ open: true });
   await flushPromises();
   return { wrapper, adapter };
@@ -81,7 +84,11 @@ describe('SyncPanel changes view', () => {
     expect(wrapper.findAll(`[aria-label="${t('syncChanges.toSend')}"]`)).toHaveLength(2);
     expect(wrapper.findAll(`[aria-label="${t('syncChanges.toFetch')}"]`)).toHaveLength(1);
     expect(wrapper.findAll(`[aria-label="${t('syncChanges.conflicts')}"]`)).toHaveLength(1);
-    expect(wrapper.findAll('.sync-panel__status .sync-panel__chip').map((chip) => [chip.attributes('data-side'), chip.text()])).toEqual([['local', '2'], ['remote', '1'], ['conflict', '1']]);
+    expect(wrapper.findAll('.sync-panel__status .sync-panel__chip').map((chip) => [chip.attributes('data-side'), chip.text()])).toEqual([
+      ['local', '2'],
+      ['remote', '1'],
+      ['conflict', '1'],
+    ]);
   });
 
   it('sends only the checked elements', async () => {

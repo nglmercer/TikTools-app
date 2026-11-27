@@ -6,16 +6,36 @@ import { activateLocale } from '@/shared/i18n/i18n.ts';
 import { tourCatalogs } from '../../../../../../src/web/features/guided-help/catalogs';
 import { mountGuideScope, mountGuideTargets, removeGuideFixtures } from '../support/dom.ts';
 
-type TestConfig = Record<string, unknown> & { onDestroyed?: () => void; allowKeyboardControl?: boolean };
+type TestConfig = Record<string, unknown> & {
+  onDestroyed?: () => void;
+  allowKeyboardControl?: boolean
+};
 const fake = vi.hoisted(() => {
   let config: TestConfig = {};
-  const engine = { setSteps: vi.fn<(steps: Array<{ element: Element; popover: { description: string } }>) => void>(), drive: vi.fn(), getConfig: () => config, setConfig: vi.fn((next: TestConfig) => { config = next; }), destroy: vi.fn(() => config.onDestroyed?.()) };
-  return { engine, driver: vi.fn((options: TestConfig) => { config = options; return engine; }), config: () => config };
+  const engine = {
+    setSteps: vi.fn<(steps: Array<{
+      element: Element;
+      popover: { description: string }
+    }>) => void>(),
+    drive: vi.fn(),
+    getConfig: () => config,
+    setConfig: vi.fn((next: TestConfig) => { config = next; }),
+    destroy: vi.fn(() => config.onDestroyed?.()),
+  };
+  return {
+    engine,
+    driver: vi.fn((options: TestConfig) => {
+      config = options;
+      return engine;
+    }),
+    config: () => config,
+  };
 });
 vi.mock('driver.js', () => ({ driver: fake.driver }));
 enableAutoUnmount(afterEach);
 beforeEach(() => {
-  vi.clearAllMocks(); sessionStorage.clear();
+  vi.clearAllMocks();
+  sessionStorage.clear();
   vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function (this: HTMLElement) {
     return (this.isConnected ? [new DOMRect(0, 0, 120, 30)] : []) as unknown as DOMRectList;
   });
@@ -28,18 +48,32 @@ for (const locale of ['zh', 'ja'] as const) it(`uses the ${locale} catalog for n
   const root = mountGuideTargets('points', ['points-rules', 'points-leaderboard'], 'section');
   const wrapper = mountWithPlugins(GuideButton, { attachTo: root, props: { tour: 'points', taskState: { 'points.reviewed': false } } });
   expect(wrapper.get('button').attributes('aria-label')).toContain(tourCatalogs[locale].points.rules.title);
-  await wrapper.get('button').trigger('click'); await vi.dynamicImportSettled(); await flushPromises();
+  await wrapper.get('button').trigger('click');
+  await vi.dynamicImportSettled();
+  await flushPromises();
   expect(fake.config().nextBtnText).toBe(tourCatalogs[locale].controls.next);
   wrapper.unmount();
 });
 
 async function mountGuide() {
   const root = mountGuideScope('test', '<button id="one">First</button><button id="two">Second</button><button id="disabled" disabled>Disabled</button>');
-  const wrapper = mountWithPlugins(GuideButton, { attachTo: root, props: { id: 'test-v1', steps: [{ id: 'one', selector: '#one', title: 'First', description: '<safe>' }, { id: 'disabled', selector: '#disabled', title: 'Unavailable', description: '' }, { id: 'absent', selector: '#absent', title: 'Absent', description: '' }] } });
+  const wrapper = mountWithPlugins(GuideButton, {
+    attachTo: root,
+    props: {
+      id: 'test-v1',
+      steps: [
+        { id: 'one', selector: '#one', title: 'First', description: '<safe>' },
+        { id: 'disabled', selector: '#disabled', title: 'Unavailable', description: '' },
+        { id: 'absent', selector: '#absent', title: 'Absent', description: '' },
+      ],
+    },
+  });
   return { wrapper, root };
 }
 async function open(wrapper: Awaited<ReturnType<typeof mountGuide>>['wrapper']) {
-  await wrapper.get('button').trigger('click'); await vi.dynamicImportSettled(); await flushPromises();
+  await wrapper.get('button').trigger('click');
+  await vi.dynamicImportSettled();
+  await flushPromises();
 }
 it('loads the tour only when requested, skips unavailable controls and escapes text', async () => {
   const { wrapper, root } = await mountGuide();
@@ -63,7 +97,9 @@ it('tracks a completed application action through props and cleans up on unmount
 it('closes the tour when a native dialog opens so it cannot trap focus behind the dialog', async () => {
   const { wrapper, root } = await mountGuide();
   await open(wrapper);
-  const dialog = document.createElement('dialog'); root.append(dialog); dialog.setAttribute('open', '');
+  const dialog = document.createElement('dialog');
+  root.append(dialog);
+  dialog.setAttribute('open', '');
   await flushPromises();
   expect(fake.engine.destroy).toHaveBeenCalled();
 });
@@ -72,7 +108,9 @@ it('starts an explicit versioned tour without requiring legacy steps and complet
   const wrapper = mountWithPlugins(GuideButton, { attachTo: root, props: { tour: 'points', taskState: { 'points.reviewed': false } } });
   expect(fake.driver).not.toHaveBeenCalled();
   expect(wrapper.get('button').attributes('data-guide-tour')).toBe('points');
-  await wrapper.get('button').trigger('click'); await vi.dynamicImportSettled(); await flushPromises();
+  await wrapper.get('button').trigger('click');
+  await vi.dynamicImportSettled();
+  await flushPromises();
   expect(fake.engine.setSteps).toHaveBeenCalled();
   expect(wrapper.get('button').attributes('aria-label')).toContain('Review earning rules');
   await wrapper.setProps({ taskState: { 'points.reviewed': true } });

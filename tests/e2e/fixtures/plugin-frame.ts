@@ -94,7 +94,8 @@ export async function routePluginFixture(page: Page): Promise<void> {
  * crossorigin>`), and the production frame is `sandbox="allow-scripts"`,
  * so the document carries an opaque origin and strict engines CORS-check
  * those subresources. The module marks `#external` and the stylesheet
- * colors it; either staying unapplied means the assets were blocked.
+ * colors it;
+ * either staying unapplied means the assets were blocked.
  */
 export const PLUGIN_EXTERNAL_BASE = '/__plugin-external/';
 
@@ -123,7 +124,8 @@ export const PLUGIN_EXTERNAL_HARNESS_HTML = `<!doctype html>
 /**
  * Serves the external-asset document plus its module/CSS subresources.
  * With `withCors` the subresources answer `Access-Control-Allow-Origin:
- * *`, as every production plugin-asset host must; without it they answer
+ * *`, as every production plugin-asset host must;
+ * without it they answer
  * an explicitly non-matching origin, so the module load is CORS-blocked
  * in the opaque-origin frame, reproducing the blank production iframe
  * (missing marker, CORS console error).
@@ -225,7 +227,8 @@ export async function routeCompiledPluginUi(
   const index = join(COMPILED_UI_DIST, 'index.html');
   if (!existsSync(index)) {
     throw new Error(
-      `Compiled plugin UI missing at ${COMPILED_UI_DIST} — clone plugins-example-tiktools beside TikTools (or set TIKTOOLS_PLUGINS_REPO) and run \`bun run build:sonicboom-ui\` there.`,
+      `Compiled plugin UI missing at ${COMPILED_UI_DIST} — clone plugins-example-tiktools beside TikTools ` +
+      `(or set TIKTOOLS_PLUGINS_REPO) and run \`bun run build:sonicboom-ui\` there.`,
     );
   }
   const prefix = `${PLUGIN_FIXTURE_BASE}${pluginId}/`;

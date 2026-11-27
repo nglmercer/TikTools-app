@@ -111,7 +111,9 @@ describe('PointsPage', () => {
     const { wrapper, calls } = await mountPage();
     await wrapper.get('button[aria-label="Actions for @mango"]').trigger('click');
     await nextTick();
-    Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((item) => item.textContent?.includes(t('points.adjust.confirmDeduct')))!.click();
+    Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+      .find((item) => item.textContent?.includes(t('points.adjust.confirmDeduct')))!
+      .click();
     await flushPromises();
     expect(document.querySelector('dialog h2')?.textContent).toContain('@mango');
     documentButton(t('points.adjust.confirmDeduct')).click();

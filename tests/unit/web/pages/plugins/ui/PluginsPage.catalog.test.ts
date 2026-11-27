@@ -1,4 +1,20 @@
-import { type VueWrapper, flushPromises, beforeEach, describe, expect, it, ControlCallError, type PluginStatus, t, mountPage, buttonByLabel, openTab, detailsTitle, menuItem, REGISTRY_HOST } from '../../../../../../src/web/pages/plugins/ui/plugins-page-fixture.ts';
+import {
+  type VueWrapper,
+  flushPromises,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  ControlCallError,
+  type PluginStatus,
+  t,
+  mountPage,
+  buttonByLabel,
+  openTab,
+  detailsTitle,
+  menuItem,
+  REGISTRY_HOST,
+} from '../../../../../../src/web/pages/plugins/ui/plugins-page-fixture.ts';
 import { FIXTURE_ID, PLUGIN_ID, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
 
 describe('PluginsPage catalog', () => {
@@ -47,9 +63,21 @@ describe('PluginsPage catalog', () => {
       releaseRef: kind === 'plugin' ? { type: 'pluginRelease', version: '1.2.0' } : { type: 'documentRevision', revision: 3, sha256: 'a'.repeat(64) },
       publication: { yanked: false },
     });
-    const cloudItems = [wire('plugin', PLUGIN_ID.acmeTts, 'Acme TTS'), wire('template', FIXTURE_ID.tpl1, 'Gift alert'), wire('profile', FIXTURE_ID.prof1, 'Starter pack')];
+    const cloudItems = [
+      wire('plugin', PLUGIN_ID.acmeTts, 'Acme TTS'),
+      wire('template', FIXTURE_ID.tpl1, 'Gift alert'),
+      wire('profile', FIXTURE_ID.prof1, 'Starter pack'),
+    ];
     const explore = (handle?: Parameters<typeof mountPage>[6], announce: string[] = [RPC.catalogItems]) =>
-      mountPage(undefined, undefined, undefined, announce, [], '', handle ?? ((method) => (method === RPC.catalogItems ? { items: cloudItems, nextCursor: null } : undefined)));
+      mountPage(
+        undefined,
+        undefined,
+        undefined,
+        announce,
+        [],
+        '',
+        handle ?? ((method) => (method === RPC.catalogItems ? { items: cloudItems, nextCursor: null } : undefined)),
+      );
     const names = (wrapper: VueWrapper) => wrapper.findAll('.explore-list__row').map((item) => item.get('.explore-list__name').text());
     const methods = (calls: { method: string }[]) => calls.map((call) => call.method);
 
@@ -148,7 +176,8 @@ describe('PluginsPage catalog', () => {
     expect(panel.find('#plugin-update-policy-interval').exists()).toBe(true);
     expect(panel.text()).toContain(t('packages.sources.allowSideload'));
     expect(panel.findAll('input[type="url"], input[type="text"][placeholder*="http"]')).toHaveLength(0);
-    expect(panel.findAll('button').map((button) => button.attributes('aria-label') ?? button.text())).not.toEqual(expect.arrayContaining([expect.stringMatching(/add|remove|enable|disable|source|registry/i)]));
+    expect(panel.findAll('button').map((button) => button.attributes('aria-label') ?? button.text()))
+      .not.toEqual(expect.arrayContaining([expect.stringMatching(/add|remove|enable|disable|source|registry/i)]));
     expect(panel.text()).not.toMatch(/registr|source/i);
   });
 

@@ -20,7 +20,11 @@ function request(id: number, method: string) {
 }
 
 type WireResponse = {
-  response: { id: number; result?: unknown; error?: { code: string } };
+  response: {
+    id: number;
+    result?: unknown;
+    error?: { code: string };
+  };
 };
 
 describe('review regressions: demo runtime contract and isolation', () => {
@@ -114,7 +118,10 @@ describe('review regressions: demo runtime contract and isolation', () => {
     let mutations = 0;
     const peer = createDemoTransport({
       'fixture.read': demoMethod('Read bounded fictional data', objectParams, () => ({ result: 'é'.repeat(700 * 1024) })),
-      'fixture.mutate': demoMethod('Mutate isolated test state', objectParams, () => { mutations++; return { result: null }; }, true),
+      'fixture.mutate': demoMethod('Mutate isolated test state', objectParams, () => {
+        mutations++;
+        return { result: null };
+      }, true),
     });
     cleanup.push(() => peer.transport.detach());
     // Leave unattached so the first two replies remain queued deterministically.
@@ -125,7 +132,11 @@ describe('review regressions: demo runtime contract and isolation', () => {
     expect(queued.queuedBytes).toBeGreaterThan(2 * MiB);
     expect(queued.queuedBytes).toBeLessThanOrEqual(4 * MiB);
     let admissionFailure: unknown;
-    try { peer.transport.send(request(3, 'fixture.mutate')); } catch (error) { admissionFailure = error; }
+    try {
+      peer.transport.send(request(3, 'fixture.mutate'));
+    } catch (error) {
+      admissionFailure = error;
+    }
     expect(mutations).toBe(0);
     expect(peer.diagnostics().queuedBytes).toBeLessThanOrEqual(4 * MiB);
 

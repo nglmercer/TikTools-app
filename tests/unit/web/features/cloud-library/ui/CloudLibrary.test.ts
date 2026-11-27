@@ -121,22 +121,29 @@ describe('CloudLibrary', () => {
       if (topic === 'cloud.context.invalidated') cloudInvalidated = () => handler({} as never);
       return () => { cloudInvalidated = () => {}; };
     };
-    client.onGap = (handler) => { gap = () => handler(1); return () => { gap = () => {}; }; };
+    client.onGap = (handler) => {
+      gap = () => handler(1);
+      return () => { gap = () => {}; };
+    };
     const stores = createStoreHarness(client);
     const account = stores.use(() => useAccountStore());
     account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
     const wrapper = mountWithPlugins(CloudLibrary, { global: { plugins: stores.plugins } });
     await flushPromises();
-    await wrapper.findAll('select')[0]!.setValue('mine'); await flushPromises();
+    await wrapper.findAll('select')[0]!.setValue('mine');
+    await flushPromises();
     await button(wrapper, 'Private title').trigger('click');
-    cloudInvalidated(); await nextTick();
+    cloudInvalidated();
+    await nextTick();
     expect(wrapper.text()).not.toContain('Private title');
     resolveDetail({ meta: summary(firstId, 'Private title'), document: { title: 'Old detail' } });
     await flushPromises();
     expect(wrapper.text()).not.toContain('Old detail');
-    await wrapper.get('form').trigger('submit'); await flushPromises();
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
     expect(wrapper.text()).toContain('Private title');
-    gap(); await nextTick();
+    gap();
+    await nextTick();
     expect(wrapper.text()).not.toContain('Private title');
     wrapper.unmount();
   });
@@ -170,12 +177,17 @@ describe('CloudLibrary', () => {
       actions: [{ name: 'act', typeId: ACTION_TYPE.coreLog, config: {} }], event: { name: 'evt', trigger: EVENT_KIND.tiktokChat } };
     async function ownerLibrary(hold?: { snapshot?: Promise<unknown> }) {
       const native = nativeDefinitionHost((method, params, options) => {
-        if (method === RPC.automationSnapshot) { options?.onMetadata?.({ resourceVersions: [] }); return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} }; }
+        if (method === RPC.automationSnapshot) {
+          options?.onMetadata?.({ resourceVersions: [] });
+          return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} };
+        }
         if (method === RPC.appStateGet) return { state: {} };
         if (method === 'cloudLibrary.list') return { items: [summary()], nextCursor: null };
         if (method === 'cloudLibrary.read') return { meta: summary(), document: template };
         if (method === RPC.automationCreate) {
-          options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }] });
+          options?.onMetadata?.({
+            resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }],
+          });
           return params?.record;
         }
         throw new Error(`unexpected ${method}`);
@@ -197,12 +209,20 @@ describe('CloudLibrary', () => {
 
     it('opens the owner review without leaving the library, and shows the result only after the owner confirms', async () => {
       const f = await ownerLibrary();
-      await button(f.wrapper, t('cloudLibrary.import')).trigger('click'); await flushPromises();
-      expect(f.journal.draft.value?.provenance).toMatchObject({ origin: 'https://cloud.example', accountId: 'alice', documentId: firstId, revision: '9007199254740993', sha256: 'a'.repeat(64) });
+      await button(f.wrapper, t('cloudLibrary.import')).trigger('click');
+      await flushPromises();
+      expect(f.journal.draft.value?.provenance).toMatchObject({
+        origin: 'https://cloud.example',
+        accountId: 'alice',
+        documentId: firstId,
+        revision: '9007199254740993',
+        sha256: 'a'.repeat(64),
+      });
       expect(f.wrapper.text()).not.toContain(t('cloudLibrary.staged'));
       expect(button(f.wrapper, t('cloudLibrary.import')).attributes('disabled')).toBeDefined();
       expect(f.calls.filter((call) => call.method === 'cloudLibrary.read')).toHaveLength(1);
-      await f.journal.confirm(); await flushPromises();
+      await f.journal.confirm();
+      await flushPromises();
       expect(f.wrapper.text()).toContain(t('cloudLibrary.staged'));
       expect(button(f.wrapper, t('cloudLibrary.import')).attributes('disabled')).toBeUndefined();
       expect(f.calls.filter((call) => call.method === RPC.automationLibrarySubmit)).toHaveLength(1);
@@ -211,8 +231,10 @@ describe('CloudLibrary', () => {
 
     it('frees the import when the review is discarded and reports no error', async () => {
       const f = await ownerLibrary();
-      await button(f.wrapper, t('cloudLibrary.import')).trigger('click'); await flushPromises();
-      f.journal.dismiss(); await flushPromises();
+      await button(f.wrapper, t('cloudLibrary.import')).trigger('click');
+      await flushPromises();
+      f.journal.dismiss();
+      await flushPromises();
       expect(button(f.wrapper, t('cloudLibrary.import')).attributes('disabled')).toBeUndefined();
       expect(f.wrapper.find('[role="alert"]').exists()).toBe(false);
       expect(f.calls.some((call) => call.method === RPC.automationLibrarySubmit)).toBe(false);
@@ -223,11 +245,13 @@ describe('CloudLibrary', () => {
       let release!: () => void;
       const held = new Promise<void>((resolve) => { release = resolve; });
       const f = await ownerLibrary({ snapshot: held });
-      await button(f.wrapper, t('cloudLibrary.import')).trigger('click'); await flushPromises();
+      await button(f.wrapper, t('cloudLibrary.import')).trigger('click');
+      await flushPromises();
       f.account.working = true;
       f.account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'bob', persistence: ACCOUNT_STATE.memoryOnly };
       f.account.working = false;
-      release(); await flushPromises();
+      release();
+      await flushPromises();
       expect(f.journal.draft.value).toBeNull();
       expect(f.calls.some((call) => call.method === RPC.automationLibrarySubmit)).toBe(false);
       f.wrapper.unmount();

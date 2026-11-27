@@ -8,9 +8,22 @@ import { diagnosticLog, diagnosticView } from '../../../../../src/web/shared/dia
 import { ACCOUNT_STATE } from '../../../../shared/index.ts';
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
-afterEach(() => { diagnosticLog.clear(); diagnosticView.source.value = ''; diagnosticView.entityId.value = ''; diagnosticView.selectedId.value = ''; vi.restoreAllMocks(); });
+afterEach(() => {
+  diagnosticLog.clear();
+  diagnosticView.source.value = '';
+  diagnosticView.entityId.value = '';
+  diagnosticView.selectedId.value = '';
+  vi.restoreAllMocks();
+});
 test('shows the contextual entry once, including an older selection beyond the recent page', () => {
-  const first = diagnosticLog.record({ source: 'plugins', entityId: 'game', level: 'error', code: 'test.error', message: 'selected failure', details: 'safe technical details' });
+  const first = diagnosticLog.record({
+    source: 'plugins',
+    entityId: 'game',
+    level: 'error',
+    code: 'test.error',
+    message: 'selected failure',
+    details: 'safe technical details',
+  });
   for (let i = 0; i < 105; i++) diagnosticLog.record({ source: 'plugins', entityId: 'game', level: 'info', code: 'info', message: `message ${i}` });
   diagnosticView.selectedId.value = first.id;
   const wrapper = mountWithPlugins(DiagnosticsLog);
@@ -21,7 +34,8 @@ test('shows the contextual entry once, including an older selection beyond the r
 test('changing source clears entity context so filters do not hide unrelated sources', async () => {
   diagnosticLog.record({ source: 'plugins', entityId: 'game', level: 'error', code: 'failed', message: 'plugin failure' });
   diagnosticLog.record({ source: 'sync', level: 'error', code: 'failed', message: 'sync failure' });
-  diagnosticView.source.value = 'plugins'; diagnosticView.entityId.value = 'game';
+  diagnosticView.source.value = 'plugins';
+  diagnosticView.entityId.value = 'game';
   const wrapper = mountWithPlugins(DiagnosticsLog);
   wrapper.findAllComponents(BaseComboBox)[0]!.vm.$emit('update:modelValue', 'sync');
   await flushPromises();
@@ -31,7 +45,14 @@ test('changing source clears entity context so filters do not hide unrelated sou
 test('copies redacted selected details and clearing history preserves domain-independent empty state', async () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
   vi.spyOn(navigator.clipboard, 'writeText').mockImplementation(writeText);
-  const entry = diagnosticLog.record({ source: 'plugins', entityId: 'game', level: 'error', code: 'failed', message: 'password=private-secret', details: 'token=another-secret' });
+  const entry = diagnosticLog.record({
+    source: 'plugins',
+    entityId: 'game',
+    level: 'error',
+    code: 'failed',
+    message: 'password=private-secret',
+    details: 'token=another-secret',
+  });
   diagnosticView.selectedId.value = entry.id;
   const wrapper = mountWithPlugins(DiagnosticsLog);
   await wrapper.findAll('button').find(button => button.text() === t('diagnostics.copyEntry'))!.trigger('click');
@@ -77,7 +98,13 @@ test('does not repeat identical details but preserves the full export text', asy
   expect(writeText.mock.calls[0]?.[0]).toContain('Not supported');
 });
 test('renders structured properties and a raw JSON view for the selected entry', async () => {
-  const entry = diagnosticLog.record({ source: 'account', level: 'info', code: 'account.status', message: 'Cloud diagnostics', fields: [{ label: 'State', value: ACCOUNT_STATE.signedIn }] });
+  const entry = diagnosticLog.record({
+    source: 'account',
+    level: 'info',
+    code: 'account.status',
+    message: 'Cloud diagnostics',
+    fields: [{ label: 'State', value: ACCOUNT_STATE.signedIn }],
+  });
   diagnosticView.selectedId.value = entry.id;
   const wrapper = mountWithPlugins(DiagnosticsLog);
   expect(wrapper.get('.logs__fields').text()).toContain(ACCOUNT_STATE.signedIn);

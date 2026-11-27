@@ -79,7 +79,8 @@ test('image-disabled diagnostic mode removes avatar and gift image requests', as
   await page.goto('/');
   await waitForFrontend(page);
   await page.evaluate(() => {
-    (window as unknown as { __tiktools_benchmark_controls__: { setImagesEnabled(enabled: boolean): void } }).__tiktools_benchmark_controls__.setImagesEnabled(false);
+    (window as unknown as { __tiktools_benchmark_controls__: { setImagesEnabled(enabled: boolean): void } })
+      .__tiktools_benchmark_controls__.setImagesEnabled(false);
   });
   await emitTopic(page, TOPIC.liveUiEvent, { event: { kind: 'gift', author: 'alice', text: 'gift', msgId: 'gift-image-ab',
     avatarUrl: 'https://example.invalid/avatar.png', giftDetails: { name: 'Rose', count: 1, diamonds: 1, imageUrl: 'https://example.invalid/gift.png' } } });
@@ -110,9 +111,13 @@ test('autoscroll and paused position survive feed navigation', async ({ page }) 
   const anchored = await page.locator(SEL.feedStream).evaluate((node) => node.scrollTop);
   expect(anchored).toBeGreaterThan(0);
   expect(anchored).toBeLessThan(100);
-  await page.evaluate(() => (window as unknown as { __tiktools_benchmark_controls__: { setTab(tab: string): void } }).__tiktools_benchmark_controls__.setTab('settings'));
+  await page.evaluate(() =>
+    (window as unknown as { __tiktools_benchmark_controls__: { setTab(tab: string): void } }).__tiktools_benchmark_controls__.setTab('settings'),
+  );
   await expect(page.locator(SEL.feedStream)).toHaveCount(0);
-  await page.evaluate(() => (window as unknown as { __tiktools_benchmark_controls__: { setTab(tab: string): void } }).__tiktools_benchmark_controls__.setTab('feed'));
+  await page.evaluate(() =>
+    (window as unknown as { __tiktools_benchmark_controls__: { setTab(tab: string): void } }).__tiktools_benchmark_controls__.setTab('feed'),
+  );
   await expect.poll(() => page.locator(SEL.feedStream).evaluate((node) => node.scrollTop)).toBe(anchored);
   await page.getByRole('button', { name: /auto-scroll/ }).click();
   await expect.poll(bottomDistance).toBeLessThan(2);

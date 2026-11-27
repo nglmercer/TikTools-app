@@ -15,14 +15,25 @@ function harness() {
     addEventListener: (name: string, listener: () => void) => listeners.set(name, listener),
     removeEventListener: (name: string) => listeners.delete(name),
   } as unknown as Window & {
-    tiktools: { settings: { get(): Promise<unknown> }; events: { subscribe(topics: string[], listener: () => void): () => void } };
-    __tiktools_broker_diagnostics__: () => { pending: number; topics: number; listeners: number };
+    tiktools: {
+      settings: { get(): Promise<unknown> };
+      events: { subscribe(topics: string[], listener: () => void): () => void };
+    };
+    __tiktools_broker_diagnostics__: () => {
+      pending: number;
+      topics: number;
+      listeners: number;
+    };
     __tiktools_broker_push__: (value: unknown) => void;
     __tiktools_broker_dispose__: () => void;
   };
   runInNewContext(script, {
     window,
-    setTimeout: (callback: () => void) => { const id = ++sequence; timers.set(id, callback); return id; },
+    setTimeout: (callback: () => void) => {
+      const id = ++sequence;
+      timers.set(id, callback);
+      return id;
+    },
     clearTimeout: (id: number) => timers.delete(id),
   });
   return { window, timers, listeners, requests };
@@ -62,7 +73,10 @@ test('native subscriptions bound topic and callback ownership and dispose idempo
   const off = Array.from({ length: 128 }, () => window.tiktools.events.subscribe([TOPIC.pluginEvent], () => {}));
   expect(window.__tiktools_broker_diagnostics__().listeners).toBe(128);
   expect(() => window.tiktools.events.subscribe([TOPIC.pluginEvent], () => {})).toThrow('limit');
-  for (const unsubscribe of off) { unsubscribe(); unsubscribe(); }
+  for (const unsubscribe of off) {
+    unsubscribe();
+    unsubscribe();
+  }
   expect(window.__tiktools_broker_diagnostics__().listeners).toBe(0);
   window.__tiktools_broker_dispose__();
   await Promise.resolve();

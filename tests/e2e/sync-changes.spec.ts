@@ -21,7 +21,18 @@ const expandCard = async (panel: import('@playwright/test').Locator, name: strin
  * the v2 workspace, and plugin settings are listed by key name only.
  */
 
-const event = (id: string, name: string) => ({ schemaVersion: 1, id, name, enabled: true, trigger: EVENT_KIND.tiktokChat, filters: [], cooldownMs: 0, cooldownScope: 'user', runMode: 'all', actionIds: [] });
+const event = (id: string, name: string) => ({
+  schemaVersion: 1,
+  id,
+  name,
+  enabled: true,
+  trigger: EVENT_KIND.tiktokChat,
+  filters: [],
+  cooldownMs: 0,
+  cooldownScope: 'user',
+  runMode: 'all',
+  actionIds: [],
+});
 
 test('the Events tab lists what changed since the last snapshot and asks before resetting', async ({ page }) => {
   const state = emptyState();
@@ -63,15 +74,42 @@ test('the Events tab lists what changed since the last snapshot and asks before 
 
 test('Plugins send the whole pass and resolve a conflict through the v2 contract', async ({ page }) => {
   const state = sonicboomConnectedState();
-  state.announcedMethods = [RPC.cloudStatus, RPC.syncStatus, 'sync.v2.section', 'sync.v2.selected', 'sync.v2.changes.list', 'sync.v2.now', 'sync.v2.conflict.review', 'sync.v2.conflict.resolve'];
-  const value = (enabled: boolean, revision: number) => ({ state: 'present', revision, version: '1.0.0', enabled, value: { schemaVersion: 1, pluginId: SONICBOOM_ID, version: '1.0.0', enabled } });
+  state.announcedMethods = [
+    RPC.cloudStatus,
+    RPC.syncStatus,
+    'sync.v2.section',
+    'sync.v2.selected',
+    'sync.v2.changes.list',
+    'sync.v2.now',
+    'sync.v2.conflict.review',
+    'sync.v2.conflict.resolve',
+  ];
+  const value = (enabled: boolean, revision: number) => ({
+    state: 'present',
+    revision,
+    version: '1.0.0',
+    enabled,
+    value: { schemaVersion: 1, pluginId: SONICBOOM_ID, version: '1.0.0', enabled },
+  });
   const hidden = (revision: number | null) => ({ state: 'present', revision, version: null, enabled: null, value: null });
   state.sync = {
     signedIn: true, enabled: true, lastSyncedAt: null, resolved: [],
     entries: [
-      { collection: 'plugin-selections', key: SONICBOOM_ID, remote: value(false, 4), pending: { status: 'conflict', base: value(true, 3), local: value(true, 3), changedKeys: null }, hasNewer: false },
+      {
+        collection: 'plugin-selections',
+        key: SONICBOOM_ID,
+        remote: value(false, 4),
+        pending: { status: 'conflict', base: value(true, 3), local: value(true, 3), changedKeys: null },
+        hasNewer: false,
+      },
       // The host never sends settings values: only the names of the keys that changed.
-      { collection: 'plugin-settings', key: 'other.plugin', remote: hidden(2), pending: { status: 'queued', base: hidden(2), local: hidden(null), changedKeys: ['apiKey', 'volume'] }, hasNewer: false },
+      {
+        collection: 'plugin-settings',
+        key: 'other.plugin',
+        remote: hidden(2),
+        pending: { status: 'queued', base: hidden(2), local: hidden(null), changedKeys: ['apiKey', 'volume'] },
+        hasNewer: false,
+      },
     ],
   };
   const capture = await installFakeHost(page, state);

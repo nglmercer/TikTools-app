@@ -9,7 +9,10 @@ export function trackOutbound(page: Page, origin: string, options: { block?: boo
     void page.route('**/*', async (route) => {
       const url = route.request().url();
       if (LOCAL_SCHEME.test(url) || url.startsWith(origin)) await route.continue();
-      else { outbound.push(url); await route.abort('blockedbyclient'); }
+      else {
+        outbound.push(url);
+        await route.abort('blockedbyclient');
+      }
     });
   } else {
     page.on('request', (request) => { if (!LOCAL_SCHEME.test(request.url()) && !request.url().startsWith(origin)) outbound.push(request.url()); });

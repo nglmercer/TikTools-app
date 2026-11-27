@@ -7,9 +7,15 @@ import { getSavedUsername } from '../../../../../../src/web/entities/connection/
 import { FIXTURE_ID, RPC, TOPIC } from '../../../../../shared/index.ts';
 
 function stubControl(overrides?: Partial<ControlClient>): ControlClient & {
-  calls: Array<{ method: string; params?: RpcParams }>;
+  calls: Array<{
+    method: string;
+    params?: RpcParams;
+  }>;
 } {
-  const calls: Array<{ method: string; params?: RpcParams }> = [];
+  const calls: Array<{
+    method: string;
+    params?: RpcParams;
+  }> = [];
   return {
     calls,
     attach: () => {},

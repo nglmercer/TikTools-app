@@ -5,7 +5,10 @@ import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { ACTION_TYPE, EVENT_KIND, ROUTE, RPC, TOPIC } from '../shared/index.ts';
 import { SEL } from './support/selectors.ts';
 
-/** The edit notices float over the editor's header actions; close them so those actions are reachable. */
+/**
+ * The edit notices float over the editor's header actions;
+ * close them so those actions are reachable.
+ */
 async function dismissNotices(page: Page): Promise<void> {
   const toast = page.locator('.automation-edit-notice__toast');
   while (await toast.count() > 0) await toast.first().getByRole('button').click();
@@ -19,18 +22,25 @@ for (const locale of ['en', 'es'] as const) {
     state.appState['app.resolution.mode'] = 'manual';
     state.automationSnapshot = {
       actions: [{ schemaVersion: 2, id: 'same', name: 'Local action', enabled: false, typeId: ACTION_TYPE.coreLog, config: { message: 'fixture only' } }],
-      events: [{ schemaVersion: 1, id: 'same', name: 'Starting event', enabled: false, trigger: EVENT_KIND.tiktokChat, filters: [], cooldownMs: 0, cooldownScope: 'user', runMode: 'all', actionIds: ['same'] }],
+      events: [
+        {
+          schemaVersion: 1, id: 'same', name: 'Starting event', enabled: false, trigger: EVENT_KIND.tiktokChat, filters: [],
+          cooldownMs: 0, cooldownScope: 'user', runMode: 'all', actionIds: ['same'],
+        },
+      ],
       plugins: [], actionTypes: [], eventTypes: [], translations: {},
     };
     const capture = await installFakeHost(page, state, { locale });
-    await page.goto(ROUTE.automations); await waitForFrontend(page);
+    await page.goto(ROUTE.automations);
+    await waitForFrontend(page);
     await page.locator('.automation-library tbody tr').filter({ hasText: 'Starting event' }).click();
     const name = page.locator('.event-editor input[type="text"]').first();
     await name.fill('My retained draft');
     const host = await readHostState(page);
     (host.automationSnapshot['events'] as Array<Record<string, unknown>>)[0]!['name'] = 'Host changed name';
     host.automationVersions = { 'action:same': '1', 'event:same': '2' };
-    await writeHostState(page, host); await emitTopic(page, TOPIC.workflowChanged, { kind: 'event', id: 'same', change: 'updated' });
+    await writeHostState(page, host);
+    await emitTopic(page, TOPIC.workflowChanged, { kind: 'event', id: 'same', change: 'updated' });
     const t = (key: string): string => testMessage(locale, key);
     await expect(page.getByText(t('automations.conflict.hostChanged'))).toBeVisible();
     await expect(name).toHaveValue('My retained draft');
@@ -63,14 +73,20 @@ for (const locale of ['en', 'es'] as const) {
     await dialog.getByRole('button', { name: t('automations.conflict.useBase'), exact: true }).click();
     await expect(dialog).not.toBeVisible();
     expect((await readHostState(page)).calls.filter((r) => r.method === RPC.automationUpdate)).toHaveLength(1);
-    await expect(name).toHaveValue('My retained draft'); await dismissNotices(page); await save.click();
+    await expect(name).toHaveValue('My retained draft');
+    await dismissNotices(page);
+    await save.click();
     await expect(save).toBeDisabled();
     await expect.poll(async () => (await readHostState(page)).automationVersions?.['event:same']).toBe('3');
     const afterSave = await readHostState(page);
     expect(afterSave.calls.filter((r) => r.method === RPC.automationUpdate).at(-1)?.meta?.['expectedRevision']).toBe('2');
-    afterSave.automationSnapshot['events'] = []; afterSave.automationVersions!['event:same'] = '4';
-    await writeHostState(page, afterSave); await emitTopic(page, TOPIC.workflowChanged, { kind: 'event', id: 'same', change: 'deleted' });
-    await name.fill('Draft after deletion'); await dismissNotices(page); await save.click();
+    afterSave.automationSnapshot['events'] = [];
+    afterSave.automationVersions!['event:same'] = '4';
+    await writeHostState(page, afterSave);
+    await emitTopic(page, TOPIC.workflowChanged, { kind: 'event', id: 'same', change: 'deleted' });
+    await name.fill('Draft after deletion');
+    await dismissNotices(page);
+    await save.click();
     await expect(save).toBeDisabled();
     await dismissNotices(page);
     await page.getByRole('button', { name: t('automations.conflict.compare'), exact: true }).click();
@@ -78,12 +94,14 @@ for (const locale of ['en', 'es'] as const) {
     await expect(dialog.locator('.change-review__card--deleted')).toHaveCount(1);
     await dialog.getByRole('button', { name: t('automations.conflict.prepareRecreate'), exact: true }).click();
     expect((await readHostState(page)).calls.some((r) => r.method === RPC.automationCreate)).toBe(false);
-    await dismissNotices(page); await save.click();
+    await dismissNotices(page);
+    await save.click();
     await expect.poll(async () => (await readHostState(page)).automationVersions?.['event:same']).toBe('5');
     const final = await readHostState(page);
     expect(final.calls.find((r) => r.method === RPC.automationCreate)?.meta?.['expectedRevision']).toBe('4');
     expect(final.automationVersions?.['action:same']).toBe('1');
     expect(final.calls.some((r) => ['automation.fire', 'automation.enable', RPC.liveConnect, RPC.pointsAdjust].includes(r.method))).toBe(false);
-    await assertNoUnhandledCalls(page); capture.assertClean();
+    await assertNoUnhandledCalls(page);
+    capture.assertClean();
   });
 }

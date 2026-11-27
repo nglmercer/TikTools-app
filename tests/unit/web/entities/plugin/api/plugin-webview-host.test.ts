@@ -304,7 +304,8 @@ test('concurrent subscribe requests cannot exceed the aggregate topic capacity',
 
 test('50 iframe owner disposals cancel client waits without detaching the shared control', async () => {
   (globalThis as Record<string, unknown>)['window'] = { ipc: { postMessage() {} } };
-  const control = createControlClient(); control.attach();
+  const control = createControlClient();
+  control.attach();
   for (let cycle = 0; cycle < 50; ++cycle) {
     const frame = {} as WindowProxy;
     const posted: Array<BrokerResponse | BrokerEvent> = [];
@@ -314,17 +315,20 @@ test('50 iframe owner disposals cancel client waits without detaching the shared
     });
     const pending = host.handleFrameMessage({ apiVersion: 1, id: 'settings', method: RPC.settingsGet }, frame);
     expect(control.diagnostics?.().pending).toBe(1);
-    host.dispose(); await pending;
+    host.dispose();
+    await pending;
     expect(control.diagnostics?.().pending).toBe(0);
     expect(host.diagnostics()).toEqual({ pending: 0, timers: 0, subscriptions: 0 });
     expect(posted).toHaveLength(0);
   }
-  control.detach(); delete (globalThis as Record<string, unknown>)['window'];
+  control.detach();
+  delete (globalThis as Record<string, unknown>)['window'];
 });
 
 test('uses the local adapter asset prefix without requiring a desktop host', () => {
   const meta = document.createElement('meta');
-  meta.name = 'tiktools-plugin-assets'; meta.content = '/__plugins/asset-only-test/';
+  meta.name = 'tiktools-plugin-assets';
+  meta.content = '/__plugins/asset-only-test/';
   document.head.append(meta);
   try {
     expect(pluginUiUrl('portable-plugin', 'ui/dist/index.html', 'settings'))

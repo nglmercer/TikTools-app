@@ -2,7 +2,15 @@ import { readFile, chmod, copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, test } from 'bun:test';
-import { compareGlibcVersions, verifyAppImageAppRun, verifyAppImageGlibcBaseline, verifyAppImageWebKit, verifyDebDependencies, verifyInstaller, verifyLinuxDesktop } from '../../../../scripts/lib/verify-installers.ts';
+import {
+  compareGlibcVersions,
+  verifyAppImageAppRun,
+  verifyAppImageGlibcBaseline,
+  verifyAppImageWebKit,
+  verifyDebDependencies,
+  verifyInstaller,
+  verifyLinuxDesktop,
+} from '../../../../scripts/lib/verify-installers.ts';
 
 test.skipIf(process.platform !== 'linux')('DEB verifies the current bundle without bundled plugins and rejects changed web assets', async () => {
   const root = await mkdtemp(join(tmpdir(), 'tiktools-deb-bundle-'));
@@ -27,7 +35,10 @@ test.skipIf(process.platform !== 'linux')('DEB verifies the current bundle witho
     await writeFile(binary, '#!/bin/sh\nprintf "4.2.0\\n"\n');
     await chmod(binary, 0o755);
     await copyFile(binary, join(data, 'usr/bin/tiktools-desktop'));
-    await writeFile(join(data, 'usr/share/applications/tiktools-desktop.desktop'), '[Desktop Entry]\nType=Application\nExec=tiktools-desktop\nIcon=tiktools-desktop\n');
+    await writeFile(
+      join(data, 'usr/share/applications/tiktools-desktop.desktop'),
+      '[Desktop Entry]\nType=Application\nExec=tiktools-desktop\nIcon=tiktools-desktop\n',
+    );
     await copyFile(resolve(import.meta.dir, '../../../../assets/tiktools-icon.png'), join(data, 'usr/share/icons/hicolor/256x256/apps/tiktools-desktop.png'));
     await writeFile(join(control, 'control'), 'Depends: libgtk-3-0, libwebkit2gtk-4.1-0\n');
     await writeFile(join(root, 'debian-binary'), '2.0\n');
@@ -41,7 +52,9 @@ test.skipIf(process.platform !== 'linux')('DEB verifies the current bundle witho
     await writeFile(join(resources, 'web/index.html'), 'changed');
     pack();
     await expect(verifyInstaller(staging, join(root, 'fixture.deb'), 'deb', '4.2.0')).rejects.toThrow('installer content mismatch: web/index.html');
-  } finally { await rm(root, { recursive: true, force: true }); }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 }, 60_000);
 
 describe('AppImage glibc baseline', () => {
@@ -57,7 +70,9 @@ describe('AppImage glibc baseline', () => {
     try {
       await mkdir(join(root, 'usr'), { recursive: true });
       await expect(verifyAppImageGlibcBaseline(root)).rejects.toThrow('no ELF files');
-    } finally { await rm(root, { recursive: true, force: true }); }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 
@@ -81,7 +96,9 @@ describe('Linux installer metadata', () => {
       await expect(verifyLinuxDesktop(root)).resolves.toBeUndefined();
       await writeFile(desktop, '[Desktop Entry]\nType=Application\nExec=other\nIcon=tiktools-desktop\n');
       await expect(verifyLinuxDesktop(root)).rejects.toThrow();
-    } finally { await rm(root, { recursive: true, force: true }); }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
   test('requires a world-executable AppRun in the AppImage', async () => {
     const root = await mkdtemp(join(tmpdir(), 'tiktools-appimage-apprun-'));
@@ -93,7 +110,9 @@ describe('Linux installer metadata', () => {
       await expect(verifyAppImageAppRun(root)).rejects.toThrow('world-executable');
       await chmod(appRun, 0o755);
       await expect(verifyAppImageAppRun(root)).resolves.toBeUndefined();
-    } finally { await rm(root, { recursive: true, force: true }); }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
   test('requires AppDir-relative WebKit helpers in the AppImage', async () => {
     const root = await mkdtemp(join(tmpdir(), 'tiktools-appimage-webkit-'));
@@ -123,6 +142,8 @@ describe('Linux installer metadata', () => {
       await expect(verifyAppImageWebKit(root)).resolves.toBeUndefined();
       await writeFile(join(root, 'usr/lib/libwayland-client.so.0'), '');
       await expect(verifyAppImageWebKit(root)).rejects.toThrow('must not bundle libwayland-client.so.0');
-    } finally { await rm(root, { recursive: true, force: true }); }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

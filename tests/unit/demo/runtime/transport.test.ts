@@ -5,10 +5,18 @@ import { ERROR_CODE, RPC } from '../../../shared/index.ts';
 
 describe('demo ControlTransport protocol', () => {
   it('answers the client ID in the real rpc-response envelope with typed metadata', async () => {
-    const peer = createDemoTransport({ 'sample.read': demoMethod('Read fixture', objectParams, () => ({ result: { value: 7 }, meta: { resourceVersions: [{ kind: 'sample', id: 'one', scope: 'demo', revision: '1' }] } })) });
+    const peer = createDemoTransport({
+      'sample.read': demoMethod('Read fixture', objectParams, () => ({
+        result: { value: 7 },
+        meta: { resourceVersions: [{ kind: 'sample', id: 'one', scope: 'demo', revision: '1' }] },
+      })),
+    });
     const client = createControlClient({ transport: peer.transport, timeoutMs: 1000 });
     client.attach();
-    expect(await callWithMeta(client, 'sample.read', {})).toEqual({ result: { value: 7 }, meta: { resourceVersions: [{ kind: 'sample', id: 'one', scope: 'demo', revision: '1' }] } });
+    expect(await callWithMeta(client, 'sample.read', {})).toEqual({
+      result: { value: 7 },
+      meta: { resourceVersions: [{ kind: 'sample', id: 'one', scope: 'demo', revision: '1' }] },
+    });
     expect(client.diagnostics?.().pending).toBe(0);
     client.detach();
   });

@@ -36,7 +36,8 @@ describe('activity counter', () => {
     const activity = createActivityCounter();
     const outer = activity.enter();
     const inner = activity.enter();
-    inner(); inner();
+    inner();
+    inner();
     expect(activity.active.value).toBe(true);
     outer();
     expect(activity.active.value).toBe(false);

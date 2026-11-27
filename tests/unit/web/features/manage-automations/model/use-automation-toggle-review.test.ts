@@ -13,14 +13,26 @@ const messages: Record<string, string> = {
   'automations.conflict.alreadyApplied': 'already applied',
 };
 
-function fixture(overrides: { revision?: string | undefined; write?: () => Promise<unknown>; read?: () => Promise<unknown> } = {}) {
+function fixture(
+  overrides: {
+    revision?: string | undefined;
+    write?: () => Promise<unknown>;
+    read?: () => Promise<unknown>;
+  } = {},
+) {
   const writes: unknown[][] = [];
   const reads: unknown[][] = [];
   const controls = {
     sourceHost: ref<AutomationHost | null>(hostA),
     revisionFor: vi.fn(() => 'revision' in overrides ? overrides.revision : '3'),
-    setRecordEnabled: vi.fn(async (...args: unknown[]) => { writes.push(args); return overrides.write?.(); }),
-    readRecord: vi.fn(async (...args: unknown[]) => { reads.push(args); return overrides.read?.(); }),
+    setRecordEnabled: vi.fn(async (...args: unknown[]) => {
+      writes.push(args);
+      return overrides.write?.();
+    }),
+    readRecord: vi.fn(async (...args: unknown[]) => {
+      reads.push(args);
+      return overrides.read?.();
+    }),
   };
   const review = useAutomationToggleReview({
     controls: controls as never,

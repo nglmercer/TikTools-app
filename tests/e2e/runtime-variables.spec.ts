@@ -44,12 +44,47 @@ const openChange = (panel: Locator, name: string) => panel
 
 test('Variables Changes adopts a reviewed value and withdraws a secret without replacing its local copy', async ({ page }, testInfo) => {
   const state = emptyState();
-  state.announcedMethods = [RPC.cloudStatus, RPC.globalsTypedList, RPC.globalsTypedReplace, RPC.syncStatus, 'sync.v2.selected', 'sync.v2.variables.review', 'sync.v2.variables.send', 'sync.v2.variables.fetch', 'sync.v2.variables.apply', 'sync.v2.variables.withdraw'];
+  state.announcedMethods = [
+    RPC.cloudStatus,
+    RPC.globalsTypedList,
+    RPC.globalsTypedReplace,
+    RPC.syncStatus,
+    'sync.v2.selected',
+    'sync.v2.variables.review',
+    'sync.v2.variables.send',
+    'sync.v2.variables.fetch',
+    'sync.v2.variables.apply',
+    'sync.v2.variables.withdraw',
+  ];
   state.sync = { signedIn: true, enabled: true, entries: [], resolved: [] };
   state.typedGlobals = { ordinary: { type: 'secret', value: 'local-browser-private-value' } };
   state.variableComparisons = [
-    { review: 'cloud-port-review', name: 'port', local: null, cloud: { type: 'number', value: 46665 }, cloudDeleted: false, localSecret: false, blockedLocal: false, pendingStatus: null, canSend: false, canApply: true, canWithdraw: true },
-    { review: 'secret-withdraw-review', name: 'ordinary', local: null, cloud: null, cloudDeleted: false, localSecret: true, blockedLocal: false, pendingStatus: 'unconfirmed', canSend: false, canApply: false, canWithdraw: true },
+    {
+      review: 'cloud-port-review',
+      name: 'port',
+      local: null,
+      cloud: { type: 'number', value: 46665 },
+      cloudDeleted: false,
+      localSecret: false,
+      blockedLocal: false,
+      pendingStatus: null,
+      canSend: false,
+      canApply: true,
+      canWithdraw: true,
+    },
+    {
+      review: 'secret-withdraw-review',
+      name: 'ordinary',
+      local: null,
+      cloud: null,
+      cloudDeleted: false,
+      localSecret: true,
+      blockedLocal: false,
+      pendingStatus: 'unconfirmed',
+      canSend: false,
+      canApply: false,
+      canWithdraw: true,
+    },
   ];
   const capture = await installFakeHost(page, state);
   await page.goto(ROUTE.automationVariables);

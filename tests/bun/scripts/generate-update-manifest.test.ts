@@ -59,7 +59,12 @@ describe('signed release metadata', () => {
   test.skipIf(!Bun.which('cargo-packager'))('signs actual files and rejects tampering or missing credentials', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tiktools-update-test-'));
     const version = readWorkspaceVersion(await readFile(join(root, 'Cargo.toml'), 'utf8'));
-    const env = { ...process.env, RELEASE_TAG: `v${version}`, CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: crypto.randomUUID(), TIKTOOLS_VERIFY_UPDATE_BIN: verifyBin };
+    const env = {
+      ...process.env,
+      RELEASE_TAG: `v${version}`,
+      CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: crypto.randomUUID(),
+      TIKTOOLS_VERIFY_UPDATE_BIN: verifyBin,
+    };
     async function run(args: string[], variables: Record<string, string | undefined>) {
       const child = Bun.spawn(args, { cwd: root, env: variables, stdout: 'pipe', stderr: 'pipe' });
       const [, , code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);

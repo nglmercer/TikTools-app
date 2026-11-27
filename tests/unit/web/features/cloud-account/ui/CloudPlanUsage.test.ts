@@ -12,7 +12,16 @@ const t = (key: string): string => testMessage('en', key);
 
 const freePlan: AccountPlan = {
   plan: 'free',
-  limits: { maxRecords: 1000, maxBytes: 8_388_608, maxAssets: 200, maxAssetsBytes: 33_554_432, maxOverlays: 50, maxOverlayBytes: 16_777_216, maxBackups: 3, maxBackupBytes: 16_777_216 },
+  limits: {
+    maxRecords: 1000,
+    maxBytes: 8_388_608,
+    maxAssets: 200,
+    maxAssetsBytes: 33_554_432,
+    maxOverlays: 50,
+    maxOverlayBytes: 16_777_216,
+    maxBackups: 3,
+    maxBackupBytes: 16_777_216,
+  },
   usage: { records: 3, recordBytes: 120, assets: 1, assetBytes: 5, overlays: 0, overlayBytes: 0, backups: 0, backupBytes: 0 },
 };
 

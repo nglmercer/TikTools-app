@@ -9,8 +9,26 @@ import { PLUGIN_ID } from '../../../../../shared/index.ts';
 enableAutoUnmount(afterEach);
 
 const now = Math.floor(Date.now() / 1000);
-const running = { id: 'j1', kind: 'install', pluginId: PLUGIN_ID.acmeTts, stage: 'download', status: 'running', progress: { done: 64, total: 100 }, createdAt: now, updatedAt: now };
-const failed = { id: 'j2', kind: 'install', pluginId: 'acme.bad', stage: 'verify', status: 'failed', error: { code: 'unknown', message: 'Package rejected' }, createdAt: now, updatedAt: now + 5 };
+const running = {
+  id: 'j1',
+  kind: 'install',
+  pluginId: PLUGIN_ID.acmeTts,
+  stage: 'download',
+  status: 'running',
+  progress: { done: 64, total: 100 },
+  createdAt: now,
+  updatedAt: now,
+};
+const failed = {
+  id: 'j2',
+  kind: 'install',
+  pluginId: 'acme.bad',
+  stage: 'verify',
+  status: 'failed',
+  error: { code: 'unknown', message: 'Package rejected' },
+  createdAt: now,
+  updatedAt: now + 5,
+};
 
 async function mountJobs(jobs: unknown[]) {
   const { client, calls } = createFakeControlClient((method) => (method === 'plugins.jobs.list' ? { jobs } : {}));

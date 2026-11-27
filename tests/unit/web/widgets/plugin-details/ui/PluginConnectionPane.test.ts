@@ -30,7 +30,10 @@ it('flushes pending settings before asking the parent to probe the connection', 
     openMediaPicker: vi.fn<PluginControls['openMediaPicker']>(),
   };
   const wrapper = mountWithPlugins(PluginConnectionPane, { props: {
-    descriptor: { id: 'server', name: text('Server'), version: '1', description: text(''), dependency: text(''), permissions: [], actionTypeIds: [], eventTypeIds: [] },
+    descriptor: {
+      id: 'server', name: text('Server'), version: '1', description: text(''), dependency: text(''),
+      permissions: [], actionTypeIds: [], eventTypeIds: [],
+    },
     name: 'Server', connecting: false, connection: { ok: false, at: 1, latencyMs: 0 }, plugins,
     onTest: () => { operations.push('probe'); },
   } });

@@ -19,7 +19,10 @@ export function rankingSnapshot(rankingId: string, creatorId: string, roomId: st
 
 function fakeHost(options: { fail?: boolean } = {}) {
   const definitions = new Map<string, RankingDefinition>();
-  const calls: Array<{ method: string; params: unknown }> = [];
+  const calls: Array<{
+    method: string;
+    params: unknown;
+  }> = [];
   const topics = new Map<string, Set<TopicHandler>>();
   const gaps = new Set<GapHandler>();
   const scores: Record<string, number[]> = {};
@@ -28,7 +31,10 @@ function fakeHost(options: { fail?: boolean } = {}) {
       calls.push({ method, params });
       if (options.fail) throw new Error('rankings unavailable');
       if (method === RPC.rankingsList) return { rankings: [...definitions.values()] };
-      if (method === RPC.rankingsCreate) { definitions.set(String(params['id']), params as unknown as RankingDefinition); return { ok: true }; }
+      if (method === RPC.rankingsCreate) {
+        definitions.set(String(params['id']), params as unknown as RankingDefinition);
+        return { ok: true };
+      }
       if (method === 'rankings.update') {
         const definition = params['definition'] as RankingDefinition;
         definitions.set(definition.id, definition);
@@ -46,7 +52,10 @@ function fakeHost(options: { fail?: boolean } = {}) {
       topics.set(topic, set);
       return () => set.delete(handler);
     },
-    onGap: (handler: GapHandler) => { gaps.add(handler); return () => gaps.delete(handler); },
+    onGap: (handler: GapHandler) => {
+      gaps.add(handler);
+      return () => gaps.delete(handler);
+    },
   } as unknown as ControlClient;
   const emit = (topic: string, data: unknown) => topics.get(topic)?.forEach((handler) => handler(data));
   return { client, calls, definitions, scores, emit, gap: () => gaps.forEach((handler) => handler({} as never)) };

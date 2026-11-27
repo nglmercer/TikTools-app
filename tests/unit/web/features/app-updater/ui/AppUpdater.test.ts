@@ -11,8 +11,22 @@ import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import { RPC } from '../../../../../shared/index.ts';
 
 function status(overrides: Partial<UpdateStatus> = {}): UpdateStatus {
-  return { currentVersion: '4.0.0', availableVersion: null, channel: 'stable', state: 'idle', installationType: 'unknown',
-    installSupported: false, checkSupported: true, downloadedBytes: 0, totalBytes: null, progress: null, releaseNotes: null, lastChecked: null, error: null, ...overrides };
+  return {
+    currentVersion: '4.0.0',
+    availableVersion: null,
+    channel: 'stable',
+    state: 'idle',
+    installationType: 'unknown',
+    installSupported: false,
+    checkSupported: true,
+    downloadedBytes: 0,
+    totalBytes: null,
+    progress: null,
+    releaseNotes: null,
+    lastChecked: null,
+    error: null,
+    ...overrides,
+  };
 }
 
 describe('AppUpdater', () => {
@@ -50,7 +64,9 @@ describe('AppUpdater', () => {
   it('merges an early check event without overwriting saved preferences', async () => {
     let resolvePreferences: ((value: { state: Record<string, string> }) => void) | undefined;
     const { client, calls } = createFakeControlClient((method) => {
-      if (method === RPC.appStateGet) return new Promise<{ state: Record<string, string> }>((resolve) => { resolvePreferences = resolve; });
+      if (method === RPC.appStateGet) return new Promise<{ state: Record<string, string> }>((resolve) => {
+        resolvePreferences = resolve;
+      });
       if (method === RPC.appUpdateStatus) return status({ lastChecked: 150 });
       return {};
     });
@@ -77,7 +93,9 @@ describe('AppUpdater', () => {
     let resolveStatus: ((value: UpdateStatus) => void) | undefined;
     const { client } = createFakeControlClient((method) => {
       if (method === RPC.appStateGet) return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
-      if (method === RPC.appUpdateStatus) return new Promise<UpdateStatus>((resolve) => { resolveStatus = resolve; });
+      if (method === RPC.appUpdateStatus) return new Promise<UpdateStatus>((resolve) => {
+        resolveStatus = resolve;
+      });
       return {};
     });
     let emit: ((state: UpdateStatus) => void) | undefined;
@@ -148,7 +166,11 @@ describe('AppUpdater', () => {
   it('offers a retry after a download failure', async () => {
     const { client, calls } = createFakeControlClient((method) => {
       if (method === RPC.appStateGet) return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
-      if (method === RPC.appUpdateStatus) return status({ state: 'failed', installSupported: true, error: { code: 'download_failed', message: 'Download failed' } });
+      if (method === RPC.appUpdateStatus) return status({
+        state: 'failed',
+        installSupported: true,
+        error: { code: 'download_failed', message: 'Download failed' },
+      });
       return {};
     });
     const harness = createStoreHarness(client);
@@ -184,7 +206,9 @@ describe('AppUpdater', () => {
 
   it('shows the persisted up-to-date outcome while the session state is idle', async () => {
     const { client } = createFakeControlClient((method) => {
-      if (method === RPC.appStateGet) return { state: { 'app.update.preferences': '{"automaticChecks":false,"lastChecked":1700000000,"upToDateChannel":"stable"}' } };
+      if (method === RPC.appStateGet) return {
+        state: { 'app.update.preferences': '{"automaticChecks":false,"lastChecked":1700000000,"upToDateChannel":"stable"}' },
+      };
       if (method === RPC.appUpdateStatus) return status();
       return {};
     });
@@ -196,7 +220,9 @@ describe('AppUpdater', () => {
 
   it('hides the persisted outcome after the channel changes and when an update appears', async () => {
     const { client } = createFakeControlClient((method) => {
-      if (method === RPC.appStateGet) return { state: { 'app.update.preferences': '{"automaticChecks":false,"lastChecked":1700000000,"upToDateChannel":"stable"}' } };
+      if (method === RPC.appStateGet) return {
+        state: { 'app.update.preferences': '{"automaticChecks":false,"lastChecked":1700000000,"upToDateChannel":"stable"}' },
+      };
       if (method === RPC.appUpdateStatus) return status();
       return {};
     });

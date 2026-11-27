@@ -42,13 +42,17 @@ describe('editor history', () => {
 
   test('history is bounded to the capacity', () => {
     const history = new EditorHistory(3);
-    for (let step = 0; step < 5; step += 1) history.commit({ radius: step });
+    for (let step = 0; step < 5; step += 1)
+      history.commit({ radius: step });
     expect(history.depth).toBe(3);
     expect(history.undo({ radius: 99 })).toEqual({ radius: 4 });
   });
 
   test('snapshots can carry editor UI state alongside the draft', () => {
-    const history = new EditorHistory<{ draft: { radius?: number }; visible: string[] }>();
+    const history = new EditorHistory<{
+      draft: { radius?: number };
+      visible: string[];
+    }>();
     history.commit({ draft: {}, visible: ['message'] });
     const restored = history.undo({ draft: { radius: 8 }, visible: ['message', 'title'] });
     expect(restored).toEqual({ draft: {}, visible: ['message'] });

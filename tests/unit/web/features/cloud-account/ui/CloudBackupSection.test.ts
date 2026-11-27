@@ -9,7 +9,9 @@ import CloudBackupSection from '../../../../../../src/web/features/cloud-account
 import { RPC } from '../../../../../shared/index.ts';
 
 const t = (key: string): string => testMessage('en', key);
-afterEach(async () => { await activateLocale('en'); });
+afterEach(async () => {
+  await activateLocale('en');
+});
 
 const manifest = {
   schemaVersion: 1,
@@ -22,7 +24,16 @@ const stored: StoredBackup = {
 };
 const plan = (backups: number): AccountPlan => ({
   plan: 'free',
-  limits: { maxRecords: 1000, maxBytes: 8_388_608, maxAssets: 200, maxAssetsBytes: 33_554_432, maxOverlays: 50, maxOverlayBytes: 16_777_216, maxBackups: 3, maxBackupBytes: 16_777_216 },
+  limits: {
+    maxRecords: 1000,
+    maxBytes: 8_388_608,
+    maxAssets: 200,
+    maxAssetsBytes: 33_554_432,
+    maxOverlays: 50,
+    maxOverlayBytes: 16_777_216,
+    maxBackups: 3,
+    maxBackupBytes: 16_777_216,
+  },
   usage: { records: 0, recordBytes: 0, assets: 0, assetBytes: 0, overlays: 0, overlayBytes: 0, backups, backupBytes: 2048 * backups },
 });
 
@@ -109,7 +120,16 @@ it('uploads a picked backup file to the account with its contents', async () => 
   const { wrapper, calls } = mountSection((method) => {
     if (method === RPC.cloudBackupList) return { items: [] };
     if (method === RPC.cloudPlanGet) return plan(0);
-    if (method === 'cloud.backup.preview') return { mode: 'replace', dryRun: true, applied: false, legacySync: 0, workspaceSync: 4, library: 1, mediaLibrary: 0, assets: 2 };
+    if (method === 'cloud.backup.preview') return {
+      mode: 'replace',
+      dryRun: true,
+      applied: false,
+      legacySync: 0,
+      workspaceSync: 4,
+      library: 1,
+      mediaLibrary: 0,
+      assets: 2,
+    };
     if (method === 'cloud.backup.createNamed') return { ...stored, name: 'laptop' };
     throw new Error(`unexpected ${method}`);
   });

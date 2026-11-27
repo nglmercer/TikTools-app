@@ -22,10 +22,16 @@ const RANKINGS_HOST = `(() => {
     // Seeds are read lazily: a test may register them after this script.
     'rankings.list': () => ({ rankings: [...(window.__RANKINGS_SEED__ || []), ...store.rankings] }),
     'rankings.metrics': () => ({ metrics }),
-    'rankings.create': (params) => { store.rankings.push(params); return { ok: true }; },
+    'rankings.create': (params) => {
+      store.rankings.push(params);
+      return { ok: true };
+    },
     'rankings.snapshot': (params) => snapshot(params.id),
     'competitions.list': () => ({ competitions: store.competitions }),
-    'competitions.create': (params) => { store.competitions.push(params); return { ok: true }; },
+    'competitions.create': (params) => {
+      store.competitions.push(params);
+      return { ok: true };
+    },
     'competitions.state': () => ({ lifecycle: 'draft', generation: 0, deadlineMs: null, remainingMs: null }),
     'competitions.results': () => ({ results: [] }),
     'automation.list': () => ({ actions: [] }),
@@ -36,14 +42,28 @@ const RANKINGS_HOST = `(() => {
     const handler = message && message.jsonrpc === '2.0' && handlers[message.method];
     if (!handler) return base(raw);
     store.calls.push({ method: message.method, params: message.params || {} });
-    const response = JSON.stringify({ type: 'rpc-response', response: { jsonrpc: '2.0', id: message.id, result: handler(message.params || {}) } });
+    const response = JSON.stringify({
+      type: 'rpc-response',
+      response: { jsonrpc: '2.0', id: message.id, result: handler(message.params || {}) },
+    });
     queueMicrotask(() => window.__webview_on_message__(response));
   };
 })();`;
 
-type Store = { calls: Array<{ method: string; params: Record<string, unknown> }> };
+type Store = {
+  calls: Array<{
+    method: string;
+    params: Record<string, unknown>;
+  }>;
+};
 const calls = (page: Page, method: string) =>
-  page.evaluate((name) => (window as unknown as { __RANKINGS_E2E__: Store }).__RANKINGS_E2E__.calls.filter((call) => call.method === name).map((call) => call.params), method);
+  page.evaluate(
+    (name) =>
+      (window as unknown as { __RANKINGS_E2E__: Store }).__RANKINGS_E2E__.calls
+        .filter((call) => call.method === name)
+        .map((call) => call.params),
+    method,
+  );
 
 test.beforeEach(async ({ page }) => {
   const state = emptyState();
@@ -64,7 +84,13 @@ test('creates a gift ranking prefilled from the live room and copies its OBS URL
 
   await expect(page.getByText(t('rankingsPage.form.created'))).toBeVisible();
   const [created] = await calls(page, RPC.rankingsCreate);
-  expect(created).toMatchObject({ id: 'top-gifts', creatorId: 'creator', roomId: 'room', window: { type: 'daily' }, sources: [{ source: EVENT_KIND.tiktokGift, metric: 'gift.diamonds' }] });
+  expect(created).toMatchObject({
+    id: 'top-gifts',
+    creatorId: 'creator',
+    roomId: 'room',
+    window: { type: 'daily' },
+    sources: [{ source: EVENT_KIND.tiktokGift, metric: 'gift.diamonds' }],
+  });
   await expect(page.getByText('Ana — 30')).toBeVisible();
 
   await page.getByRole('button', { name: t('rankingsPage.detail.copyUrl') }).click();
@@ -92,5 +118,12 @@ test('creates a leaderboard challenge without options', async ({ page }) => {
 
   await expect(page.getByText(t('competitionsPanel.form.created'))).toBeVisible();
   const [created] = await calls(page, RPC.competitionsCreate);
-  expect(created).toMatchObject({ id: 'challenge', kind: 'leaderboard_challenge', rankingId: 'top-gifts', options: [], targetScore: 500, selectionMode: 'highest_score' });
+  expect(created).toMatchObject({
+    id: 'challenge',
+    kind: 'leaderboard_challenge',
+    rankingId: 'top-gifts',
+    options: [],
+    targetScore: 500,
+    selectionMode: 'highest_score',
+  });
 });

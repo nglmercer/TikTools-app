@@ -83,7 +83,13 @@ test('minecraft commands render from structured fields', () => {
     'minecraft.server.run-command': '/say Hello from TikTok!',
   };
   for (const action of manifest.actionTypes) {
-    const http = (action as unknown as { http: { method: string; path: string; body: string } }).http;
+    const http = (action as unknown as {
+      http: {
+        method: string;
+        path: string;
+        body: string;
+      };
+    }).http;
     expect(http.method).toBe('POST');
     expect(http.path).toBe('/api/chat');
     const rendered = renderBody(http.body, defaultActionConfig(action) as Record<string, unknown>);

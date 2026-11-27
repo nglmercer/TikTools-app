@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import {
-  demoTestId, demoUrl, docLocales, eventCountText, expectFirstChatMessage, FIRST_CHAT_MESSAGE, frameTestId, guideLink, guideTargetSelector, panelFrameFor, qaArtifacts, qaScreenshot, retiredLandingSelectors, selector, stageFrame, stageTestId, trackOutbound, trackPageErrors, viewport,
+  demoTestId, demoUrl, docLocales, eventCountText, expectFirstChatMessage, FIRST_CHAT_MESSAGE, frameTestId, guideLink,
+  guideTargetSelector, panelFrameFor, qaArtifacts, qaScreenshot, retiredLandingSelectors, selector, stageFrame, stageTestId,
+  trackOutbound, trackPageErrors, viewport,
 } from './support/index.ts';
 import { docCopy } from '../../docs/locales.ts';
 import { experienceCopy } from '../../docs/experience/copy.ts';
@@ -71,11 +73,17 @@ for (const locale of docLocales) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
     await panel.getByTestId(frameTestId.zoom).selectOption('0.5');
-    await search.click(); await search.fill('Luna');
+    await search.click();
+    await search.fill('Luna');
     await panel.getByTestId(frameTestId.zoom).selectOption('fit');
     await expect(search).toHaveValue('Luna');
-    const alignment = await frame.locator('.feed-page').evaluate(node => { const stream=node.querySelector('.feed-page__stream')!.getBoundingClientRect(); const inspector=node.querySelector('.feed-page__inspector')!.getBoundingClientRect(); return { top:Math.abs(stream.top-inspector.top), right:inspector.left >= stream.right }; });
-    expect(alignment.top).toBeLessThan(2); expect(alignment.right).toBe(true);
+    const alignment = await frame.locator('.feed-page').evaluate(node => {
+      const stream=node.querySelector('.feed-page__stream')!.getBoundingClientRect();
+      const inspector=node.querySelector('.feed-page__inspector')!.getBoundingClientRect();
+      return { top:Math.abs(stream.top-inspector.top), right:inspector.left >= stream.right };
+    });
+    expect(alignment.top).toBeLessThan(2);
+    expect(alignment.right).toBe(true);
     await panel.getByTestId(frameTestId.reset).click();
     await expect(search).toHaveValue('');
     await expect(panel.getByTestId(frameTestId.step)).toBeEnabled();
@@ -120,7 +128,8 @@ for (const locale of docLocales) {
     await page.locator('.docs-home__actions a').first().click();
     await expect(page).toHaveURL(/#playground$/);
     await expect(page.locator(selector.stageFrame)).toHaveAttribute('src',source!);
-    expect(errors).toEqual([]); expect(outbound).toEqual([]);
+    expect(errors).toEqual([]);
+    expect(outbound).toEqual([]);
   });
 
   test(`${locale}: connection examples fail accurately and recover without a session cookie`, async ({ page }) => {

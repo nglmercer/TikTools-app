@@ -3,7 +3,18 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve, join, sep } from 'node:path';
 import {
-  demoTestId, demoUrl, docLocales, expectFirstChatMessage, frameTestId, qaArtifacts, qaScreenshot, qaWrite, readyPanelFrame, selector, trackPageErrors, viewport,
+  demoTestId,
+  demoUrl,
+  docLocales,
+  expectFirstChatMessage,
+  frameTestId,
+  qaArtifacts,
+  qaScreenshot,
+  qaWrite,
+  readyPanelFrame,
+  selector,
+  trackPageErrors,
+  viewport,
 } from './support/index.ts';
 import { readArticles, metadataErrors } from '../../docs/scripts/content.ts';
 import { docCopy, localizedDocumentPath, type DocLocale } from '../../docs/locales.ts';
@@ -33,7 +44,10 @@ async function localNetworkOnly(page: Page, baseURL: string) {
   await page.route('**/*', async (route) => {
     const url = route.request().url();
     if (/^(data:|blob:)/.test(url) || new URL(url).origin === origin) await route.continue();
-    else { external.push(url); await route.abort(); }
+    else {
+      external.push(url);
+      await route.abort();
+    }
   });
   return { external, sockets };
 }
@@ -64,7 +78,9 @@ test('all six Markdown languages have reviewed equivalents, current hashes and s
 });
 
 test('explicit article navigation ordering is finite and numeric when provided', async () => {
-  const invalid = (await articles).filter((article) => article.frontmatter.order !== undefined && !Number.isFinite(article.frontmatter.order)).map((article) => article.relativePath);
+  const invalid = (await articles)
+    .filter((article) => article.frontmatter.order !== undefined && !Number.isFinite(article.frontmatter.order))
+    .map((article) => article.relativePath);
   expect(invalid, 'Invalid explicit order metadata; omitted values use the navigation default').toEqual([]);
 });
 
@@ -129,7 +145,9 @@ for (const locale of docLocales) {
     const urls = await results.evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).href));
     expect(urls.length).toBeGreaterThan(0);
     expect(urls.every((url) => new URL(url).pathname.startsWith(`${site.base}${locale}/`))).toBe(true);
-    await expect(results.filter({ hasText: (await articles).find((entry) => entry.relativePath === `${locale}/user/preferences/backups.md`)!.frontmatter.title as string }).first()).toBeVisible();
+    await expect(results.filter({
+      hasText: (await articles).find((entry) => entry.relativePath === `${locale}/user/preferences/backups.md`)!.frontmatter.title as string,
+    }).first()).toBeVisible();
     await input.fill('zzzznoresultstiktoolsreview');
     await expect(page.locator('.VPLocalSearchBox')).toContainText(docCopy[locale].noResults);
     await page.keyboard.press('Escape');
@@ -209,10 +227,15 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
   });
   const first = await readyPanelFrame(page);
   const firstId = new URL(first.url()).searchParams.get('instance')!;
-  const secondURL = new URL(first.url()); secondURL.searchParams.set('instance', `${firstId.slice(0, 50)}-b`);
+  const secondURL = new URL(first.url());
+  secondURL.searchParams.set('instance', `${firstId.slice(0, 50)}-b`);
   await page.evaluate((url) => {
-    const frame = document.createElement('iframe'); frame.id = 'isolated-second-demo'; frame.title = 'Second isolated demo'; frame.src = url;
-    frame.style.cssText = 'display:block;width:100%;height:650px'; document.body.append(frame);
+    const frame = document.createElement('iframe');
+    frame.id = 'isolated-second-demo';
+    frame.title = 'Second isolated demo';
+    frame.src = url;
+    frame.style.cssText = 'display:block;width:100%;height:650px';
+    document.body.append(frame);
   }, secondURL.href);
   const second = (await (await page.locator('#isolated-second-demo').elementHandle())!.contentFrame())!;
   await expect(second.locator(selector.appLayout)).toBeVisible();
@@ -221,8 +244,10 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
   expect(secondId).not.toBe(firstId);
   const firstSearch = first.locator(`${selector.liveFeed} input[type="search"]`);
   const secondSearch = second.locator(`${selector.liveFeed} input[type="search"]`);
-  await expect(firstSearch).toHaveValue(''); await expect(secondSearch).toHaveValue('');
-  await firstSearch.fill('only-first-frame'); await secondSearch.fill('only-second-frame');
+  await expect(firstSearch).toHaveValue('');
+  await expect(secondSearch).toHaveValue('');
+  await firstSearch.fill('only-first-frame');
+  await secondSearch.fill('only-second-frame');
   await expect.poll(() => page.evaluate((id) => localStorage.getItem(`tiktools.demo.${id}.tiktok-live-view-state`), firstId)).toContain('only-first-frame');
   await expect.poll(() => page.evaluate((id) => localStorage.getItem(`tiktools.demo.${id}.tiktok-live-view-state`), secondId)).toContain('only-second-frame');
   await page.evaluate((ids) => {
@@ -233,7 +258,8 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
     });
   }, [firstId, secondId]);
   await page.locator('.demo-frame').getByTestId(frameTestId.reset).click();
-  await expect(page.locator('.demo-frame').getByTestId(frameTestId.reset)).toBeEnabled(); await expect(firstSearch).toHaveValue('');
+  await expect(page.locator('.demo-frame').getByTestId(frameTestId.reset)).toBeEnabled();
+  await expect(firstSearch).toHaveValue('');
   await expect(secondSearch).toHaveValue('only-second-frame');
   const stored = await page.evaluate(([a, b]) => ({
     appLocale: localStorage.getItem('tiktok-live-locale'), appCreator: localStorage.getItem('tiktok-live-username'),
@@ -241,10 +267,20 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
     firstLocal: localStorage.getItem(`tiktools.demo.${a}.review-sentinel`), firstSession: sessionStorage.getItem(`tiktools.demo.${a}.review-sentinel`),
     secondLocal: localStorage.getItem(`tiktools.demo.${b}.review-sentinel`), secondSession: sessionStorage.getItem(`tiktools.demo.${b}.review-sentinel`),
   }), [firstId, secondId]);
-  expect(stored).toEqual({ appLocale: 'fr', appCreator: 'real-app-sentinel', appView: JSON.stringify({ version: 1, feed: { searchQuery: 'real-app-query' } }), appSession: 'keep-session', firstLocal: null, firstSession: null, secondLocal: 'second', secondSession: 'second' });
+  expect(stored).toEqual({
+    appLocale: 'fr',
+    appCreator: 'real-app-sentinel',
+    appView: JSON.stringify({ version: 1, feed: { searchQuery: 'real-app-query' } }),
+    appSession: 'keep-session',
+    firstLocal: null,
+    firstSession: null,
+    secondLocal: 'second',
+    secondSession: 'second',
+  });
   await second.goto(secondReloadURL);
   await expect(secondSearch).toHaveValue('only-second-frame');
-  expect(network.external).toEqual([]); expect(network.sockets).toEqual([]);
+  expect(network.external).toEqual([]);
+  expect(network.sockets).toEqual([]);
 });
 
 test('standalone demo remains usable at desktop and mobile sizes', async ({ page, baseURL }, testInfo) => {
@@ -257,7 +293,15 @@ test('standalone demo remains usable at desktop and mobile sizes', async ({ page
   await page.getByTestId(demoTestId.step).click();
   await expect.poll(async () => JSON.parse((await page.getByTestId(demoTestId.metrics).textContent()) || '{}').host?.ticks).toBe(1);
   if (qaArtifacts) {
-    const evidence = { url: page.url(), selector: selector.liveFeed, matchingPanels: await page.locator(selector.liveFeed).count(), visible: await page.locator(selector.liveFeed).isVisible(), before, after: JSON.parse((await page.getByTestId(demoTestId.metrics).textContent())!), feedText: await page.locator(selector.liveFeed).innerText() };
+    const evidence = {
+      url: page.url(),
+      selector: selector.liveFeed,
+      matchingPanels: await page.locator(selector.liveFeed).count(),
+      visible: await page.locator(selector.liveFeed).isVisible(),
+      before,
+      after: JSON.parse((await page.getByTestId(demoTestId.metrics).textContent())!),
+      feedText: await page.locator(selector.liveFeed).innerText(),
+    };
     const report = JSON.stringify(evidence, null, 2);
     await qaWrite('tiktools-docs-review-feed-evidence.json', `${report}\n`);
     await testInfo.attach('demo-feed-step', { body: report, contentType: 'application/json' });
@@ -269,7 +313,8 @@ test('standalone demo remains usable at desktop and mobile sizes', async ({ page
   await expect(page.getByTestId(demoTestId.reset)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await qaScreenshot(page, 'tiktools-docs-review-demo-mobile.png');
-  expect(network.external).toEqual([]); expect(network.sockets).toEqual([]);
+  expect(network.external).toEqual([]);
+  expect(network.sockets).toEqual([]);
 });
 
 test('existing frontend without native IPC fails explicitly and never falls back to the demo', async ({ page, baseURL }) => {
@@ -301,7 +346,9 @@ test('existing frontend without native IPC fails explicitly and never falls back
 
 test('public JavaScript bundles contain no E2E fixture host or mutable test-state global', async () => {
   async function scripts(directory: string): Promise<string[]> {
-    return (await Promise.all((await readdir(directory, { withFileTypes: true })).map((entry) => entry.isDirectory() ? scripts(join(directory, entry.name)) : entry.name.endsWith('.js') ? [join(directory, entry.name)] : []))).flat();
+    return (await Promise.all((await readdir(directory, { withFileTypes: true })).map((entry) => entry.isDirectory()
+      ? scripts(join(directory, entry.name))
+      : entry.name.endsWith('.js') ? [join(directory, entry.name)] : []))).flat();
   }
   const files = await scripts(join(root, 'dist/site'));
   expect(files.length).toBeGreaterThan(0);

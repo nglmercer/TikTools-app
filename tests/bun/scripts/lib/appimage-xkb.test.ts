@@ -6,7 +6,9 @@ import { verifyAppImageWebKit, verifyAppImageXkb } from '../../../../scripts/lib
 
 const runtimes = ['libxkbcommon-x11.so.0', 'libxkbcommon.so.0', 'libxcb-xkb.so.1'];
 
-test.skipIf(process.platform !== 'linux' || !Bun.which('cc') || !Bun.which('readelf'))('AppImage rejects missing dlopen XKB libraries, host symlinks and missing RPATH', async () => {
+test.skipIf(
+  process.platform !== 'linux' || !Bun.which('cc') || !Bun.which('readelf'),
+)('AppImage rejects missing dlopen XKB libraries, host symlinks and missing RPATH', async () => {
   const root = await mkdtemp(join(tmpdir(), 'tiktools-appimage-xkb-'));
   const libDir = join(root, 'usr/lib');
   const compile = (path: string, rpath: boolean) => {

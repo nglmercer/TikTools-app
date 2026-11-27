@@ -4,7 +4,20 @@ import { createVariableSyncAdapter, type VariableComparison } from '../../../../
 import { RPC } from '../../../../../shared/index.ts';
 
 function row(partial: Partial<VariableComparison> = {}): VariableComparison {
-  return { review: 'reviewed-first', name: 'port', local: { type: 'number', value: 8 }, cloud: null, cloudDeleted: false, localSecret: false, blockedLocal: false, pendingStatus: null, canSend: true, canApply: false, canWithdraw: false, ...partial };
+  return {
+    review: 'reviewed-first',
+    name: 'port',
+    local: { type: 'number', value: 8 },
+    cloud: null,
+    cloudDeleted: false,
+    localSecret: false,
+    blockedLocal: false,
+    pendingStatus: null,
+    canSend: true,
+    canApply: false,
+    canWithdraw: false,
+    ...partial,
+  };
 }
 function setup(rows = [row()], options: { support?: boolean } = { support: true }) {
   let comparisons = rows;
@@ -16,23 +29,58 @@ function setup(rows = [row()], options: { support?: boolean } = { support: true 
   });
   const reloadLocal = vi.fn(async () => {});
   const refreshStatus = vi.fn(async () => {});
-  const adapter = createVariableSyncAdapter({ client, supports: () => options.support, revision: () => 'local-r1', status: () => null, reloadLocal, refreshStatus, t: (key) => key });
+  const adapter = createVariableSyncAdapter({
+    client,
+    supports: () => options.support,
+    revision: () => 'local-r1',
+    status: () => null,
+    reloadLocal,
+    refreshStatus,
+    t: (key) => key,
+  });
   return { adapter, calls, reloadLocal, refreshStatus, replace: (next: VariableComparison[]) => { comparisons = next; } };
 }
 
 describe('native Variables Changes adapter', () => {
   it('offers reviewed send/adopt/withdraw, with no whole-workspace sync or field merge', () => {
     const { adapter } = setup();
-    expect(adapter.capabilities).toMatchObject({ push: true, fetch: true, apply: true, withdraw: true, resolve: true, sync: false, merge: false, reset: false, force: false, history: false, autoSync: false });
+    expect(adapter.capabilities).toMatchObject({
+      push: true,
+      fetch: true,
+      apply: true,
+      withdraw: true,
+      resolve: true,
+      sync: false,
+      merge: false,
+      reset: false,
+      force: false,
+      history: false,
+      autoSync: false,
+    });
   });
   it('retains explicit types and compares both existing versions without inventing a base', async () => {
     const { adapter } = setup([row({ cloud: { type: 'text', value: '8' }, canApply: true, canWithdraw: true })]);
     const [change] = await adapter.list();
-    expect(change).toMatchObject({ id: 'reviewed-first', side: 'conflict', after: { type: 'number', value: 8 }, remote: { type: 'text', value: '8' }, canResolveLocal: true, canResolveCloud: true });
+    expect(change).toMatchObject({
+      id: 'reviewed-first',
+      side: 'conflict',
+      after: { type: 'number', value: 8 },
+      remote: { type: 'text', value: '8' },
+      canResolveLocal: true,
+      canResolveCloud: true,
+    });
     expect(change?.base).toBeUndefined();
   });
   it('never projects secret or blocked values, even if a host incorrectly offers send/apply', async () => {
-    const { adapter } = setup([row({ localSecret: true, local: { type: 'secret', value: 'PRIVATE' }, cloud: { type: 'text', value: 'OLD_PRIVATE' }, canApply: true, canWithdraw: true })]);
+    const { adapter } = setup([
+      row({
+        localSecret: true,
+        local: { type: 'secret', value: 'PRIVATE' },
+        cloud: { type: 'text', value: 'OLD_PRIVATE' },
+        canApply: true,
+        canWithdraw: true,
+      }),
+    ]);
     const result = await adapter.list();
     expect(JSON.stringify(result)).not.toContain('PRIVATE');
     expect(result[0]).toMatchObject({ valuesHidden: true, canSend: false, canApply: false, canResolveLocal: false, canResolveCloud: false, canWithdraw: true });
@@ -52,7 +100,11 @@ describe('native Variables Changes adapter', () => {
     await fixture.adapter.list();
     await fixture.adapter.push!([shown[0]!.id]);
     expect(fixture.calls.at(-1)).toMatchObject({ method: RPC.syncV2VariablesSend, params: { review: 'reviewed-first' } });
-    expect(fixture.calls.some((call) => call.method === RPC.syncV2Now || call.method === RPC.syncV2Section || call.method === RPC.globalsTypedReplace)).toBe(false);
+    expect(
+      fixture.calls.some(
+        (call) => call.method === RPC.syncV2Now || call.method === RPC.syncV2Section || call.method === RPC.globalsTypedReplace,
+      ),
+    ).toBe(false);
   });
   it('fetches only into the cache and withdraws without replacing local values', async () => {
     const { adapter, calls, reloadLocal, refreshStatus } = setup();

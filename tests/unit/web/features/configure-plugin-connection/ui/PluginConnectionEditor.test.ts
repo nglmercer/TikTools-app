@@ -92,7 +92,10 @@ test('the sectioned layout keeps connection fields and gameplay defaults side by
     connection: { ok: false, latencyMs: 0, at: 1 },
   } });
   const sections = wrapper.findAll('section.base-section');
-  expect(sections.map(section => section.get('.base-section__title').text())).toEqual([t('plugins.connection.sections.connection'), t('plugins.connection.sections.defaults')]);
+  expect(sections.map(section => section.get('.base-section__title').text())).toEqual([
+    t('plugins.connection.sections.connection'),
+    t('plugins.connection.sections.defaults'),
+  ]);
   expect(sections[0]!.find('input[type="password"]').exists()).toBe(true);
   expect(sections[0]!.find('input[role="spinbutton"]').exists()).toBe(false);
   expect(sections[1]!.find('input[role="spinbutton"]').exists()).toBe(true);

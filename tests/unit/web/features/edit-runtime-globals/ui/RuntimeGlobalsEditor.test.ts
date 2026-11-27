@@ -111,7 +111,10 @@ describe('RuntimeGlobalsEditor', () => {
     let revision = 'a'.repeat(64);
     const { wrapper, calls, store } = await mountEditor((method) => {
       if (method === RPC.globalsTypedList) return { revision, variables: { port: { type: 'number', value: revision.startsWith('a') ? 1 : 3 } } };
-      if (method === RPC.globalsTypedReplace) { revision = 'b'.repeat(64); throw new ControlCallError('conflict', 'runtime variables changed; reload before saving'); }
+      if (method === RPC.globalsTypedReplace) {
+        revision = 'b'.repeat(64);
+        throw new ControlCallError('conflict', 'runtime variables changed; reload before saving');
+      }
       throw new Error(`unexpected method ${method}`);
     }, true);
     await wrapper.get('input[aria-label="Value"]').setValue('2');
@@ -122,7 +125,8 @@ describe('RuntimeGlobalsEditor', () => {
     expect((wrapper.get('input[aria-label="Value"]').element as HTMLInputElement).value).toBe('2');
     await saveButton(wrapper).trigger('click');
     await flushPromises();
-    expect(calls.filter((call) => call.method === RPC.globalsTypedReplace).map((call) => call.params?.expectedRevision)).toEqual(['a'.repeat(64), 'a'.repeat(64)]);
+    expect(calls.filter((call) => call.method === RPC.globalsTypedReplace).map((call) => call.params?.expectedRevision))
+      .toEqual(['a'.repeat(64), 'a'.repeat(64)]);
     await discardButton(wrapper).trigger('click');
     await flushPromises();
     expect((wrapper.get('input[aria-label="Value"]').element as HTMLInputElement).value).toBe('3');

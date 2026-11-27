@@ -68,11 +68,16 @@ describe('AppShell library review', () => {
     actions: [{ name: 'act', typeId: ACTION_TYPE.coreLog, config: {} }], event: { name: 'evt', trigger: EVENT_KIND.tiktokChat } };
   async function mountOwnerShell() {
     const native = nativeDefinitionHost((method, params, options) => {
-      if (method === RPC.automationSnapshot) { options?.onMetadata?.({ resourceVersions: [] }); return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} }; }
+      if (method === RPC.automationSnapshot) {
+        options?.onMetadata?.({ resourceVersions: [] });
+        return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} };
+      }
       if (method === RPC.appStateGet) return { state: {} };
       if (method === 'cloudLibrary.read') return { meta: { id: libraryDocumentId, revision: '1', sha256: 'a'.repeat(64) }, document: template };
       if (method === RPC.automationCreate) {
-        options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }] });
+        options?.onMetadata?.({
+          resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }],
+        });
         return params?.record;
       }
       return { methods: [], items: [] };
@@ -103,12 +108,15 @@ describe('AppShell library review', () => {
     const outcome = importLibraryDocument(environment, 'template', { id, revision: 1 }).then(() => { settled = true; });
     await flushPromises();
     expect(dialogs()).toHaveLength(1);
-    await shell.router.push('/settings'); await flushPromises();
-    await shell.router.push('/'); await flushPromises();
+    await shell.router.push('/settings');
+    await flushPromises();
+    await shell.router.push('/');
+    await flushPromises();
     expect(dialogs()).toHaveLength(1);
     expect(settled).toBe(false);
     (dialogs()[0] as HTMLButtonElement).click();
-    await flushPromises(); await outcome;
+    await flushPromises();
+    await outcome;
     expect(settled).toBe(true);
     expect(dialogs()).toHaveLength(0);
     expect(shell.calls.filter((call) => call.method === RPC.automationLibrarySubmit)).toHaveLength(1);

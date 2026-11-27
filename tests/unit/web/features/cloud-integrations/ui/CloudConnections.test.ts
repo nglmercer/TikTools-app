@@ -18,7 +18,13 @@ const active = { id, provider: 'webhook', label: 'Alerts', status: 'active', cre
 function mount(rows: unknown[] = [active]) {
   const { client, calls } = createFakeControlClient((method) => {
     if (method === RPC.integrationsConnections) return { items: rows };
-    if (method === RPC.integrationsConnect) return { connectionId: id, provider: 'webhook', label: 'New', secret, deliveryPath: `/api/v3/integrations/webhook/${id}/deliveries` };
+    if (method === RPC.integrationsConnect) return {
+      connectionId: id,
+      provider: 'webhook',
+      label: 'New',
+      secret,
+      deliveryPath: `/api/v3/integrations/webhook/${id}/deliveries`,
+    };
     if (method === RPC.integrationsDisconnect) return { id, status: 'revoked' };
     throw new Error(`unexpected ${method}`);
   });

@@ -21,7 +21,10 @@ function item(id: string, kind = 'plugin') {
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (failure: unknown) => void;
-  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  const promise = new Promise<T>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
   return { promise, resolve, reject };
 }
 
@@ -134,7 +137,20 @@ describe('unified catalog store', () => {
     });
     await discover(stores);
     const catalog = stores.use(() => useCatalogStore());
-    const plugin = { kind: 'plugin', id: 'acme.gift', title: '', summary: '', publisher: null, categories: [], targets: [], version: '1.0.0', yanked: false, published: true, revision: null, sha256: null } as const;
+    const plugin = {
+      kind: 'plugin',
+      id: 'acme.gift',
+      title: '',
+      summary: '',
+      publisher: null,
+      categories: [],
+      targets: [],
+      version: '1.0.0',
+      yanked: false,
+      published: true,
+      revision: null,
+      sha256: null,
+    } as const;
     await catalog.install(plugin);
     expect(calls.at(-1)).toEqual({ method: RPC.pluginsPackagesInspect, params: { spec: { kind: 'registry', id: 'acme.gift' } } });
     const before = calls.length;
@@ -147,7 +163,20 @@ describe('unified catalog store', () => {
     const { stores, calls } = host([RPC.catalogItems], () => ({ items: [], nextCursor: null }));
     await discover(stores);
     const catalog = stores.use(() => useCatalogStore());
-    const template = { kind: 'template', id: FIXTURE_ID.tpl1, title: 'T', summary: '', publisher: null, categories: [], targets: [], version: null, yanked: false, published: true, revision: 3, sha256: 'a'.repeat(64) } as const;
+    const template = {
+      kind: 'template',
+      id: FIXTURE_ID.tpl1,
+      title: 'T',
+      summary: '',
+      publisher: null,
+      categories: [],
+      targets: [],
+      version: null,
+      yanked: false,
+      published: true,
+      revision: 3,
+      sha256: 'a'.repeat(64),
+    } as const;
     expect(await catalog.importItem(template)).toBe(false);
     expect(catalog.importState).toBe('signIn');
     expect(await catalog.importItem({ ...template, revision: null })).toBe(false);
@@ -186,7 +215,8 @@ describe('unified catalog store', () => {
     account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
     expect(catalog.loading).toBe(false);
     mine.resolve({ items: [item('alice.private', 'template')], nextCursor: 'alice-cursor' });
-    await loading; await flushPromises();
+    await loading;
+    await flushPromises();
     expect(catalog.items).toEqual([]);
     expect(catalog.hasMore).toBe(false);
     expect(catalog.loading).toBe(false);
@@ -220,7 +250,20 @@ describe('unified catalog store', () => {
     const { stores } = host([RPC.catalogItems, RPC.catalogItem], (method) => (method === RPC.catalogItem ? fresh.promise : { items: [], nextCursor: null }));
     await discover(stores);
     const catalog = stores.use(() => useCatalogStore());
-    const plugin = { kind: 'plugin', id: 'acme.gift', title: '', summary: '', publisher: null, categories: [], targets: [], version: '1.0.0', yanked: false, published: true, revision: null, sha256: null } as const;
+    const plugin = {
+      kind: 'plugin',
+      id: 'acme.gift',
+      title: '',
+      summary: '',
+      publisher: null,
+      categories: [],
+      targets: [],
+      version: '1.0.0',
+      yanked: false,
+      published: true,
+      revision: null,
+      sha256: null,
+    } as const;
     const opening = catalog.openDetail(plugin);
     expect(catalog.detail?.id).toBe('acme.gift');
     catalog.closeDetail();

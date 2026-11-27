@@ -16,7 +16,12 @@ beforeEach(() => diagnosticLog.clear());
 async function mountDiagnostics() {
   const { client } = createFakeControlClient(() => ({}));
   const stores = createStoreHarness(client);
-  const Host = defineComponent({ setup() { useDiagnostics(); return () => h('div'); } });
+  const Host = defineComponent({
+    setup() {
+      useDiagnostics();
+      return () => h('div');
+    },
+  });
   mountWithPlugins(Host, { global: { plugins: stores.plugins } });
   await flushPromises();
   return stores;
@@ -46,7 +51,9 @@ describe('useDiagnostics', () => {
   it('drops the history of an account when another one signs in', async () => {
     const stores = await mountDiagnostics();
     const account = stores.use(() => useAccountStore());
-    const status = (accountId: string | null) => ({ origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId, persistence: 'memory' }) as never;
+    const status = (accountId: string | null) => ({
+      origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId, persistence: 'memory',
+    }) as never;
     account.status = status('account-a');
     stores.use(() => useCatalogStore()).error = 'private detail of account a';
     await nextTick();

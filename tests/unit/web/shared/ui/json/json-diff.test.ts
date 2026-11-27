@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { changedTopLevelKeys, diffJson, diffLines, diffSequences, foldRows, jsonEqual, segmentLine, wordRanges } from '../../../../../../src/web/shared/ui/json/json-diff.ts';
+import {
+  changedTopLevelKeys,
+  diffJson,
+  diffLines,
+  diffSequences,
+  foldRows,
+  jsonEqual,
+  segmentLine,
+  wordRanges,
+} from '../../../../../../src/web/shared/ui/json/json-diff.ts';
 import { tokenizeJson } from '../../../../../../src/web/shared/ui/json/json-tokens.ts';
 
 /** Replays an edit script to make sure it really turns `before` into `after`. */
@@ -8,9 +17,17 @@ function apply(before: string[], after: string[], ops: string[]): string[] {
   let i = 0;
   let j = 0;
   for (const op of ops) {
-    if (op === 'equal') { expect(before[i]).toBe(after[j]); out.push(before[i]!); i += 1; j += 1; }
+    if (op === 'equal') {
+      expect(before[i]).toBe(after[j]);
+      out.push(before[i]!);
+      i += 1;
+      j += 1;
+    }
     else if (op === 'delete') i += 1;
-    else { out.push(after[j]!); j += 1; }
+    else {
+      out.push(after[j]!);
+      j += 1;
+    }
   }
   expect(i).toBe(before.length);
   expect(j).toBe(after.length);
@@ -35,7 +52,10 @@ describe('diffSequences', () => {
 
   it('produces valid scripts for random inputs', () => {
     let seed = 7;
-    const random = (): number => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+    const random = (): number => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
     for (let round = 0; round < 60; round += 1) {
       const a = Array.from({ length: Math.floor(random() * 30) }, () => String(Math.floor(random() * 5)));
       const b = Array.from({ length: Math.floor(random() * 30) }, () => String(Math.floor(random() * 5)));
@@ -125,7 +145,13 @@ describe('diffJson', () => {
   });
 
   it('copes with huge documents', () => {
-    const make = (offset: number) => ({ items: Array.from({ length: 1250 }, (_, index) => ({ id: index, name: `item ${index + (index % 97 === 0 ? offset : 0)}`, on: index % 2 === 0 })) });
+    const make = (offset: number) => ({
+      items: Array.from({ length: 1250 }, (_, index) => ({
+        id: index,
+        name: `item ${index + (index % 97 === 0 ? offset : 0)}`,
+        on: index % 2 === 0,
+      })),
+    });
     const started = performance.now();
     const diff = diffJson(make(0), make(1), { maxLines: 20_000 });
     expect(diff.rows.length).toBeGreaterThan(6000);

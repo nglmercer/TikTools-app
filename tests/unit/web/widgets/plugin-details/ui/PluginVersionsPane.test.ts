@@ -16,7 +16,14 @@ function setup(kind: 'registry' | 'file') {
     grantedPermissions:[], grantedCapabilities:[], installedAt:1, updatedAt:2,
     policy:{ channel:'stable', autoUpdate:'notify', pinned:false }, retained:[{ version:'1.0.0', retainedAt:1 }] };
   const { client, calls } = createFakeControlClient((method) => {
-    if (method === 'plugins.packages.versions') return { id:receipt.id, installed:receipt.version, receipt, retained:receipt.retained, registry:'old-source', available:[] };
+    if (method === 'plugins.packages.versions') return {
+      id:receipt.id,
+      installed:receipt.version,
+      receipt,
+      retained:receipt.retained,
+      registry:'old-source',
+      available:[],
+    };
     if (method === RPC.pluginsPackagesInspect) return { id:receipt.id, version:'1.0.0', consentToken:'review-token' };
     if (method === RPC.pluginsPackagesInstall) return { job:{ id:'install-job', kind:'install', stage:'queued', status:'queued', createdAt:1, updatedAt:1 } };
     if (method === 'plugins.packages.rollback') return { job:{ id:'job', kind:'rollback', stage:'queued', status:'queued', createdAt:1, updatedAt:1 } };

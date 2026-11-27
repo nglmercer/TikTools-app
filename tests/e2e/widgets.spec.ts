@@ -110,7 +110,10 @@ test('rapid replay and tab changes never place alert cards side by side', async 
   // states that a final visibility assertion would miss.
   await page.evaluate(() => {
     const violations: string[] = [];
-    const target = window as unknown as { widgetTransitionViolations: string[]; stopWidgetMonitor: () => void };
+    const target = window as unknown as {
+      widgetTransitionViolations: string[];
+      stopWidgetMonitor: () => void;
+    };
     target.widgetTransitionViolations = violations;
     let frame = 0;
     const sample = () => {
@@ -131,7 +134,13 @@ test('rapid replay and tab changes never place alert cards side by side', async 
     sample();
     target.stopWidgetMonitor = () => cancelAnimationFrame(frame);
   });
-  for (const label of [t('overlays.kinds.follow.name'), 'Gift alert', t('overlays.kinds.share.name'), t('overlays.kinds.subscribe.name'), t('overlays.kinds.follow.name')]) {
+  for (const label of [
+    t('overlays.kinds.follow.name'),
+    'Gift alert',
+    t('overlays.kinds.share.name'),
+    t('overlays.kinds.subscribe.name'),
+    t('overlays.kinds.follow.name'),
+  ]) {
     await page.getByRole('option', { name: label, exact: true }).click();
     await expect(page.locator('.widget-host [role="alert"]')).toBeVisible();
     for (let index = 0; index < 3; index++) {
@@ -141,7 +150,10 @@ test('rapid replay and tab changes never place alert cards side by side', async 
   }
   await page.waitForTimeout(PAUSE_MS.transitionEnd);
   const violations = await page.evaluate(() => {
-    const target = window as unknown as { widgetTransitionViolations: string[]; stopWidgetMonitor: () => void };
+    const target = window as unknown as {
+      widgetTransitionViolations: string[];
+      stopWidgetMonitor: () => void;
+    };
     target.stopWidgetMonitor();
     return target.widgetTransitionViolations;
   });

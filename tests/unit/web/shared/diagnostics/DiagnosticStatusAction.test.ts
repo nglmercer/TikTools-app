@@ -7,7 +7,12 @@ import DiagnosticStatusAction from '../../../../../src/web/shared/diagnostics/Di
 import { diagnosticLog, diagnosticView } from '../../../../../src/web/shared/diagnostics/log.ts';
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
-afterEach(() => { diagnosticLog.clear(); diagnosticView.open.value = false; vi.useRealTimers(); vi.restoreAllMocks(); });
+afterEach(() => {
+  diagnosticLog.clear();
+  diagnosticView.open.value = false;
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 test('opens the exact plugin event without recording another entry', async () => {
   vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: false } as MediaQueryList);
   diagnosticLog.record({ source:'plugins', entityId:'other', code:'failed', message:'other failure', level:'error' });
@@ -39,8 +44,12 @@ test('mobile navigates to diagnostics with context and a return location', async
   vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true } as MediaQueryList);
   const router = createRouter({ history:createMemoryHistory(), routes:[{ path:'/:pathMatch(.*)*', component:{ template:'<div />' } }] });
   await router.push('/connections');
-  const wrapper = mountWithPlugins(DiagnosticStatusAction, { props:{ source:'plugins', entityId:'game', label:'Connection failed' }, global:{ plugins:[router] } });
-  await wrapper.get('button').trigger('click'); await flushPromises();
+  const wrapper = mountWithPlugins(DiagnosticStatusAction, {
+    props:{ source:'plugins', entityId:'game', label:'Connection failed' },
+    global:{ plugins:[router] },
+  });
+  await wrapper.get('button').trigger('click');
+  await flushPromises();
   expect(router.currentRoute.value.path).toBe('/debug');
   expect(router.currentRoute.value.query).toMatchObject({ source:'plugins', entity:'game', returnTo:'/connections' });
 });

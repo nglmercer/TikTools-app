@@ -1,8 +1,27 @@
-import { t, mountPage, buttonByLabel, goBack, documentButton, selectRow, it, expect, vi, nextTick, libraryJournal, flushPromises, afterEach, beforeEach, resetResolutionPreference } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
+import {
+  t,
+  mountPage,
+  buttonByLabel,
+  goBack,
+  documentButton,
+  selectRow,
+  it,
+  expect,
+  vi,
+  nextTick,
+  libraryJournal,
+  flushPromises,
+  afterEach,
+  beforeEach,
+  resetResolutionPreference,
+} from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
 import { runGuideAction } from '../../../../../../src/web/features/guided-help/model/guide-actions.ts';
 import { ACTION_TYPE, LIBRARY_OPERATION, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
 
-beforeEach(() => { localStorage.clear(); resetResolutionPreference('manual'); });
+beforeEach(() => {
+  localStorage.clear();
+  resetResolutionPreference('manual');
+});
 afterEach(() => resetResolutionPreference('automatic'));
 
 
@@ -13,29 +32,41 @@ it('blocks profile and template changes until the initial coherent library is re
     const f = await mountPage((method) => method === RPC.automationSnapshot && blocked ? held : undefined, false);
     const profile = f.wrapper.get('.profile-toolbar [role="combobox"]');
     const menu = f.wrapper.get('.profile-toolbar [aria-haspopup="menu"]');
-    expect(profile.attributes('disabled')).toBeDefined(); expect(menu.attributes('disabled')).toBeDefined();
+    expect(profile.attributes('disabled')).toBeDefined();
+    expect(menu.attributes('disabled')).toBeDefined();
     expect(buttonByLabel(f.wrapper, t('automations.templates.open')).attributes('disabled')).toBeDefined();
     expect(f.wrapper.get('[data-test="library-loading"]').text()).toContain('Loading saved profiles');
     expect(f.calls.some((call) => call.method === RPC.automationLibrarySubmit)).toBe(false);
-    await f.wrapper.get('[data-test="library-retry-loading"]').trigger('click'); await flushPromises();
-    blocked = false; reject(new Error('initial snapshot unavailable')); await f.initializing; await flushPromises();
+    await f.wrapper.get('[data-test="library-retry-loading"]').trigger('click');
+    await flushPromises();
+    blocked = false;
+    reject(new Error('initial snapshot unavailable'));
+    await f.initializing;
+    await flushPromises();
     expect(f.wrapper.text()).toContain('initial snapshot unavailable');
     expect(menu.attributes('disabled')).toBeDefined();
-    await f.wrapper.get('[data-test="library-retry-loading"]').trigger('click'); await flushPromises();
-    expect(profile.attributes('disabled')).toBeUndefined(); expect(menu.attributes('disabled')).toBeUndefined();
+    await f.wrapper.get('[data-test="library-retry-loading"]').trigger('click');
+    await flushPromises();
+    expect(profile.attributes('disabled')).toBeUndefined();
+    expect(menu.attributes('disabled')).toBeUndefined();
     expect(buttonByLabel(f.wrapper, t('automations.templates.open')).attributes('disabled')).toBeUndefined();
     expect(f.wrapper.find('[data-test="library-loading"]').exists()).toBe(false);
     expect(f.wrapper.text()).not.toContain('initial snapshot unavailable');
     expect(f.calls.some((call) => call.method === RPC.automationLibrarySubmit || call.method === RPC.appStateSet)).toBe(false);
-    await menu.trigger('click'); await nextTick();
-    Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((entry) => entry.textContent?.trim() === t('automations.profile.create'))!.click();
+    await menu.trigger('click');
+    await nextTick();
+    Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+      .find((entry) => entry.textContent?.trim() === t('automations.profile.create'))!
+      .click();
     await flushPromises();
     await f.wrapper.get('input[maxlength="80"]').setValue('Ready profile');
-    documentButton(t('automations.profile.createConfirm')).click(); await flushPromises();
+    documentButton(t('automations.profile.createConfirm')).click();
+    await flushPromises();
     const library = libraryJournal(f.client);
     expect(library.draft.value?.context.definitions.actions[0]?.name).toBe('Log gift');
     expect(library.draft.value?.mutation).toMatchObject({ operation: LIBRARY_OPERATION.createProfile, name: 'Ready profile' });
-    library.dismiss(); await flushPromises();
+    library.dismiss();
+    await flushPromises();
     f.automation.dispose();
   });
 
@@ -52,7 +83,8 @@ it('blocks profile and template changes until the initial coherent library is re
   });
 
   it('keeps an unsaved variable draft while switching tabs and saves it through the same contract', async () => {
-    const { wrapper, calls } = await mountPage((method) => (method === RPC.globalsList ? { globals: { commandPort: '46665' } } : method === RPC.globalsSet ? { ok: true } : undefined));
+    const { wrapper, calls } = await mountPage((method) =>
+      (method === RPC.globalsList ? { globals: { commandPort: '46665' } } : method === RPC.globalsSet ? { ok: true } : undefined));
     const tab = (name: string) => wrapper.findAll('[role="tab"]').find((item) => item.text().startsWith(name))!;
     await tab(t('automations.library.variables')).trigger('click');
     await flushPromises();
@@ -152,7 +184,8 @@ it('blocks profile and template changes until the initial coherent library is re
     expect(tabs.find((tab) => tab.getAttribute('aria-selected') === 'true')?.textContent?.trim()).toBe(t('importDialog.cloudTab'));
     expect(dialog.textContent).toContain(t('overlayLibrary.library'));
     // The page is still the library: no Cloud tab in its own bar.
-    expect(wrapper.findAll('.automation-library [role="tab"]').map((tab) => tab.text())).toEqual(['Events (2)', 'Actions (1)', t('automations.library.variables')]);
+    expect(wrapper.findAll('.automation-library [role="tab"]').map((tab) => tab.text()))
+      .toEqual(['Events (2)', 'Actions (1)', t('automations.library.variables')]);
     expect(router.currentRoute.value.query.view).toBe('cloud');
     dialog.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click();
     await flushPromises();

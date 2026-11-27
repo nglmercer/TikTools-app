@@ -36,7 +36,8 @@ function fakeControl(): {
 }
 
 function emit<T>(handlers: T[] | undefined, value: T extends (arg: infer A) => void ? A : never): void {
-  for (const handler of handlers ?? []) (handler as (arg: unknown) => void)(value);
+  for (const handler of handlers ?? [])
+    (handler as (arg: unknown) => void)(value);
 }
 
 describe('useAutomation live updates', () => {
@@ -112,9 +113,18 @@ describe('useAutomation live updates', () => {
 });
 
 describe('useAutomation fire event', () => {
-  function fired(result: unknown): { client: ControlClient; calls: Array<{ method: string; params: unknown }> } {
+  function fired(result: unknown): {
+    client: ControlClient;
+    calls: Array<{
+      method: string;
+      params: unknown;
+    }>;
+  } {
     const { client } = fakeControl();
-    const calls: Array<{ method: string; params: unknown }> = [];
+    const calls: Array<{
+      method: string;
+      params: unknown;
+    }> = [];
     client.call = ((method: string, params: unknown) => {
       calls.push({ method, params });
       if (method === 'automation.fire') return Promise.resolve(result);
@@ -213,8 +223,15 @@ describe('useAutomation hotkey access request', () => {
       if (method === RPC.automationRuns) return Promise.resolve({ runs: [] });
       if (method === RPC.automationLibrarySnapshot) {
         const definitions = { actions: [], events: [], plugins: [], actionTypes: [], translations: {} };
-        return Promise.resolve({ hostId: FIXTURE_ID.hostA, hostInstanceId: FIXTURE_ID.instanceA, revision: '0', definitionDigest: libraryDefinitionDigest(definitions, []),
-          catalog: { packs: [], activeId: 'default', templates: [] }, definitions, resourceVersions: [] });
+        return Promise.resolve({
+          hostId: FIXTURE_ID.hostA,
+          hostInstanceId: FIXTURE_ID.instanceA,
+          revision: '0',
+          definitionDigest: libraryDefinitionDigest(definitions, []),
+          catalog: { packs: [], activeId: 'default', templates: [] },
+          definitions,
+          resourceVersions: [],
+        });
       }
       return Promise.resolve({ actions: [], events: [], plugins: [], actionTypes: [], translations: {} });
     }) as ControlClient['call'];

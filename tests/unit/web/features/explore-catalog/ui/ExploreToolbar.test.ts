@@ -25,7 +25,12 @@ async function mountToolbar() {
   return { wrapper, calls, catalog };
 }
 
-const queries = (calls: { method: string; params?: unknown }[]) =>
+const queries = (
+  calls: {
+    method: string;
+    params?: unknown;
+  }[],
+) =>
   calls.filter((call) => call.method.startsWith('catalog.')).map((call) => [call.method, call.params]);
 
 describe('ExploreToolbar', () => {

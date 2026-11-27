@@ -58,7 +58,10 @@ describe('showcase director', () => {
     const h = createShowcaseHarness();
     h.director.start();
     const visited = new Set<number>();
-    for (let n = 0; n < 40 && visited.size < 5; n += 1) { visited.add(h.director.state.step); await h.tick(); }
+    for (let n = 0; n < 40 && visited.size < 5; n += 1) {
+      visited.add(h.director.state.step);
+      await h.tick();
+    }
     expect([...visited].sort()).toEqual([0, 1, 2, 3, 4]);
     for (let n = 0; n < 12; n += 1) await h.tick();
     expect(h.states.some((state, i) => i > 0 && state.step === 0 && h.states[i - 1]!.step === 4)).toBe(true);
@@ -167,13 +170,27 @@ describe('showcase options and frame bridge', () => {
     expect(parseDemoOptions('?showcase=1')).toMatchObject({ showcase: true, scenario: 'feed', route: '/feed', record: false });
     expect(parseDemoOptions('?showcase=1&record=1&framed=1')).toMatchObject({ showcase: true, record: true, framed: true });
     expect(parseDemoOptions('')).toMatchObject({ showcase: false, record: false });
-    for (const search of ['?showcase=2', '?showcase=1&embed=feed', '?showcase=1&preview=1', '?showcase=1&scenario=points', '?record=1', '?showcase=1&record=yes']) expect(() => parseDemoOptions(search), search).toThrow();
+    for (const search of [
+      '?showcase=2',
+      '?showcase=1&embed=feed',
+      '?showcase=1&preview=1',
+      '?showcase=1&scenario=points',
+      '?record=1',
+      '?showcase=1&record=yes',
+    ]) expect(() => parseDemoOptions(search), search).toThrow();
   });
 
   it('accepts a bounded showcase pace and rejects it everywhere else', () => {
     expect(parseDemoOptions('?showcase=1').pace).toBe(1);
     expect(parseDemoOptions('?showcase=1&pace=4').pace).toBe(4);
-    for (const search of ['?pace=2', '?showcase=1&pace=0', '?showcase=1&pace=9', '?showcase=1&pace=1.5', '?showcase=1&pace=fast', '?showcase=1&pace=']) expect(() => parseDemoOptions(search), search).toThrow();
+    for (const search of [
+      '?pace=2',
+      '?showcase=1&pace=0',
+      '?showcase=1&pace=9',
+      '?showcase=1&pace=1.5',
+      '?showcase=1&pace=fast',
+      '?showcase=1&pace=',
+    ]) expect(() => parseDemoOptions(search), search).toThrow();
   });
 
   it('accepts showcase commands with bounded indices and validates the reported state', () => {
@@ -184,6 +201,11 @@ describe('showcase options and frame bridge', () => {
     const state = stateMessage({ paused: false, events: 3 });
     expect(isDemoFrameState({ ...state, showcase: { step: 2, count: 5, paused: false, done: false } })).toBe(true);
     expect(isDemoFrameState(state)).toBe(true);
-    for (const showcase of [{ step: 5, count: 5, paused: false, done: false }, { step: 0, count: 99, paused: false, done: false }, { step: 0, count: 5, paused: 'no', done: false }, 'x']) expect(isDemoFrameState({ ...state, showcase })).toBe(false);
+    for (const showcase of [
+      { step: 5, count: 5, paused: false, done: false },
+      { step: 0, count: 99, paused: false, done: false },
+      { step: 0, count: 5, paused: 'no', done: false },
+      'x',
+    ]) expect(isDemoFrameState({ ...state, showcase })).toBe(false);
   });
 });

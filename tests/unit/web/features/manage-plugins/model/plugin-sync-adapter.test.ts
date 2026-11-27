@@ -12,7 +12,14 @@ const present = (version: string, enabled: boolean, revision = 1): WorkspaceValu
 const plugin = (id: string, version: string, enabled: boolean, installed = true): PluginStatus =>
   ({ descriptor: { id, version, name: id }, installed, enabled, available: true }) as unknown as PluginStatus;
 
-function setup(entries: WorkspaceEntry[], plugins: PluginStatus[], overrides: { supports?: boolean | undefined; selected?: boolean } = {}) {
+function setup(
+  entries: WorkspaceEntry[],
+  plugins: PluginStatus[],
+  overrides: {
+    supports?: boolean | undefined;
+    selected?: boolean;
+  } = {},
+) {
   const { client, calls } = createFakeControlClient((method) => {
     if (method === 'sync.v2.selected') return overrides.selected ?? true;
     if (method === 'sync.v2.changes.list') return entries;
@@ -23,18 +30,42 @@ function setup(entries: WorkspaceEntry[], plugins: PluginStatus[], overrides: { 
   });
   let refreshed = 0;
   const adapter = createPluginSyncAdapter({
-    client, plugins: () => plugins, status: () => ({ lastSyncedAt: 100, pending: 1 }), refreshStatus: async () => { refreshed += 1; },
-    supports: () => ('supports' in overrides ? overrides.supports : true), name: (entry) => entry.descriptor.id.toUpperCase(), t: (key) => key,
+    client,
+    plugins: () => plugins,
+    status: () => ({ lastSyncedAt: 100, pending: 1 }),
+    refreshStatus: async () => {
+      refreshed += 1;
+    },
+    supports: () => ('supports' in overrides ? overrides.supports : true),
+    name: (entry) => entry.descriptor.id.toUpperCase(),
+    t: (key) => key,
   });
   return { adapter, calls, refreshed: () => refreshed };
 }
 
-const entry = (partial: Partial<WorkspaceEntry>): WorkspaceEntry => ({ collection: 'plugin-selections', key: 'alpha', remote: absent, pending: null, hasNewer: false, ...partial });
+const entry = (partial: Partial<WorkspaceEntry>): WorkspaceEntry => ({
+  collection: 'plugin-selections',
+  key: 'alpha',
+  remote: absent,
+  pending: null,
+  hasNewer: false,
+  ...partial,
+});
 
 describe('plugin sync adapter', () => {
   it('declares section sync and conflict resolution, and nothing it cannot do', () => {
     const { adapter } = setup([], []);
-    expect(adapter.capabilities).toMatchObject({ sync: true, resolve: true, push: false, fetch: false, merge: false, force: false, reset: false, history: false, fork: false });
+    expect(adapter.capabilities).toMatchObject({
+      sync: true,
+      resolve: true,
+      push: false,
+      fetch: false,
+      merge: false,
+      force: false,
+      reset: false,
+      history: false,
+      fork: false,
+    });
   });
 
   it('lists a queued edit as a local change between the Cloud base and the staged value', async () => {
@@ -56,18 +87,60 @@ describe('plugin sync adapter', () => {
   });
 
   it('lists a staged settings edit and a staged delete', async () => {
-    const settings = entry({ collection: 'plugin-settings', pending: { status: 'queued', base: absent, local: { state: 'present', revision: null, value: null, version: null, enabled: null }, changedKeys: ['a'] } });
-    const removal = entry({ key: 'beta', remote: present('1.0.0', true), pending: { status: 'queued', base: present('1.0.0', true), local: { state: 'deleted', revision: null, value: null, version: null, enabled: null }, changedKeys: null } });
+    const settings = entry({
+      collection: 'plugin-settings',
+      pending: {
+        status: 'queued',
+        base: absent,
+        local: { state: 'present', revision: null, value: null, version: null, enabled: null },
+        changedKeys: ['a'],
+      },
+    });
+    const removal = entry({
+      key: 'beta',
+      remote: present('1.0.0', true),
+      pending: {
+        status: 'queued',
+        base: present('1.0.0', true),
+        local: { state: 'deleted', revision: null, value: null, version: null, enabled: null },
+        changedKeys: null,
+      },
+    });
     const { adapter } = setup([settings, removal], []);
     const changes = await adapter.list();
     expect(changes.map((change) => [change.kind, change.status])).toEqual([['pluginSettings', 'added'], ['plugin', 'deleted']]);
   });
 
   it('lists a settings change by key names only and never reads or shows a value', async () => {
-    const held = (state: 'present' | 'deleted', value: unknown): WorkspaceValue => ({ state, revision: 2, value: value as WorkspaceValue['value'], version: 'LEAK-VERSION', enabled: true });
+    const held = (state: 'present' | 'deleted', value: unknown): WorkspaceValue => ({
+      state,
+      revision: 2,
+      value: value as WorkspaceValue['value'],
+      version: 'LEAK-VERSION',
+      enabled: true,
+    });
     // An older host could still send values; the adapter must not surface them.
-    const queued = entry({ collection: 'plugin-settings', remote: held('present', { settings: { apiKey: 'LEAK-REMOTE' } }), pending: { status: 'queued', base: held('present', { settings: { apiKey: 'LEAK-BASE' } }), local: held('present', { settings: { apiKey: 'LEAK-LOCAL' } }), changedKeys: ['apiKey', 'volume'] } });
-    const clash = entry({ collection: 'plugin-settings', key: 'beta', remote: held('present', { settings: { token: 'LEAK-CLOUD' } }), pending: { status: 'conflict', base: held('present', { settings: { token: 'LEAK-BASE' } }), local: held('deleted', null), changedKeys: ['token'] } });
+    const queued = entry({
+      collection: 'plugin-settings',
+      remote: held('present', { settings: { apiKey: 'LEAK-REMOTE' } }),
+      pending: {
+        status: 'queued',
+        base: held('present', { settings: { apiKey: 'LEAK-BASE' } }),
+        local: held('present', { settings: { apiKey: 'LEAK-LOCAL' } }),
+        changedKeys: ['apiKey', 'volume'],
+      },
+    });
+    const clash = entry({
+      collection: 'plugin-settings',
+      key: 'beta',
+      remote: held('present', { settings: { token: 'LEAK-CLOUD' } }),
+      pending: {
+        status: 'conflict',
+        base: held('present', { settings: { token: 'LEAK-BASE' } }),
+        local: held('deleted', null),
+        changedKeys: ['token'],
+      },
+    });
     const idle = entry({ collection: 'plugin-settings', key: 'gamma', remote: held('present', { settings: { x: 'LEAK-IDLE' } }) });
     const { adapter } = setup([queued, clash, idle], []);
     const changes = await adapter.list();
@@ -85,13 +158,26 @@ describe('plugin sync adapter', () => {
   });
 
   it('lists a Cloud selection that differs from the installed plugin as something to fetch', async () => {
-    const { adapter } = setup([entry({ remote: present('2.0.0', true) }), entry({ key: 'gamma', remote: present('1.0.0', true) })], [plugin('alpha', '1.0.0', true)]);
+    const { adapter } = setup(
+      [entry({ remote: present('2.0.0', true) }), entry({ key: 'gamma', remote: present('1.0.0', true) })],
+      [plugin('alpha', '1.0.0', true)],
+    );
     const changes = await adapter.list();
-    expect(changes.map((change) => [change.id, change.side, change.status])).toEqual([['plugin-selections/alpha', 'remote', 'modified'], ['plugin-selections/gamma', 'remote', 'added']]);
+    expect(changes.map((change) => [change.id, change.side, change.status])).toEqual([
+      ['plugin-selections/alpha', 'remote', 'modified'],
+      ['plugin-selections/gamma', 'remote', 'added'],
+    ]);
   });
 
   it('ignores records that match the installed plugin and entries it cannot compare', async () => {
-    const { adapter } = setup([entry({ remote: present('1.0.0', true) }), entry({ collection: 'preferences', key: 'desktop' }), entry({ collection: 'plugin-settings', remote: present('1', true) })], [plugin('alpha', '1.0.0', true)]);
+    const { adapter } = setup(
+      [
+        entry({ remote: present('1.0.0', true) }),
+        entry({ collection: 'preferences', key: 'desktop' }),
+        entry({ collection: 'plugin-settings', remote: present('1', true) }),
+      ],
+      [plugin('alpha', '1.0.0', true)],
+    );
     expect(await adapter.list()).toEqual([]);
   });
 

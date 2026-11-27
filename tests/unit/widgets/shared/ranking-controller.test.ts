@@ -45,8 +45,20 @@ describe('ranking snapshot adapter', () => {
   });
   test('preserves window and accounting diagnostics', () => {
     const event = snapshot(1);
-    Object.assign(event.data.snapshot, { window: { type: 'rolling', durationMs: 1000, maxEvents: 20 }, rejected: 2, dropped: 1, limited: 3, cooldownRejected: 4 });
-    expect(parseRankingSnapshot(event)).toMatchObject({ window: { type: 'rolling', durationMs: 1000, maxEvents: 20 }, rejected: 2, dropped: 1, limited: 3, cooldownRejected: 4 });
+    Object.assign(event.data.snapshot, {
+      window: { type: 'rolling', durationMs: 1000, maxEvents: 20 },
+      rejected: 2,
+      dropped: 1,
+      limited: 3,
+      cooldownRejected: 4,
+    });
+    expect(parseRankingSnapshot(event)).toMatchObject({
+      window: { type: 'rolling', durationMs: 1000, maxEvents: 20 },
+      rejected: 2,
+      dropped: 1,
+      limited: 3,
+      cooldownRejected: 4,
+    });
     Object.assign(event.data.snapshot, { window: { type: 'rolling', durationMs: 0, maxEvents: 20 } });
     expect(parseRankingSnapshot(event)).toBeNull();
   });

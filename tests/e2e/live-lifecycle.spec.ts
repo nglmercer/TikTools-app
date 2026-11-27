@@ -30,7 +30,10 @@ test('100 actual Vue root remounts return listeners, timers and DOM to baseline'
     cdp.on('HeapProfiler.addHeapSnapshotChunk', onChunk);
     await cdp.send('HeapProfiler.takeHeapSnapshot', { reportProgress: false });
     cdp.off('HeapProfiler.addHeapSnapshotChunk', onChunk);
-    await new Promise<void>((resolve, reject) => { file.on('error', reject); file.end(resolve); });
+    await new Promise<void>((resolve, reject) => {
+      file.on('error', reject);
+      file.end(resolve);
+    });
     await testInfo.attach(name, { path, contentType: 'application/json' });
   };
   // A remount removes the old root's diagnostics before the new root publishes its own.
@@ -38,8 +41,14 @@ test('100 actual Vue root remounts return listeners, timers and DOM to baseline'
     await page.waitForFunction(() => typeof (window as unknown as Record<string, unknown>)['__tiktools_frontend_diagnostics__'] === 'function');
     return page.evaluate(() => {
     const scope = window as unknown as { __tiktools_frontend_diagnostics__(): {
-      domNodes: number; ownedTimers: number; iframeCount: number;
-      control: { pending: number; topicSubscriptions: number; pushSubscriptions: number };
+      domNodes: number;
+      ownedTimers: number;
+      iframeCount: number;
+      control: {
+        pending: number;
+        topicSubscriptions: number;
+        pushSubscriptions: number;
+      };
       live: { frames: number };
     } };
     return scope.__tiktools_frontend_diagnostics__();
@@ -50,7 +59,10 @@ test('100 actual Vue root remounts return listeners, timers and DOM to baseline'
   await snapshot('warmup');
   for (let i = 0; i < 100; i += 1) {
     await page.evaluate(() => {
-      const scope = window as unknown as { __tiktools_benchmark_controls__: { setTab(tab: string): void }; __tiktools_remount__(): void };
+      const scope = window as unknown as {
+        __tiktools_benchmark_controls__: { setTab(tab: string): void };
+        __tiktools_remount__(): void;
+      };
       scope.__tiktools_remount__();
     });
     await expect.poll(async () => (await diagnostics()).control.pending).toBe(0);
@@ -77,9 +89,18 @@ test('100 Feed to Plugins navigation cycles actually mount both views and releas
   await expect(page.locator(SEL.feedStream)).toBeVisible();
   const read = () => page.evaluate(() => (window as unknown as {
     __tiktools_frontend_diagnostics__(): {
-      ownedTimers: number; iframeCount: number; domNodes: number;
-      live: { presentationActive: boolean; frames: number };
-      control: { topicSubscriptions: number; pushSubscriptions: number; pending: number };
+      ownedTimers: number;
+      iframeCount: number;
+      domNodes: number;
+      live: {
+        presentationActive: boolean;
+        frames: number;
+      };
+      control: {
+        topicSubscriptions: number;
+        pushSubscriptions: number;
+        pending: number;
+      };
     };
   }).__tiktools_frontend_diagnostics__());
   await expect.poll(async () => (await read()).control.pending).toBe(0);

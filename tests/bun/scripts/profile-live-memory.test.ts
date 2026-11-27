@@ -1,4 +1,5 @@
-/** Profiler parsing and missing-process regressions; no running host required. */
+/** Profiler parsing and missing-process regressions;
+ * no running host required. */
 import { describe, expect, test } from 'bun:test';
 import {
   cpuTicks,
@@ -65,7 +66,11 @@ describe('profile-live-memory', () => {
   });
 
   test('linux traversal deduplicates shared children', () => {
-    const samples = { 1: { rss: 10, name: 'host', children: [2, 3] }, 2: { rss: 20, name: 'webkit', children: [3] }, 3: { rss: 30, name: 'plugin', children: [] as number[] } };
+    const samples = {
+      1: { rss: 10, name: 'host', children: [2, 3] },
+      2: { rss: 20, name: 'webkit', children: [3] },
+      3: { rss: 30, name: 'plugin', children: [] as number[] },
+    };
     const sample = (pid: number) => samples[pid as keyof typeof samples] ?? null;
     expect(descendants(1, sample, () => true)).toEqual([10, 30, 20, 0, false]);
   });

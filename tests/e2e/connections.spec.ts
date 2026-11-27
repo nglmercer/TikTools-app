@@ -144,7 +144,9 @@ test('automatic REPO setup chooses a profile and distinguishes API availability 
     { id: '1122334455667788', label: 'Mod profile: Stream' },
   ] };
   state.pluginSetupEndpoints = { [PLUGIN_ID.repoGame]: 'http://127.0.0.1:18053' };
-  state.pluginSetupHealth = { [PLUGIN_ID.repoGame]: { ok: false, reachable: true, gameplayReady: false, latencyMs: 1, error: HOST_MESSAGES.apiReachableGameplayUnavailable } };
+  state.pluginSetupHealth = {
+    [PLUGIN_ID.repoGame]: { ok: false, reachable: true, gameplayReady: false, latencyMs: 1, error: HOST_MESSAGES.apiReachableGameplayUnavailable },
+  };
   const capture = await installFakeHost(page, state);
   await page.goto('/');
   await waitForFrontend(page);
@@ -154,7 +156,10 @@ test('automatic REPO setup chooses a profile and distinguishes API availability 
   await expect(page.getByText('Steam — Local installation')).toBeVisible();
   await expect(page.getByText('Mod profile: Stream')).toBeVisible();
   await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveCount(0);
-  await page.locator('.credentials__candidate-list li').filter({ hasText: 'Mod profile: Stream' }).getByRole('button', { name: t('plugins.connection.useConfiguration') }).click();
+  await page.locator('.credentials__candidate-list li')
+    .filter({ hasText: 'Mod profile: Stream' })
+    .getByRole('button', { name: t('plugins.connection.useConfiguration') })
+    .click();
   await expect(page.getByText(t('plugins.messages.tokenImported'))).toBeVisible();
   await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveClass(/credentials__details--ok/);
   await expect(page.getByText(t('connections.servers.apiNotReady'), { exact: true }).first()).toBeVisible();

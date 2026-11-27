@@ -18,7 +18,10 @@ export const selector = {
   showcaseLayer: '.showcase',
 } as const;
 
-/** Selectors of the retired landing chrome; the landing must never render them again. */
+/**
+ * Selectors of the retired landing chrome;
+ * the landing must never render them again.
+ */
 export const retiredLandingSelectors = [
   '.product-stage__heading', '.product-stage__tabs', '.product-stage__flow', '.product-stage__bar > a', '.product-stage .demo-frame__bar',
 ] as const;

@@ -1,4 +1,23 @@
-import { describe, flushPromises, expect, it, vi, nextTick, t, plugin, mountPage, buttonByText, buttonByLabel, tabNames, openTab, selectPlugin, openItemMenu, detailsTitle, menuItems, menuItem } from '../../../../../../src/web/pages/plugins/ui/plugins-page-fixture.ts';
+import {
+  describe,
+  flushPromises,
+  expect,
+  it,
+  vi,
+  nextTick,
+  t,
+  plugin,
+  mountPage,
+  buttonByText,
+  buttonByLabel,
+  tabNames,
+  openTab,
+  selectPlugin,
+  openItemMenu,
+  detailsTitle,
+  menuItems,
+  menuItem,
+} from '../../../../../../src/web/pages/plugins/ui/plugins-page-fixture.ts';
 import { EVENT_KIND, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
 
 describe('PluginsPage list', () => {
@@ -81,7 +100,11 @@ describe('PluginsPage list', () => {
   });
 
   it('lists installed plugins with a switch and counters, and flags only the ones that cannot load', async () => {
-    const broken = plugin('hotkeys', { available: false, unavailableReason: 'No input access' }, { eventTypeIds: [EVENT_KIND.hotkeyPressed], actionTypeIds: [] });
+    const broken = plugin(
+      'hotkeys',
+      { available: false, unavailableReason: 'No input access' },
+      { eventTypeIds: [EVENT_KIND.hotkeyPressed], actionTypeIds: [] },
+    );
     const { wrapper, calls } = await mountPage([plugin('deck'), broken]);
     const rows = wrapper.findAll('.plugin-catalog__row');
     expect(rows).toHaveLength(2);
@@ -110,7 +133,18 @@ describe('PluginsPage list', () => {
   });
 
   it('lists the updates with the versions and updates one with its icon button', async () => {
-    const update = { id: 'deck', registry: 'official', current: '1.2.0', latest: '1.3.0', channel: 'stable', pinned: false, permissionDiff: {}, autoApplicable: false, currentStatus: 'approved', latestStatus: 'approved' };
+    const update = {
+      id: 'deck',
+      registry: 'official',
+      current: '1.2.0',
+      latest: '1.3.0',
+      channel: 'stable',
+      pinned: false,
+      permissionDiff: {},
+      autoApplicable: false,
+      currentStatus: 'approved',
+      latestStatus: 'approved',
+    };
     const { wrapper, calls } = await mountPage(undefined, undefined, undefined, [], [update]);
     expect(tabNames(wrapper)).toContain('Updates 1');
     await openTab(wrapper, t('plugins.catalog.updates'));
@@ -149,7 +183,12 @@ describe('PluginsPage list', () => {
     const builtin = plugin('core', {}, { source: 'builtin' });
     const { wrapper } = await mountPage([server, builtin]);
     await selectPlugin(wrapper, 'SRV');
-    expect(tabNames(wrapper)).toEqual([t('plugins.details.tabs.general'), t('plugins.details.tabs.settings'), t('plugins.details.tabs.connection'), t('plugins.details.tabs.versions')]);
+    expect(tabNames(wrapper)).toEqual([
+      t('plugins.details.tabs.general'),
+      t('plugins.details.tabs.settings'),
+      t('plugins.details.tabs.connection'),
+      t('plugins.details.tabs.versions'),
+    ]);
     expect(wrapper.findAll('[role="tab"] svg')).toHaveLength(4);
     await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === t('plugins.details.tabs.connection'))!.trigger('click');
     // The same editor the Connections page uses, with its own status and test button.
@@ -185,7 +224,9 @@ describe('PluginsPage list', () => {
     await buttonByLabel(wrapper, t('plugins.details.uninstall')).trigger('click');
     await nextTick();
     expect(document.body.textContent).toContain('2 actions use it and will stop working.');
-    const confirm = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === t('plugins.details.uninstallConfirm'))!;
+    const confirm = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => button.textContent?.trim() === t('plugins.details.uninstallConfirm'),
+    )!;
     confirm.click();
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.uninstall')?.params).toEqual({ pluginId: 'deck', purgeData: false });
@@ -195,7 +236,13 @@ describe('PluginsPage list', () => {
     const { wrapper, calls } = await mountPage();
     await openItemMenu(wrapper, 'DECK');
     expect(menuItems().map((item) => item.textContent?.trim())).toEqual([
-      t('plugins.menu.open'), t('plugins.details.enabled'), t('plugins.details.tabs.settings'), t('plugins.details.tabs.connection'), t('plugins.details.tabs.versions'), t('plugins.settings.test'), t('plugins.details.uninstall'),
+      t('plugins.menu.open'),
+      t('plugins.details.enabled'),
+      t('plugins.details.tabs.settings'),
+      t('plugins.details.tabs.connection'),
+      t('plugins.details.tabs.versions'),
+      t('plugins.settings.test'),
+      t('plugins.details.uninstall'),
     ]);
     menuItem(t('plugins.details.enabled')).click();
     await flushPromises();
@@ -206,7 +253,9 @@ describe('PluginsPage list', () => {
     await flushPromises();
     expect(detailsTitle(wrapper)).toBe('DECK');
     expect(document.body.textContent).toContain('2 actions use it and will stop working.');
-    Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === t('plugins.details.uninstallConfirm'))!.click();
+    Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => button.textContent?.trim() === t('plugins.details.uninstallConfirm'),
+    )!.click();
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.uninstall')?.params).toEqual({ pluginId: 'deck', purgeData: false });
   });

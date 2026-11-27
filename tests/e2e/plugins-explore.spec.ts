@@ -8,8 +8,8 @@ import { ROUTE, RPC } from '../shared/index.ts';
 import { SEL } from './support/selectors.ts';
 
 /**
- * Plugins, Explore lists the Cloud catalog when the host announces `catalog.items`; the rule templates
- * dialog holds the Cloud library as a tab, and an old `?view=cloud` link opens it there.
+ * Plugins, Explore lists the Cloud catalog when the host announces `catalog.items`;
+ * the rule templates dialog holds the Cloud library as a tab, and an old `?view=cloud` link opens it there.
  */
 
 const sha = 'a'.repeat(64);
@@ -25,8 +25,22 @@ function catalogState() {
   const state = emptyState();
   state.announcedMethods = [RPC.catalogItems, RPC.catalogMine, 'catalog.item', 'cloudLibrary.list'];
   state.catalog = {
-    items: [wire('plugin', 'tiktools.tts', 'Voice reader'), wire('template', 'tpl-gift', t('automations.builtinTemplates.giftSoundTitle')), wire('profile', 'prof-1', 'Giftwall starter')],
-    library: [{ id: '00000000-0000-4000-8000-000000000001', kind: 'template', slug: 'gift', revision: '3', title: t('automations.builtinTemplates.giftSoundTitle'), sha256: sha, status: 'published' }],
+    items: [
+      wire('plugin', 'tiktools.tts', 'Voice reader'),
+      wire('template', 'tpl-gift', t('automations.builtinTemplates.giftSoundTitle')),
+      wire('profile', 'prof-1', 'Giftwall starter'),
+    ],
+    library: [
+      {
+        id: '00000000-0000-4000-8000-000000000001',
+        kind: 'template',
+        slug: 'gift',
+        revision: '3',
+        title: t('automations.builtinTemplates.giftSoundTitle'),
+        sha256: sha,
+        status: 'published',
+      },
+    ],
   };
   return state;
 }
@@ -54,7 +68,10 @@ test('Explore shows a neutral retry state when the Cloud is unreachable, and "no
   delete state.catalog!.error;
   state.catalog!.items = [];
   state.catalog!.dataState = 'noActiveGeneration';
-  await page.evaluate((next) => Object.assign((window as unknown as { __TIKTOOLS_E2E_STATE__: object }).__TIKTOOLS_E2E_STATE__, { catalog: next }), state.catalog);
+  await page.evaluate(
+    (next) => Object.assign((window as unknown as { __TIKTOOLS_E2E_STATE__: object }).__TIKTOOLS_E2E_STATE__, { catalog: next }),
+    state.catalog,
+  );
   await page.getByRole('button', { name: t('exploreCatalog.retry') }).click();
   await expect(page.getByText(t('exploreCatalog.nothingPublished'))).toBeVisible();
 });

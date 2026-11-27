@@ -1,4 +1,12 @@
-import { callbacks, createControl, createBackfillControl, expect, it, createLiveFeedState, type ControlClient } from '../../../../../../src/web/entities/live-event/model/testing/live-feed-fixture.ts';
+import {
+  callbacks,
+  createControl,
+  createBackfillControl,
+  expect,
+  it,
+  createLiveFeedState,
+  type ControlClient,
+} from '../../../../../../src/web/entities/live-event/model/testing/live-feed-fixture.ts';
 import { TOPIC } from '../../../../../shared/index.ts';
 
 it('hidden feed keeps accepting events and resumes without a marker when the journal is complete', async () => {
@@ -71,7 +79,17 @@ it('a failed native replay inserts no discontinuity marker', async () => {
 it('deduplicates type and identity only, keeping identical gifts without usable ids', () => {
   const harness = createControl();
   const live = createLiveFeedState(harness.control, callbacks('system'));
-  for (const [kind, msgId] of [['chat', '42'], ['gift', '42'], ['gift', '43'], ['gift', '0'], ['gift', '0'], ['gift', ''], ['gift', ''], ['gift', undefined], ['gift', undefined]]) {
+  for (const [kind, msgId] of [
+    ['chat', '42'],
+    ['gift', '42'],
+    ['gift', '43'],
+    ['gift', '0'],
+    ['gift', '0'],
+    ['gift', ''],
+    ['gift', ''],
+    ['gift', undefined],
+    ['gift', undefined],
+  ]) {
     harness.emit(TOPIC.liveUiEvent, { event: { kind, author: 'alice', text: 'same', msgId } } as never);
   }
   expect(live.events.value).toHaveLength(9);
@@ -160,7 +178,9 @@ it('keeps each streakable combo packet as its own gift row', () => {
 it('keeps gifts when a chat flood exceeds the visible buffer', () => {
   const harness = createControl();
   const live = createLiveFeedState(harness.control, callbacks('system'));
-  harness.emit(TOPIC.liveUiEvent, { event: { kind: 'gift', author: 'keeper', text: 'Rose', msgId: 'g1', giftDetails: { giftId: '7', name: 'Rose', count: 1, diamonds: 1 } } } as never);
+  harness.emit(TOPIC.liveUiEvent, {
+    event: { kind: 'gift', author: 'keeper', text: 'Rose', msgId: 'g1', giftDetails: { giftId: '7', name: 'Rose', count: 1, diamonds: 1 } },
+  } as never);
   for (let i = 0; i < 400; i += 1) {
     harness.emit(TOPIC.liveUiEvent, { event: { kind: 'chat', author: `chatter-${i}`, text: `message ${i}`, msgId: `c${i}` } } as never);
   }

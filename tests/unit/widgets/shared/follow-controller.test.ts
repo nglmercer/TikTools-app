@@ -8,7 +8,12 @@ import { createFakeClock } from '../../../../src/widgets/shared/test-clock.ts';
 import { makeTestFollowEnvelope, makeTestGiftEnvelope } from '../../../../src/widgets/shared/test-events.ts';
 import { TOPIC } from '../../../shared/index.ts';
 
-function setup(options: { visibleMs?: number; queueCapacity?: number } = {}) {
+function setup(
+  options: {
+    visibleMs?: number;
+    queueCapacity?: number
+  } = {},
+) {
   const fake = createFakeClock();
   const shown: FollowAlert[] = [];
   const hidden: string[] = [];

@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { createPagedList, type PagedReply } from '../../../../../src/web/shared/lib/paged-list.ts';
 
-interface Row { id: string; label?: string }
+interface Row {
+  id: string;
+  label?: string
+}
 const row = (id: string): Row => ({ id });
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((ok, no) => { resolve = ok; reject = no; });
+  const promise = new Promise<T>((ok, no) => {
+    resolve = ok;
+    reject = no;
+  });
   return { promise, resolve, reject };
 }
 
@@ -18,7 +24,13 @@ describe('paged list', () => {
       c1: { items: [row('b'), row('c')], nextCursor: null },
     };
     const seen: (string | null)[] = [];
-    const list = createPagedList<Row>({ key: (item) => item.id, fetch: async (after) => { seen.push(after); return pages[after ?? 'first']!; } });
+    const list = createPagedList<Row>({
+      key: (item) => item.id,
+      fetch: async (after) => {
+        seen.push(after);
+        return pages[after ?? 'first']!;
+      },
+    });
     await list.refresh();
     expect(list.items.value.map((item) => item.id)).toEqual(['a', 'b']);
     expect(list.hasMore.value).toBe(true);
@@ -64,7 +76,11 @@ describe('paged list', () => {
 
   it('keeps the failure and the rows already shown, and a reset makes pending replies stale', async () => {
     const late = deferred<PagedReply<Row>>();
-    const outcomes: Array<Promise<PagedReply<Row>>> = [Promise.resolve({ items: [row('a')], nextCursor: null }), Promise.reject(new Error('down')), late.promise];
+    const outcomes: Array<Promise<PagedReply<Row>>> = [
+      Promise.resolve({ items: [row('a')], nextCursor: null }),
+      Promise.reject(new Error('down')),
+      late.promise,
+    ];
     const list = createPagedList<Row>({ key: (item) => item.id, fetch: () => outcomes.shift()! });
     await list.refresh();
     await list.refresh();

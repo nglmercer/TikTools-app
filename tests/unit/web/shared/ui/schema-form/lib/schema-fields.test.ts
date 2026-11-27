@@ -13,7 +13,14 @@ import {
 
 const localize = (value: unknown) => (typeof value === 'string' ? value : '');
 
-function kindOf(schema: JsonObject, hint?: JsonObject, dynamic?: { value: string; label: string }[]) {
+function kindOf(
+  schema: JsonObject,
+  hint?: JsonObject,
+  dynamic?: {
+    value: string;
+    label: string
+  }[],
+) {
   return describeField('field', schema, hint, dynamic, localize).kind;
 }
 

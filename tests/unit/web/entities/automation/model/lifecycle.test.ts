@@ -12,15 +12,20 @@ function harness() {
   const stalled = new Promise<unknown>((resolve) => { finish = resolve; });
   const client: ControlClient = {
     attach() {}, detach() {},
-    call<T>(method: string) { calls.push(method); return stalled as Promise<T>; },
+    call<T>(method: string) {
+      calls.push(method);
+      return stalled as Promise<T>;
+    },
     onTopic<T>(topic: string, handler: (data: T) => void) {
       const list = topics.get(topic) ?? new Set<TopicHandler>();
-      topics.set(topic, list); list.add(handler as TopicHandler);
+      topics.set(topic, list);
+      list.add(handler as TopicHandler);
       return () => { list.delete(handler as TopicHandler); };
     },
     onPush(type, handler) {
       const list = pushes.get(type) ?? new Set<PushHandler>();
-      pushes.set(type, list); list.add(handler);
+      pushes.set(type, list);
+      list.add(handler);
       return () => { list.delete(handler); };
     },
     onTransportError: () => () => {}, onGap: () => () => {},
@@ -36,8 +41,10 @@ test('100 feature remounts return subscriptions to baseline and cancel debounced
     const plugins = usePlugins(state.client, { translate: (key) => key, refreshBehavior: async () => {}, reportError() {} });
     for (const handler of state.topics.get(TOPIC.workflowChanged) ?? []) handler({});
     for (const handler of state.topics.get('plugin.progress') ?? []) handler({ pluginId: 'p', state: 'ready', message: '' });
-    automation.dispose(); plugins.dispose();
-    automation.dispose(); plugins.dispose();
+    automation.dispose();
+    plugins.dispose();
+    automation.dispose();
+    plugins.dispose();
     expect(state.listeners()).toBe(0);
   }
   await new Promise((resolve) => setTimeout(resolve, 250));

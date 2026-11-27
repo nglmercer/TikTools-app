@@ -44,7 +44,14 @@ function hostMessage(): (raw: string) => void {
   return receive!;
 }
 
-function respond(id: string, payload: { result?: unknown; error?: unknown; meta?: unknown }): void {
+function respond(
+  id: string,
+  payload: {
+    result?: unknown;
+    error?: unknown;
+    meta?: unknown;
+  },
+): void {
   hostMessage()(JSON.stringify({ type: MESSAGE_TYPE.rpcResponse, response: { id, ...payload } }));
 }
 
@@ -88,9 +95,18 @@ describe('createControlClient', () => {
       const ipc = installMockIpc();
       const control = createControlClient();
       control.attach();
-      const pending = callWithMeta(control, 'workflows.delete', { id: 'welcome' }, { meta: { commandId: 'delete-once', hostInstanceId: 'host-instance', expectedRevision: '3' } });
+      const pending = callWithMeta(
+        control,
+        'workflows.delete',
+        { id: 'welcome' },
+        { meta: { commandId: 'delete-once', hostInstanceId: 'host-instance', expectedRevision: '3' } },
+      );
       expect(JSON.parse(ipc.sent[0]!)).toMatchObject({ meta: { commandId: 'delete-once', hostInstanceId: 'host-instance', expectedRevision: '3' } });
-      const meta = { resourceVersions: [{ kind: 'workflow', id: 'welcome', scope: 'host', revision: '4' }], hostInstanceId: 'host-instance', command: { commandId: 'delete-once', state: 'succeeded', resource: { kind: 'workflow', id: 'welcome', scope: 'host' }, committedAt: 1794000000000 } };
+      const meta = {
+        resourceVersions: [{ kind: 'workflow', id: 'welcome', scope: 'host', revision: '4' }],
+        hostInstanceId: 'host-instance',
+        command: { commandId: 'delete-once', state: 'succeeded', resource: { kind: 'workflow', id: 'welcome', scope: 'host' }, committedAt: 1794000000000 },
+      };
       respond(sentId(), { result: { id: 'welcome', deleted: true }, meta });
       await expect(pending).resolves.toEqual({ result: { id: 'welcome', deleted: true }, meta });
       const expired = callWithMeta(control, RPC.systemInfo, { commandId: 'delete-once' });
@@ -142,12 +158,18 @@ describe('createControlClient', () => {
     });
 
     it('allows a bounded complete local library submission while other methods retain their ceiling', async () => {
-      const ipc = installMockIpc(); const control = createControlClient(); control.attach();
+      const ipc = installMockIpc();
+      const control = createControlClient();
+      control.attach();
       const pending = control.call(RPC.automationLibrarySubmit, { blob: 'x'.repeat(2 * 1024 * 1024) });
       expect(ipc.sent).toHaveLength(1);
-      respond(sentId(), { result: { accepted: true } }); await expect(pending).resolves.toEqual({ accepted: true });
-      await expect(control.call(RPC.automationLibrarySubmit, { blob: 'x'.repeat(8 * 1024 * 1024 + 64 * 1024) })).rejects.toMatchObject({ code: ERROR_CODE.tooLarge });
-      expect(ipc.sent).toHaveLength(1); control.detach();
+      respond(sentId(), { result: { accepted: true } });
+      await expect(pending).resolves.toEqual({ accepted: true });
+      await expect(control.call(RPC.automationLibrarySubmit, { blob: 'x'.repeat(8 * 1024 * 1024 + 64 * 1024) })).rejects.toMatchObject({
+        code: ERROR_CODE.tooLarge,
+      });
+      expect(ipc.sent).toHaveLength(1);
+      control.detach();
     });
 
     it('rejects the pending call when the host reports too_large with its id', async () => {
@@ -179,7 +201,9 @@ describe('createControlClient', () => {
         control.attach();
         const pending = control.call(RPC.cloudLoginComplete, {}, { timeoutMs: 50 });
         let settled = false;
-        void pending.then(() => { settled = true; });
+        void pending.then(() => {
+          settled = true;
+        });
         await vi.advanceTimersByTimeAsync(5);
         expect(settled).toBe(false);
         respond(sentId(), { result: { state: ACCOUNT_STATE.signedIn } });
@@ -342,7 +366,10 @@ describe('createControlClient', () => {
       const seen: unknown[] = [];
       control.onTopic(TOPIC.liveUiEvent, (data) => seen.push(data));
       const configuring = control.setPresentation?.(view);
-      const first = JSON.parse(ipc.sent.at(-1)!) as { id: string; params: { revision: number } };
+      const first = JSON.parse(ipc.sent.at(-1)!) as {
+        id: string;
+        params: { revision: number };
+      };
       respond(first.id, { result: { version: 1, revision: 1 } });
       await configuring;
       const hidden = control.setPresentation?.({ ...view, feed: false, points: false });
@@ -422,11 +449,22 @@ it('uses the browser transport without native globals and resynchronizes after r
   let reconnect: () => void = () => {};
   const sent: string[] = [];
   const detached = vi.fn();
-  const control = createControlClient({ transport: {
-    attach(onMessage, onDisconnect, onReconnect) { receive = onMessage; disconnect = onDisconnect; reconnect = onReconnect; },
-    send(raw) { sent.push(raw); }, detach: detached,
-  } });
-  const gap = vi.fn(); control.onGap(gap); control.attach();
+  const control = createControlClient({
+    transport: {
+      attach(onMessage, onDisconnect, onReconnect) {
+        receive = onMessage;
+        disconnect = onDisconnect;
+        reconnect = onReconnect;
+      },
+      send(raw) {
+        sent.push(raw);
+      },
+      detach: detached,
+    },
+  });
+  const gap = vi.fn();
+  control.onGap(gap);
+  control.attach();
   expect(control.setPresentation).toBeUndefined();
   const pending = control.call(RPC.systemInfo);
   const id = (JSON.parse(sent[0]!) as { id: string }).id;
@@ -434,8 +472,11 @@ it('uses the browser transport without native globals and resynchronizes after r
   await expect(pending).resolves.toEqual({ platform: 'AndroidTermux' });
   const mutation = control.call(RPC.globalsSet, { key: 'test', value: 'value' });
   const rejection = expect(mutation).rejects.toMatchObject({ code: 'transport' });
-  disconnect('connection lost'); await rejection;
-  reconnect(); expect(gap).toHaveBeenCalledWith(0);
+  disconnect('connection lost');
+  await rejection;
+  reconnect();
+  expect(gap).toHaveBeenCalledWith(0);
   expect(sent).toHaveLength(2);
-  control.detach(); expect(detached).toHaveBeenCalledOnce();
+  control.detach();
+  expect(detached).toHaveBeenCalledOnce();
 });

@@ -4,7 +4,12 @@ import { LikesController, type LikeBoardEntry } from '../../../../src/widgets/sh
 import { makeTestFollowEnvelope, makeTestLikeEvent, toLiveEnvelope } from '../../../../src/widgets/shared/test-events.ts';
 import type { DomainEventEnvelope } from '../../../../src/widgets/shared/event-types.ts';
 
-function setup(options: { maxEntries?: number; trackedCapacity?: number } = {}) {
+function setup(
+  options: {
+    maxEntries?: number;
+    trackedCapacity?: number;
+  } = {},
+) {
   const boards: LikeBoardEntry[][] = [];
   const controller = new LikesController({ onBoard: (entries) => void boards.push(entries) }, options);
   return { boards, controller };

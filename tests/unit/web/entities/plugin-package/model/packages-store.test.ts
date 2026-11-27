@@ -8,7 +8,10 @@ import { usePackagesStore } from '../../../../../../src/web/entities/plugin-pack
 import { PLUGIN_ID, RPC } from '../../../../../shared/index.ts';
 
 function harness(handler: (method: string, params: RpcParams | undefined) => unknown) {
-  const calls: { method: string; params: RpcParams | undefined }[] = [];
+  const calls: {
+    method: string;
+    params: RpcParams | undefined;
+  }[] = [];
   const topics = new Map<string, (data: unknown) => void>();
   const client: ControlClient = {
     attach: () => {},
@@ -143,7 +146,10 @@ describe('packages store', () => {
       if (method === RPC.pluginsUpdatesList) {
         lists += 1;
         if (lists === 1) return report(10, 'approved');
-        return new Promise((resolve) => { if (lists === 2) finishFirst = resolve; else finishSecond = resolve; });
+        return new Promise((resolve) => {
+          if (lists === 2) finishFirst = resolve;
+          else finishSecond = resolve;
+        });
       }
       return { receipts: [], jobs: [] };
     });

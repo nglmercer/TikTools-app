@@ -22,7 +22,10 @@ function harness(
   handler: (method: string, params: RpcParams | undefined) => unknown,
   reserve: () => unknown = () => ({ operationId: '0123456789abcdef0123456789abcdef' }),
 ) {
-  const calls: { method: string; params: RpcParams | undefined }[] = [];
+  const calls: {
+    method: string;
+    params: RpcParams | undefined
+  }[] = [];
   const client: ControlClient = {
     attach: () => {},
     detach: () => {},
@@ -226,7 +229,10 @@ describe('account store', () => {
     let requests = 0;
     const delayed = new Promise<AccountStatus>((resolve) => { release = resolve; });
     const { store } = harness((method) => {
-      if (method === RPC.cloudStatus) { requests += 1; return requests === 1 ? delayed : signedOut(); }
+      if (method === RPC.cloudStatus) {
+        requests += 1;
+        return requests === 1 ? delayed : signedOut();
+      }
       if (method === RPC.cloudLogout) return signedOut();
       throw new Error(`unexpected ${method}`);
     });

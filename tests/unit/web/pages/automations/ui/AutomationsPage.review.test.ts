@@ -1,7 +1,28 @@
-import { chatEvent, giftEvent, t, mountPage, buttonByText, goBack, documentButton, selectRow, it, expect, nextTick, ControlCallError, flushPromises, type LiveEvent, afterEach, beforeEach, resetResolutionPreference } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
+import {
+  chatEvent,
+  giftEvent,
+  t,
+  mountPage,
+  buttonByText,
+  goBack,
+  documentButton,
+  selectRow,
+  it,
+  expect,
+  nextTick,
+  ControlCallError,
+  flushPromises,
+  type LiveEvent,
+  afterEach,
+  beforeEach,
+  resetResolutionPreference,
+} from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
 import { ERROR_CODE, RPC } from '../../../../../shared/index.ts';
 
-beforeEach(() => { localStorage.clear(); resetResolutionPreference('manual'); });
+beforeEach(() => {
+  localStorage.clear();
+  resetResolutionPreference('manual');
+});
 afterEach(() => resetResolutionPreference('automatic'));
 
 // The review actions are icon buttons: they are found by their aria-label
@@ -17,26 +38,33 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     await wrapper.get('.event-editor input[type="text"]').setValue('My draft');
     snapshot.events[0] = { ...giftEvent, name: 'Edited on host', enabled: false };
     versions.set('event:e1', '2');
-    await automation.refresh(); await flushPromises();
+    await automation.refresh();
+    await flushPromises();
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('My draft');
     expect(wrapper.text()).toContain('changed since you opened it');
-    await buttonByText(wrapper, t('automations.editor.save')).trigger('click'); await flushPromises();
+    await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
+    await flushPromises();
     expect(requests.find((call) => call.method === RPC.automationUpdate)?.meta).toEqual({ expectedRevision: '1' });
     expect(wrapper.text()).toContain('Your draft is retained');
     expect((buttonByText(wrapper, t('automations.editor.save')).element as HTMLButtonElement).disabled).toBe(true);
-    await buttonByText(wrapper, t('automations.conflict.compare')).trigger('click'); await flushPromises();
+    await buttonByText(wrapper, t('automations.conflict.compare')).trigger('click');
+    await flushPromises();
     expect(document.body.textContent).toContain(t('jsonView.hostChanges'));
     const chevrons = Array.from(document.querySelectorAll('.base-dialog .change-review__chevron')) as HTMLElement[];
     expect(chevrons).toHaveLength(2);
-    chevrons[1]!.click(); await flushPromises();
+    chevrons[1]!.click();
+    await flushPromises();
     expect(document.body.textContent).toContain('Edited on host');
-    chevrons[0]!.click(); await flushPromises();
+    chevrons[0]!.click();
+    await flushPromises();
     expect(document.body.textContent).toContain('My draft');
     const writes = calls.filter((call) => call.method === RPC.automationUpdate).length;
-    documentIconButton(t('automations.conflict.useBase')).click(); await flushPromises();
+    documentIconButton(t('automations.conflict.useBase')).click();
+    await flushPromises();
     expect(calls.filter((call) => call.method === RPC.automationUpdate)).toHaveLength(writes);
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('My draft');
-    await buttonByText(wrapper, t('automations.editor.save')).trigger('click'); await flushPromises();
+    await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
+    await flushPromises();
     expect(requests.filter((call) => call.method === RPC.automationUpdate).at(-1)?.meta).toEqual({ expectedRevision: '2' });
     expect(versions.get('event:e1')).toBe('3');
     expect(wrapper.text()).not.toContain(t('automations.editor.unsaved'));
@@ -45,11 +73,14 @@ it('pins the base across background refreshes, preserves a conflicting draft and
   it('does not reset even an untouched opening base when the host changes it', async () => {
     const { wrapper, snapshot, versions, automation, requests } = await mountPage();
     await selectRow(wrapper, 'Big gifts');
-    snapshot.events[0] = { ...giftEvent, name: 'New host name' }; versions.set('event:e1', '2');
-    await automation.refresh(); await flushPromises();
+    snapshot.events[0] = { ...giftEvent, name: 'New host name' };
+    versions.set('event:e1', '2');
+    await automation.refresh();
+    await flushPromises();
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Big gifts');
     await wrapper.get('.event-editor input[type="text"]').setValue('Edited from old base');
-    await buttonByText(wrapper, t('automations.editor.save')).trigger('click'); await flushPromises();
+    await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
+    await flushPromises();
     expect(requests.find((r) => r.method === RPC.automationUpdate)?.meta?.expectedRevision).toBe('1');
   });
 
@@ -57,16 +88,22 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     const { wrapper, snapshot, versions, automation, calls, requests } = await mountPage();
     await selectRow(wrapper, 'Big gifts');
     await wrapper.get('.event-editor input[type="text"]').setValue('Keep this text');
-    snapshot.events.splice(0, 1); versions.set('event:e1', '2');
-    await automation.refresh(); await flushPromises();
+    snapshot.events.splice(0, 1);
+    versions.set('event:e1', '2');
+    await automation.refresh();
+    await flushPromises();
     expect(wrapper.find('.event-editor').exists()).toBe(true);
-    await buttonByText(wrapper, t('automations.editor.save')).trigger('click'); await flushPromises();
+    await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
+    await flushPromises();
     expect(calls.some((r) => r.method === RPC.automationCreate)).toBe(false);
-    await buttonByText(wrapper, t('automations.conflict.compare')).trigger('click'); await flushPromises();
+    await buttonByText(wrapper, t('automations.conflict.compare')).trigger('click');
+    await flushPromises();
     expect(document.body.textContent).toContain('This ID is absent');
-    documentIconButton(t('automations.conflict.prepareRecreate')).click(); await flushPromises();
+    documentIconButton(t('automations.conflict.prepareRecreate')).click();
+    await flushPromises();
     expect(calls.some((r) => r.method === RPC.automationCreate)).toBe(false);
-    await buttonByText(wrapper, t('automations.editor.save')).trigger('click'); await flushPromises();
+    await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
+    await flushPromises();
     expect(requests.find((r) => r.method === RPC.automationCreate)?.meta?.expectedRevision).toBe('2');
     expect(snapshot.events.some((r) => r.id === 'e1' && r.name === 'Keep this text')).toBe(true);
   });
@@ -78,7 +115,8 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     });
     await selectRow(wrapper, 'Big gifts');
     await wrapper.get('.event-editor input[type="text"]').setValue('Unconfirmed draft');
-    await buttonByText(wrapper, t('automations.editor.save')).trigger('click'); await flushPromises();
+    await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
+    await flushPromises();
     expect(wrapper.text()).toContain('outcome is unconfirmed');
     expect(wrapper.text()).toContain(t('automations.editor.unsaved'));
     expect(calls.filter((r) => r.method === RPC.automationDefinitionSubmit && r.params?.operation === 'update')).toHaveLength(1);
@@ -101,7 +139,9 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     await wrapper.get('.event-editor input[type="text"]').setValue('Submitted text');
     await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
     await wrapper.get('.event-editor input[type="text"]').setValue('Newer text');
-    snapshot.events[0] = submitted; versions.set('event:e1', '2'); finish(submitted);
+    snapshot.events[0] = submitted;
+    versions.set('event:e1', '2');
+    finish(submitted);
     await flushPromises();
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Newer text');
     expect(wrapper.text()).toContain(t('automations.editor.unsaved'));
@@ -121,10 +161,15 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     await selectRow(wrapper, 'Big gifts');
     await wrapper.get('.event-editor input[type="text"]').setValue('Pending first edit');
     await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
-    await goBack(wrapper); documentButton(t('automations.editor.discardConfirm')).click(); await flushPromises();
+    await goBack(wrapper);
+    documentButton(t('automations.editor.discardConfirm')).click();
+    await flushPromises();
     await selectRow(wrapper, 'Chat hello');
     await wrapper.get('.event-editor input[type="text"]').setValue('Second draft');
-    snapshot.events[0] = submitted; versions.set('event:e1', '2'); finish(submitted); await flushPromises();
+    snapshot.events[0] = submitted;
+    versions.set('event:e1', '2');
+    finish(submitted);
+    await flushPromises();
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Second draft');
     expect(wrapper.text()).toContain(t('automations.editor.unsaved'));
   });
@@ -134,7 +179,10 @@ it('pins the base across background refreshes, preserves a conflicting draft and
       ? Promise.reject(new ControlCallError(ERROR_CODE.revisionConflict, 'Changed before delete')) : undefined);
     await selectRow(wrapper, 'Chat hello');
     await wrapper.get('.event-editor input[type="text"]').setValue('Keep after delete failed');
-    await buttonByText(wrapper, t('automations.editor.delete')).trigger('click'); await nextTick(); documentButton(t('automations.editor.deleteConfirm')).click(); await flushPromises();
+    await buttonByText(wrapper, t('automations.editor.delete')).trigger('click');
+    await nextTick();
+    documentButton(t('automations.editor.deleteConfirm')).click();
+    await flushPromises();
     expect(wrapper.find('.event-editor').exists()).toBe(true);
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Keep after delete failed');
     expect(wrapper.text()).toContain(ERROR_CODE.revisionConflict);
@@ -143,7 +191,9 @@ it('pins the base across background refreshes, preserves a conflicting draft and
   it('canceling enablement restores the committed checkbox without a write', async () => {
     const { wrapper, calls } = await mountPage();
     await wrapper.findAll('.automation-library tbody tr')[1]!.get('input[type="checkbox"]').setValue(false);
-    await nextTick(); documentButton(t('common.cancel')).click(); await flushPromises();
+    await nextTick();
+    documentButton(t('common.cancel')).click();
+    await flushPromises();
     expect((wrapper.findAll('.automation-library tbody tr')[1]!.get('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true);
     expect(calls.some((r) => r.method === RPC.automationDisable)).toBe(false);
   });
@@ -151,13 +201,17 @@ it('pins the base across background refreshes, preserves a conflicting draft and
   it('an enablement conflict requires a fresh read and another explicit confirmation', async () => {
     const { wrapper, snapshot, versions, requests } = await mountPage();
     await wrapper.findAll('.automation-library tbody tr')[1]!.get('input[type="checkbox"]').setValue(false);
-    snapshot.events[1] = { ...chatEvent, name: 'New name before confirmation' }; versions.set('event:e2', '2');
-    documentButton(t('automations.conflict.confirmToggle')).click(); await flushPromises();
+    snapshot.events[1] = { ...chatEvent, name: 'New name before confirmation' };
+    versions.set('event:e2', '2');
+    documentButton(t('automations.conflict.confirmToggle')).click();
+    await flushPromises();
     expect(requests.find((r) => r.method === RPC.automationDisable)?.meta?.expectedRevision).toBe('1');
     expect(document.body.textContent).toContain(ERROR_CODE.revisionConflict);
-    documentButton(t('automations.conflict.readCurrent')).click(); await flushPromises();
+    documentButton(t('automations.conflict.readCurrent')).click();
+    await flushPromises();
     expect(document.body.textContent).toContain('New name before confirmation');
     expect(requests.filter((r) => r.method === RPC.automationDisable)).toHaveLength(1);
-    documentButton(t('automations.conflict.confirmToggle')).click(); await flushPromises();
+    documentButton(t('automations.conflict.confirmToggle')).click();
+    await flushPromises();
     expect(requests.filter((r) => r.method === RPC.automationDisable).at(-1)?.meta?.expectedRevision).toBe('2');
   });

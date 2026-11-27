@@ -18,8 +18,17 @@ import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, RPC } from '../../../../../shared/
 
 function fakeControl(
   handler: (method: string, params: unknown) => Promise<unknown>,
-): { client: ControlClient; calls: Array<{ method: string; params: unknown }> } {
-  const calls: Array<{ method: string; params: unknown }> = [];
+): {
+  client: ControlClient;
+  calls: Array<{
+    method: string;
+    params: unknown;
+  }>;
+} {
+  const calls: Array<{
+    method: string;
+    params: unknown;
+  }> = [];
   const client: ControlClient = {
     attach: () => {},
     detach: () => {},
@@ -135,7 +144,10 @@ test('register stores the pack and marks it active', async () => {
   const { client } = fakeControl(async (method, params) => {
     if (method === RPC.appStateGet) return { state: store };
     if (method === RPC.appStateSet) {
-      const { key, value } = params as { key: string; value: string };
+      const { key, value } = params as {
+        key: string;
+        value: string;
+      };
       store[key] = value;
       return { ok: true };
     }
@@ -183,17 +195,28 @@ test('switch enables the target, disables everything else, prunes deleted rules'
     ]),
     [RPC.behaviorProfilesActive]: 'a',
   };
-  const toggled: Array<{ kind: string; id: string; enabled: boolean }> = [];
+  const toggled: Array<{
+    kind: string;
+    id: string;
+    enabled: boolean;
+  }> = [];
   const { client } = fakeControl(async (method, params) => {
     if (method === RPC.appStateGet) return { state: store };
     if (method === RPC.appStateSet) {
-      const { key, value } = params as { key: string; value: string };
+      const { key, value } = params as {
+        key: string;
+        value: string;
+      };
       store[key] = value;
       return { ok: true };
     }
     if (method === 'automation.set_enablement') {
       const { updates } = params as {
-        updates: Array<{ kind: string; id: string; enabled: boolean }>;
+        updates: Array<{
+          kind: string;
+          id: string;
+          enabled: boolean;
+        }>;
       };
       toggled.push(...updates);
       const missing = updates
@@ -253,7 +276,10 @@ test('switch aborts without moving the active marker on host errors', async () =
 });
 
 test('delete removes the pack and its rules, falling back to default', async () => {
-  const deleted: Array<{ method: string; id: string }> = [];
+  const deleted: Array<{
+    method: string;
+    id: string;
+  }> = [];
   const { client } = fakeControl(async (method, params) => {
     if (method === RPC.appStateGet) {
       return {
@@ -335,15 +361,41 @@ test('export mirrors the CLI profile shape and skips action-less events', () => 
   const exported = buildProfileDoc(
     { id: 'pack-a', name: 'A', description: '', eventIds: ['e1', 'e2'], actionIds: ['a1'] },
     [
-      { id: 'e1', name: 'First', enabled: true, trigger: EVENT_KIND.tiktokGift, filters: [], cooldownMs: 0, cooldownScope: 'global', runMode: 'all', actionIds: ['a1', 'stray'] },
-      { id: 'e2', name: 'Lonely', enabled: false, trigger: EVENT_KIND.tiktokChat, filters: [], cooldownMs: 0, cooldownScope: 'global', runMode: 'all', actionIds: [] },
+      {
+        id: 'e1',
+        name: 'First',
+        enabled: true,
+        trigger: EVENT_KIND.tiktokGift,
+        filters: [],
+        cooldownMs: 0,
+        cooldownScope: 'global',
+        runMode: 'all',
+        actionIds: ['a1', 'stray'],
+      },
+      {
+        id: 'e2',
+        name: 'Lonely',
+        enabled: false,
+        trigger: EVENT_KIND.tiktokChat,
+        filters: [],
+        cooldownMs: 0,
+        cooldownScope: 'global',
+        runMode: 'all',
+        actionIds: [],
+      },
     ],
     [{ id: 'a1', name: 'Act', typeId: ACTION_TYPE.coreLog, enabled: true, config: { message: 'hi' } }],
   );
   expect(exported.entries).toBe(1);
   expect(exported.skipped).toBe(1);
   expect(exported.doc['id']).toBe('pack-a');
-  const templates = exported.doc['templates'] as Array<{ template: { id: string; actions: unknown[] }; params: unknown }>;
+  const templates = exported.doc['templates'] as Array<{
+    template: {
+      id: string;
+      actions: unknown[];
+    };
+    params: unknown;
+  }>;
   expect(templates[0]?.template.id).toBe('export-e1');
   expect(templates[0]?.template.actions).toHaveLength(1);
   expect(templates[0]?.params).toEqual({});

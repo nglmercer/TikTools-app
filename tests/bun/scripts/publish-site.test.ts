@@ -54,7 +54,18 @@ describe('manifest ownership and artifact provenance', () => {
     expect(() => parseSiteManifest(artifact({ [path]: 'protected' }).manifestBytes, base)).toThrow('Protected');
   });
 
-  test.each(['../updates/stable.json', '/absolute', 'a//b', 'a\\b', '.git/config', 'a/../b', 'a:stream', 'name.', 'a/space ', 'a\0b'])('rejects unsafe path %s', (path) => {
+  test.each([
+    '../updates/stable.json',
+    '/absolute',
+    'a//b',
+    'a\\b',
+    '.git/config',
+    'a/../b',
+    'a:stream',
+    'name.',
+    'a/space ',
+    'a\0b',
+  ])('rejects unsafe path %s', (path) => {
     expect(() => parseSiteManifest(artifact({ [path]: 'unsafe' }).manifestBytes, base)).toThrow('Unsafe');
   });
 
@@ -69,13 +80,23 @@ describe('manifest ownership and artifact provenance', () => {
     const candidate = artifact({ 'index.html': 'valid' });
     await expect(planSiteUpdate(existing({}), { ...candidate, files: new Map([['index.html', bytes('tampered')]]) })).rejects.toThrow('hash mismatch');
     await expect(planSiteUpdate(existing({}), { ...candidate, files: new Map([...candidate.files, ['extra.html', bytes('x')]]) })).rejects.toThrow('unlisted');
-    await expect(planSiteUpdate(existing({}), { ...candidate, manifest: { ...candidate.manifest, sourceCommit: 'b'.repeat(40) } })).rejects.toThrow('source commit');
+    await expect(
+      planSiteUpdate(existing({}), { ...candidate, manifest: { ...candidate.manifest, sourceCommit: 'b'.repeat(40) } }),
+    ).rejects.toThrow('source commit');
   });
 
   test('removes only previously owned files and never reads protected/foreign bytes', async () => {
     const prior = artifact({ 'index.html': 'old', 'assets/stale.js': 'stale', 'en/index.html': 'same' });
     const current = existing({}, prior);
-    for (const path of ['updates/stable.json', 'updates/stable.json.sig', 'updates/beta.json', 'updates/beta.json.sig', 'CNAME', '.nojekyll', 'foreign/file.bin']) {
+    for (const path of [
+      'updates/stable.json',
+      'updates/stable.json.sig',
+      'updates/beta.json',
+      'updates/beta.json.sig',
+      'CNAME',
+      '.nojekyll',
+      'foreign/file.bin',
+    ]) {
       current.set(path, { mode: '100644', read: async () => { throw new Error('Foreign content must not be read or rewritten.'); } });
     }
     const plan = await planSiteUpdate(current, artifact({ 'index.html': 'new', 'en/index.html': 'same', 'demo/index.html': 'demo' }));
@@ -151,9 +172,15 @@ describe('CAS writer recovery', () => {
     const bases: string[] = [];
     const result = await reapplyWithCas({
       readCurrent: async () => head, revision: (state: string) => state,
-      prepare: async (state) => { bases.push(state); return { commit: `site-${state}`, value: state }; },
+      prepare: async (state) => {
+        bases.push(state);
+        return { commit: `site-${state}`, value: state };
+      },
       push: async (commit, expected) => {
-        if (expected === 'before') { head = 'new-feed'; throw new Error('non-fast-forward'); }
+        if (expected === 'before') {
+          head = 'new-feed';
+          throw new Error('non-fast-forward');
+        }
         head = commit;
       },
     });
@@ -166,8 +193,14 @@ describe('CAS writer recovery', () => {
     let head = 'before';
     let preparations = 0;
     const result = await reapplyWithCas({ readCurrent: async () => head, revision: (value: string) => value,
-      prepare: async () => { preparations += 1; return { commit: 'published', value: true }; },
-      push: async (commit) => { head = commit; throw new Error('response lost'); },
+      prepare: async () => {
+        preparations += 1;
+        return { commit: 'published', value: true };
+      },
+      push: async (commit) => {
+        head = commit;
+        throw new Error('response lost');
+      },
     });
     expect(result.commit).toBe('published');
     expect(preparations).toBe(1);
@@ -176,7 +209,10 @@ describe('CAS writer recovery', () => {
   test('does not retry authentication/network failures against an unchanged head', async () => {
     let preparations = 0;
     await expect(reapplyWithCas({ readCurrent: async () => 'same', revision: (value: string) => value,
-      prepare: async () => { preparations += 1; return { commit: 'site', value: true }; },
+      prepare: async () => {
+        preparations += 1;
+        return { commit: 'site', value: true };
+      },
       push: async () => { throw new Error('authentication rejected'); },
     })).rejects.toThrow('authentication rejected');
     expect(preparations).toBe(1);
@@ -186,7 +222,10 @@ describe('CAS writer recovery', () => {
     let head = 0;
     await expect(reapplyWithCas({ readCurrent: async () => String(head), revision: (value: string) => value,
       prepare: async () => ({ commit: 'site', value: true }),
-      push: async () => { head += 1; throw new Error('competing writer'); },
+      push: async () => {
+        head += 1;
+        throw new Error('competing writer');
+      },
     }, 3)).rejects.toThrow('all 3 publication attempts');
     expect(head).toBe(3);
   });
@@ -210,7 +249,8 @@ const protectedFiles = {
 async function seedRemote(directory: string) {
   const remote = join(directory, 'pages.git');
   const writer = join(directory, 'writer');
-  await mkdir(remote); await mkdir(writer);
+  await mkdir(remote);
+  await mkdir(writer);
   git(remote, 'init', '--bare', '--quiet');
   git(writer, 'init', '--quiet');
   git(writer, 'config', 'user.name', 'Isolated test');
@@ -253,7 +293,8 @@ describe('real Git publication against temporary local repositories', () => {
     expect(() => git(remote, 'show', 'gh-pages:assets/stale.js')).toThrow();
     for (const [path, value] of Object.entries(protectedFiles)) expect(git(remote, 'show', `gh-pages:${path}`)).toEqual(Buffer.from(value));
     const after = textGit(remote, 'ls-tree', '-r', 'gh-pages');
-    for (const line of before.split('\n').filter((entry) => /\t(?:updates\/|CNAME$|\.nojekyll$|foreign\/|foreign-link$)/.test(entry))) expect(after.split('\n')).toContain(line);
+    for (const line of before.split('\n').filter((entry) => /\t(?:updates\/|CNAME$|\.nojekyll$|foreign\/|foreign-link$)/.test(entry)))
+      expect(after.split('\n')).toContain(line);
   }));
 
   test('a live feed writer wins its race and the site is reapplied without feed rollback', async () => inTemporaryDirectory(async (directory) => {
@@ -319,7 +360,10 @@ describe('both checked writers against real local Git conflicts', () => {
     const candidate = artifact({ 'index.html': 'new concurrent site', 'demo/index.html': 'new demo' }, 'd'.repeat(40));
     let stages = 0;
     const result = await publishUpdateFeed({ remote, publish: true,
-      stage: async (current) => { stages += 1; return advanceBeta(current); },
+      stage: async (current) => {
+        stages += 1;
+        return advanceBeta(current);
+      },
       beforePush: async (_head, _commit, attempt) => {
         if (attempt === 1) await publishSite({ remote, publish: true, artifact: candidate });
       },

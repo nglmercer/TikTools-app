@@ -7,9 +7,15 @@ import { showcaseSteps } from '../../src/web/demo/showcase/script.ts';
 
 /** Whole recording test: the poll may take `timeout.showcaseRun`, the rest is setup. */
 const RECORDING_TEST_MS = 90_000;
-/** Reduced motion must not advance the showcase; wait this long, then check it has not moved. */
+/**
+ * Reduced motion must not advance the showcase;
+ * wait this long, then check it has not moved.
+ */
 const STILL_OBSERVATION_MS = 2_500;
-/** Speed-up for the tests that only need the tour to progress; recordings use real time. */
+/**
+ * Speed-up for the tests that only need the tour to progress;
+ * recordings use real time.
+ */
 const TEST_PACE = 4;
 
 // The default config reduces motion to speed the suite up; the tour only autoplays with motion.

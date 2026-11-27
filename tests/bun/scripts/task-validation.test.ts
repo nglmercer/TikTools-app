@@ -3,7 +3,10 @@ import { join } from 'node:path';
 
 const root = join(import.meta.dir, '..', '..', '..');
 
-function task(...args: string[]): { code: number; output: string } {
+function task(...args: string[]): {
+  code: number;
+  output: string
+} {
   const result = Bun.spawnSync({
     cmd: [process.execPath, 'scripts/task.ts', ...args],
     cwd: root,

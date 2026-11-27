@@ -8,7 +8,8 @@
  * blank production iframe was exactly this: 200 responses without
  * `Access-Control-Allow-Origin`, rejected as `Origin null`. These specs
  * pin the requirement from the browser side (assets must be CORS-readable
- * by the opaque-origin document); the Rust asset-server header tests pin
+ * by the opaque-origin document);
+ * the Rust asset-server header tests pin
  * the production server that meets it.
  */
 import { expect, test } from '@playwright/test';

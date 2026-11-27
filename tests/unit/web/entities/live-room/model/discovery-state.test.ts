@@ -8,9 +8,15 @@ import { RPC } from '../../../../../shared/index.ts';
 
 function stubControl(respond: (method: string, params?: RpcParams) => unknown): {
   control: ControlClient;
-  calls: Array<{ method: string; params?: RpcParams }>;
+  calls: Array<{
+    method: string;
+    params?: RpcParams;
+  }>;
 } {
-  const calls: Array<{ method: string; params?: RpcParams }> = [];
+  const calls: Array<{
+    method: string;
+    params?: RpcParams;
+  }> = [];
   const control: ControlClient = {
     attach: () => {},
     detach: () => {},

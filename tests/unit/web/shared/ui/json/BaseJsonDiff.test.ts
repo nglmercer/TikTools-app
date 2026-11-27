@@ -90,7 +90,9 @@ describe('BaseJsonDiff unified', () => {
 
 describe('BaseJsonDiff side by side', () => {
   it('pairs old and new lines in two columns with their own numbers and headings', () => {
-    const wrapper = mountWithPlugins(BaseJsonDiff, { props: { before, after, layout: 'side-by-side', beforeLabel: t('syncChanges.base'), afterLabel: t('syncChanges.cloud'), context: 10 } });
+    const wrapper = mountWithPlugins(BaseJsonDiff, {
+      props: { before, after, layout: 'side-by-side', beforeLabel: t('syncChanges.base'), afterLabel: t('syncChanges.cloud'), context: 10 },
+    });
     expect(wrapper.get('.base-json-diff__heads').text()).toBe('BaseCloud');
     const changed = wrapper.findAll('.base-json-diff__split').find((row) => row.text().includes('Old name'))!;
     const halves = changed.findAll('.base-json-diff__half');
@@ -132,7 +134,13 @@ describe('BaseJsonDiff side by side', () => {
   });
 
   it('renders a 5000-line diff without stalling', () => {
-    const make = (shift: number) => ({ items: Array.from({ length: 900 }, (_, index) => ({ id: index, name: `item ${index % 50 === 0 ? index + shift : index}`, on: true })) });
+    const make = (shift: number) => ({
+      items: Array.from({ length: 900 }, (_, index) => ({
+        id: index,
+        name: `item ${index % 50 === 0 ? index + shift : index}`,
+        on: true,
+      })),
+    });
     const started = performance.now();
     const wrapper = mountWithPlugins(BaseJsonDiff, { props: { before: make(0), after: make(1), layout: 'unified' } });
     expect(wrapper.findAll('.base-json-diff__line--added')).toHaveLength(18);

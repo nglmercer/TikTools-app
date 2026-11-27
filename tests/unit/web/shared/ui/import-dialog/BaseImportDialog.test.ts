@@ -159,7 +159,14 @@ describe('BaseImportDialog', () => {
         const open = ref(true);
         const tab = ref('manual');
         return () => h('div', [
-          h(BaseImportDialog, { open: open.value, 'onUpdate:open': (value: boolean) => { open.value = value; }, tab: tab.value, 'onUpdate:tab': (value: string) => { tab.value = value; }, title: 'T', tabs }),
+          h(BaseImportDialog, {
+            open: open.value,
+            'onUpdate:open': (value: boolean) => { open.value = value; },
+            tab: tab.value,
+            'onUpdate:tab': (value: string) => { tab.value = value; },
+            title: 'T',
+            tabs,
+          }),
           h('output', String(open.value)),
         ]);
       },
