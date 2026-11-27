@@ -24,13 +24,7 @@ pub struct OwnerApprovalIntent {
     pub host_instance_id: String,
     pub created_at: i64,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
-pub enum OwnerApprovalOutcome {
-    Succeeded,
-    Rejected,
-    ReviewedUnknown,
-}
+super::owner_outcome::journal_outcome!(OwnerApprovalOutcome);
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OwnerApprovalReceipt {

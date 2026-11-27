@@ -1,5 +1,5 @@
 //! Metadata-only native library intents. No source is retained or replayed.
-use super::owner_journal_values::{self, Resolution};
+use super::owner_journal_values;
 use super::owner_journal_values::{revision, text_columns_within};
 use super::{DatabaseError, DatabaseManager};
 use crate::{
@@ -362,12 +362,7 @@ impl DatabaseManager {
             },
             |outcome| receipt(&stored, outcome),
         )? {
-            let resolution = settled.resolution;
-            let outcome = match resolution {
-                Resolution::Succeeded => OwnerLibraryOutcome::Succeeded,
-                Resolution::Rejected => OwnerLibraryOutcome::Rejected,
-                Resolution::ReviewedUnknown => OwnerLibraryOutcome::ReviewedUnknown,
-            };
+            let outcome: OwnerLibraryOutcome = settled.resolution.outcome();
             complete(&tx, stored, outcome, settled.receipt, settled.error_code)?;
         }
         tx.commit()?;

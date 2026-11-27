@@ -1,6 +1,6 @@
 //! Bounded metadata-only native approval journal. Complete definitions remain
 //! solely in the business database; recovery never dispatches an operation.
-use super::owner_journal_values::{self, Resolution};
+use super::owner_journal_values;
 use super::owner_journal_values::{
     digest, id, revision, scope, text_columns_within, CONTROL_COMMAND_TEXT_LIMITS,
 };
@@ -494,12 +494,7 @@ impl DatabaseManager {
             },
             |outcome| receipt(&stored, outcome),
         )? {
-            let resolution = settled.resolution;
-            let outcome = match resolution {
-                Resolution::Succeeded => OwnerApprovalOutcome::Succeeded,
-                Resolution::Rejected => OwnerApprovalOutcome::Rejected,
-                Resolution::ReviewedUnknown => OwnerApprovalOutcome::ReviewedUnknown,
-            };
+            let outcome: OwnerApprovalOutcome = settled.resolution.outcome();
             complete(&tx, stored, outcome, settled.receipt, settled.error_code)?;
         }
         tx.commit()?;

@@ -1,5 +1,5 @@
 //! Metadata-only owner journal. Business results remain in the shared ledger.
-use super::owner_journal_values::{self, Resolution};
+use super::owner_journal_values;
 use super::owner_journal_values::{id, revision, scope};
 use super::{commands, DatabaseError, DatabaseManager};
 use crate::{
@@ -281,12 +281,7 @@ impl DatabaseManager {
                 Ok(primary.revision.clone())
             },
         )? {
-            let resolution = settled.resolution;
-            let outcome = match resolution {
-                Resolution::Succeeded => OwnerAdoptionOutcome::Succeeded,
-                Resolution::Rejected => OwnerAdoptionOutcome::Rejected,
-                Resolution::ReviewedUnknown => OwnerAdoptionOutcome::ReviewedUnknown,
-            };
+            let outcome: OwnerAdoptionOutcome = settled.resolution.outcome();
             complete(&tx, stored, outcome, settled.receipt, settled.error_code)?;
         }
         tx.commit()?;

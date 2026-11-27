@@ -92,6 +92,17 @@ pub(super) enum Resolution {
     ReviewedUnknown,
 }
 
+impl Resolution {
+    /// The journal-specific outcome that records this resolution.
+    pub(super) fn outcome<T: crate::control::owner_outcome::JournalOutcome>(self) -> T {
+        match self {
+            Resolution::Succeeded => T::SUCCEEDED,
+            Resolution::Rejected => T::REJECTED,
+            Resolution::ReviewedUnknown => T::REVIEWED_UNKNOWN,
+        }
+    }
+}
+
 /// What one `owner_*_resolve` knows about its pending entry.
 pub(super) struct PendingAsk<'a> {
     pub command_id: &'a str,

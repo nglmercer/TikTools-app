@@ -198,13 +198,7 @@ pub struct OwnerLibraryIntent {
     pub provenance: Option<OwnerLibraryCloudProvenance>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
-pub enum OwnerLibraryOutcome {
-    Succeeded,
-    Rejected,
-    ReviewedUnknown,
-}
+super::owner_outcome::journal_outcome!(OwnerLibraryOutcome);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

@@ -11,6 +11,7 @@ mod analytics;
 mod automation;
 pub(crate) mod automation_library_sync;
 mod owner_approval_review;
+pub(crate) mod owner_outcome;
 pub use owner_approval_review::{
     OwnerApprovalBlockReason, OwnerApprovalEligibility, OwnerApprovalReviewParams,
     OwnerApprovalReviewResult, OwnerApprovalStatus, OwnerApprovalStatusKind, OwnerApprovalSubject,

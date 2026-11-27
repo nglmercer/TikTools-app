@@ -1,6 +1,6 @@
 //! Native metadata-only definition intents. Recovery reads the immutable
 //! original business ledger and never dispatches a saved mutation again.
-use super::owner_journal_values::{self, Resolution};
+use super::owner_journal_values;
 use super::owner_journal_values::{
     digest, id, revision, scope, text_columns_within, CONTROL_COMMAND_TEXT_LIMITS,
 };
@@ -576,12 +576,7 @@ impl DatabaseManager {
             },
             |outcome| receipt(&stored, outcome),
         )? {
-            let resolution = settled.resolution;
-            let outcome = match resolution {
-                Resolution::Succeeded => OwnerDefinitionOutcome::Succeeded,
-                Resolution::Rejected => OwnerDefinitionOutcome::Rejected,
-                Resolution::ReviewedUnknown => OwnerDefinitionOutcome::ReviewedUnknown,
-            };
+            let outcome: OwnerDefinitionOutcome = settled.resolution.outcome();
             complete(&tx, stored, outcome, settled.receipt, settled.error_code)?;
         }
         tx.commit()?;
