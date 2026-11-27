@@ -472,6 +472,46 @@ async fn prepare_product_conflict(
     );
 }
 
+/// Holds the next export response: arms the gate, starts `operation` and returns
+/// once the server has the request, so the test can change state while it waits.
+/// Release it with `mock.held_export.release.notify_one()`.
+async fn hold_export<T: Send + 'static>(
+    mock: &MockSync,
+    operation: impl std::future::Future<Output = T> + Send + 'static,
+) -> tokio::task::JoinHandle<T> {
+    mock.held_export
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let running = tokio::spawn(operation);
+    tokio::time::timeout(Duration::from_secs(10), mock.held_export.started.notified())
+        .await
+        .unwrap();
+    running
+}
+
+/// Records two different plugin changes from two coordinators at the same
+/// instant, so the tests can observe which writes the protocol fence admits.
+fn record_concurrently(sync_a: SyncCoordinator, sync_b: SyncCoordinator) {
+    let barrier = Arc::new(std::sync::Barrier::new(3));
+    let left = {
+        let barrier = barrier.clone();
+        std::thread::spawn(move || {
+            barrier.wait();
+            sync_a.record_local_change("acme.first", "1.0.0", true)
+        })
+    };
+    let right = {
+        let barrier = barrier.clone();
+        std::thread::spawn(move || {
+            barrier.wait();
+            sync_b.record_local_change("acme.second", "2.0.0", false)
+        })
+    };
+    barrier.wait();
+    assert!(left.join().unwrap().unwrap());
+    assert!(right.join().unwrap().unwrap());
+}
+
 #[tokio::test]
 async fn product_conflict_review_is_read_only_and_rejects_source_aba() {
     let dir = TempDir::new("product-conflict-review");
@@ -543,17 +583,12 @@ async fn product_conflict_review_rejects_new_edit_during_cloud_read() {
         .legacy_snapshot(&mock.origin, "user-a")
         .unwrap()
         .unwrap();
-    mock.held_export
-        .armed
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    let running = {
+    let running = hold_export(&mock, {
         let sync = sync.clone();
         let mut outbox = outbox.clone();
-        tokio::spawn(async move { sync.review_product_conflict("acme.one", &mut outbox).await })
-    };
-    tokio::time::timeout(Duration::from_secs(10), mock.held_export.started.notified())
-        .await
-        .unwrap();
+        async move { sync.review_product_conflict("acme.one", &mut outbox).await }
+    })
+    .await;
     sync.with_v1_local_edit(|_| outbox.stage("acme.one", 2, false))
         .unwrap();
     mock.held_export.release.notify_one();
@@ -580,17 +615,12 @@ async fn product_conflict_review_discards_response_after_same_account_relogin() 
     login(&auth, "product-conflict-before").await;
     let mut outbox = ProductOutbox::default();
     prepare_product_conflict(&sync, &mock, &mut outbox).await;
-    mock.held_export
-        .armed
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    let running = {
+    let running = hold_export(&mock, {
         let sync = sync.clone();
         let mut outbox = outbox.clone();
-        tokio::spawn(async move { sync.review_product_conflict("acme.one", &mut outbox).await })
-    };
-    tokio::time::timeout(Duration::from_secs(10), mock.held_export.started.notified())
-        .await
-        .unwrap();
+        async move { sync.review_product_conflict("acme.one", &mut outbox).await }
+    })
+    .await;
     auth.logout().await.unwrap();
     login(&auth, "product-conflict-after").await;
     mock.held_export.release.notify_one();
@@ -609,17 +639,12 @@ async fn product_conflict_review_discards_response_after_opt_out_and_in() {
     login(&auth, "product-conflict-opt-out").await;
     let mut outbox = ProductOutbox::default();
     prepare_product_conflict(&sync, &mock, &mut outbox).await;
-    mock.held_export
-        .armed
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    let running = {
+    let running = hold_export(&mock, {
         let sync = sync.clone();
         let mut outbox = outbox.clone();
-        tokio::spawn(async move { sync.review_product_conflict("acme.one", &mut outbox).await })
-    };
-    tokio::time::timeout(Duration::from_secs(10), mock.held_export.started.notified())
-        .await
-        .unwrap();
+        async move { sync.review_product_conflict("acme.one", &mut outbox).await }
+    })
+    .await;
     sync.set_enabled(false).unwrap();
     sync.set_enabled(true).unwrap();
     mock.held_export.release.notify_one();
@@ -1359,17 +1384,12 @@ async fn product_keep_local_rejects_new_source_during_fresh_cloud_read() {
         .review_product_conflict("acme.one", &mut outbox)
         .await
         .unwrap();
-    mock.held_export
-        .armed
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    let running = {
+    let running = hold_export(&mock, {
         let sync = sync.clone();
         let mut outbox = outbox.clone();
-        tokio::spawn(async move { sync.keep_local_product_conflict(&review, &mut outbox).await })
-    };
-    tokio::time::timeout(Duration::from_secs(10), mock.held_export.started.notified())
-        .await
-        .unwrap();
+        async move { sync.keep_local_product_conflict(&review, &mut outbox).await }
+    })
+    .await;
     sync.with_v1_local_edit(|_| outbox.stage("acme.one", 2, false))
         .unwrap();
     mock.held_export.release.notify_one();
@@ -4435,16 +4455,11 @@ async fn uncertain_review_and_resolution_do_not_block_local_staging_during_cloud
     assert!(run.await.unwrap_err().is_cancelled());
     mock.held_write.release.notify_one();
 
-    mock.held_export
-        .armed
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    let pending_review = {
+    let pending_review = hold_export(&mock, {
         let sync = sync.clone();
-        tokio::spawn(async move { sync.review_uncertain_v1("acme.recovery").await })
-    };
-    tokio::time::timeout(Duration::from_secs(10), mock.held_export.started.notified())
-        .await
-        .unwrap();
+        async move { sync.review_uncertain_v1("acme.recovery").await }
+    })
+    .await;
     sync.record_local_change("acme.recovery", "2.0.0", true)
         .unwrap();
     mock.held_export.release.notify_one();
@@ -4514,16 +4529,11 @@ async fn uncertain_review_discards_cloud_response_after_logout() {
     run.abort();
     assert!(run.await.unwrap_err().is_cancelled());
     mock.held_write.release.notify_one();
-    mock.held_export
-        .armed
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    let pending_review = {
+    let pending_review = hold_export(&mock, {
         let sync = sync.clone();
-        tokio::spawn(async move { sync.review_uncertain_v1("acme.recovery").await })
-    };
-    tokio::time::timeout(Duration::from_secs(10), mock.held_export.started.notified())
-        .await
-        .unwrap();
+        async move { sync.review_uncertain_v1("acme.recovery").await }
+    })
+    .await;
     auth.logout().await.unwrap();
     mock.held_export.release.notify_one();
     assert!(matches!(
@@ -4714,24 +4724,7 @@ async fn simultaneous_first_stages_for_distinct_identities_preserve_both() {
     sync_a.set_enabled(true).unwrap();
     login(&auth_a, "simultaneous-a").await;
     login(&auth_b, "simultaneous-b").await;
-    let barrier = Arc::new(std::sync::Barrier::new(3));
-    let left = {
-        let barrier = barrier.clone();
-        std::thread::spawn(move || {
-            barrier.wait();
-            sync_a.record_local_change("acme.first", "1.0.0", true)
-        })
-    };
-    let right = {
-        let barrier = barrier.clone();
-        std::thread::spawn(move || {
-            barrier.wait();
-            sync_b.record_local_change("acme.second", "2.0.0", false)
-        })
-    };
-    barrier.wait();
-    assert!(left.join().unwrap().unwrap());
-    assert!(right.join().unwrap().unwrap());
+    record_concurrently(sync_a, sync_b);
     let fence = crate::ProtocolFence::open(&root).unwrap();
     let first = fence.legacy_snapshot(&a.origin, "user-a").unwrap().unwrap();
     let second = fence.legacy_snapshot(&b.origin, "user-b").unwrap().unwrap();
@@ -4802,24 +4795,7 @@ async fn simultaneous_stages_for_same_identity_preserve_both_edits() {
     let (auth, sync_a) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
     login(&auth, "simultaneous-same").await;
     let sync_b = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
-    let barrier = Arc::new(std::sync::Barrier::new(3));
-    let left = {
-        let barrier = barrier.clone();
-        std::thread::spawn(move || {
-            barrier.wait();
-            sync_a.record_local_change("acme.first", "1.0.0", true)
-        })
-    };
-    let right = {
-        let barrier = barrier.clone();
-        std::thread::spawn(move || {
-            barrier.wait();
-            sync_b.record_local_change("acme.second", "2.0.0", false)
-        })
-    };
-    barrier.wait();
-    assert!(left.join().unwrap().unwrap());
-    assert!(right.join().unwrap().unwrap());
+    record_concurrently(sync_a, sync_b);
     let state = crate::ProtocolFence::open(dir.join("a-sync"))
         .unwrap()
         .legacy_snapshot(&mock.origin, "user-a")
