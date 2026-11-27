@@ -11,6 +11,7 @@ import {
   remoteSelection,
   shortDigest,
 } from '../../../../../../src/web/entities/plugin-package/lib/package-format.ts';
+import { PLUGIN_ID } from '../../../../../shared/index.ts';
 
 function job(overrides: Partial<JobSnapshot>): JobSnapshot {
   return { id: 'j', kind: 'install', stage: 'download', status: 'running', createdAt: 0, updatedAt: 0, ...overrides };
@@ -34,9 +35,9 @@ describe('package formatting', () => {
   });
 
   it('round-trips remote selections', () => {
-    const key = remoteSelection('official', 'acme.tts');
-    expect(parseRemoteSelection(key)).toEqual({ registry: 'official', id: 'acme.tts' });
-    expect(parseRemoteSelection('acme.tts')).toBeNull();
+    const key = remoteSelection('official', PLUGIN_ID.acmeTts);
+    expect(parseRemoteSelection(key)).toEqual({ registry: 'official', id: PLUGIN_ID.acmeTts });
+    expect(parseRemoteSelection(PLUGIN_ID.acmeTts)).toBeNull();
     expect(parseRemoteSelection('registry:official/')).toBeNull();
     expect(parseRemoteSelection(null)).toBeNull();
   });
@@ -52,7 +53,7 @@ describe('install errors', () => {
   });
 
   it('extracts the fresh review from consent errors', () => {
-    const preview = { consentToken: 't', id: 'acme.tts', version: '1.1.0' };
+    const preview = { consentToken: 't', id: PLUGIN_ID.acmeTts, version: '1.1.0' };
     expect(reviewFromError({ code: 'consent-required', message: 'review', details: preview })).toEqual(preview);
     expect(reviewFromError({ code: 'busy', message: 'busy', details: preview })).toBeNull();
     expect(reviewFromError({ code: 'consent-required', message: 'review' })).toBeNull();

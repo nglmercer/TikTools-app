@@ -6,6 +6,7 @@ import { ControlCallError } from '@/shared/api/control-client.ts';
 import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import CloudPlanUsage from '../../../../../../src/web/features/cloud-account/ui/CloudPlanUsage.vue';
+import { RPC } from '../../../../../shared/index.ts';
 
 const t = (key: string): string => testMessage('en', key);
 
@@ -17,7 +18,7 @@ const freePlan: AccountPlan = {
 
 function mountWith(plan: () => unknown) {
   const { client, calls } = createFakeControlClient((method) => {
-    if (method === 'cloud.plan.get') return plan();
+    if (method === RPC.cloudPlanGet) return plan();
     throw new Error(`unexpected ${method}`);
   });
   const wrapper = mountWithPlugins(CloudPlanUsage, { global: { plugins: storePlugins(client) } });
@@ -28,7 +29,7 @@ describe('CloudPlanUsage', () => {
   it('lists four areas with one count, one bar and the space used each', async () => {
     const { wrapper, calls } = mountWith(() => freePlan);
     await flushPromises();
-    expect(calls.map((call) => call.method)).toContain('cloud.plan.get');
+    expect(calls.map((call) => call.method)).toContain(RPC.cloudPlanGet);
     expect(wrapper.findAll('.cloud-plan__label').map((node) => node.text())).toEqual([
       t('account.plan.workspace'),
       t('account.plan.assets'),

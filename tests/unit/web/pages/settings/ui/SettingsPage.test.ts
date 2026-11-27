@@ -8,12 +8,13 @@ import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testin
 import { activateLocale, i18n } from '@/shared/i18n/i18n.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import SettingsPage from '../../../../../../src/web/pages/settings/ui/SettingsPage.vue';
+import { RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
 
 /** Every Cloud feature the host can announce; none of them may surface inside Settings. */
-const announced = ['integrations.connections', 'bundles.packages.preflight', 'bundles.overlays.create', 'catalog.items'];
+const announced = [RPC.integrationsConnections, RPC.bundlesPackagesPreflight, 'bundles.overlays.create', RPC.catalogItems];
 
 async function mountPage(query = '', announce: string[] = []) {
   const router = createRouter({
@@ -22,7 +23,7 @@ async function mountPage(query = '', announce: string[] = []) {
   });
   await router.push(`/settings${query}`);
   const { client } = createFakeControlClient((method) => {
-    if (method === 'rpc.discover') return { methods: announce.map((name) => ({ name })) };
+    if (method === RPC.rpcDiscover) return { methods: announce.map((name) => ({ name })) };
     return { globals: { commandPort: '46665' } };
   });
   const stores = createStoreHarness(client);

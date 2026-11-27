@@ -18,12 +18,13 @@ import {
   triggerMessageKey,
   triggerOptions,
 } from '../../../../../../src/web/entities/automation/lib/automation-records.ts';
+import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
 
 const localize = (value: unknown) => (value as { default: string }).default;
 const text = (value: string) => ({ default: value, i18key: '' });
 
 const types = [
-  { id: 'core.log', title: text('Log'), source: { kind: 'builtin' } },
+  { id: ACTION_TYPE.coreLog, title: text('Log'), source: { kind: 'builtin' } },
   { id: 'deck.scene', title: text('Scene'), source: { kind: 'plugin', pluginId: 'deck' } },
   { id: 'tts.say', title: text('Say'), source: { kind: 'plugin', pluginId: 'tts' } },
 ] as unknown as ActionTypeDefinition[];
@@ -33,7 +34,7 @@ const plugins = [
   { installed: true, enabled: false, descriptor: { id: 'tts' } },
 ] as unknown as PluginStatus[];
 
-function action(id: string, name: string, enabled = true, typeId = 'core.log', config = {}): LiveAction {
+function action(id: string, name: string, enabled = true, typeId: string = ACTION_TYPE.coreLog, config = {}): LiveAction {
   return { schemaVersion: 2, id, name, enabled, typeId, config };
 }
 
@@ -53,18 +54,18 @@ describe('automation records', () => {
   });
 
   it('offers built-in types and those of enabled plugins', () => {
-    expect([...availableActionTypeIds(plugins, types)]).toEqual(['core.log', 'deck.scene']);
+    expect([...availableActionTypeIds(plugins, types)]).toEqual([ACTION_TYPE.coreLog, 'deck.scene']);
   });
 
   it('creates new records with defaults', () => {
     const created = createActionFromType(types[0]!, localize);
-    expect(created).toMatchObject({ schemaVersion: 2, name: 'Log', typeId: 'core.log', enabled: true });
+    expect(created).toMatchObject({ schemaVersion: 2, name: 'Log', typeId: ACTION_TYPE.coreLog, enabled: true });
     expect(created.id).toBeTruthy();
-    expect(createEvent('New event')).toMatchObject({ name: 'New event', enabled: false, trigger: 'tiktok.gift', actionIds: [] });
+    expect(createEvent('New event')).toMatchObject({ name: 'New event', enabled: false, trigger: EVENT_KIND.tiktokGift, actionIds: [] });
   });
 
   it('summarizes action configuration', () => {
-    expect(describeAction(action('a', 'x', true, 'core.fetch', { method: 'POST', url: 'https://hooks.example.com/a/b' }))).toBe(
+    expect(describeAction(action('a', 'x', true, ACTION_TYPE.coreFetch, { method: 'POST', url: 'https://hooks.example.com/a/b' }))).toBe(
       'POST hooks.example.com',
     );
     expect(describeAction(action('a', 'x', true, 'core.delay', { ms: 500 }))).toBe('500 ms');
@@ -81,19 +82,19 @@ describe('automation records', () => {
   });
 
   it('labels triggers from built-ins and plugin declarations', () => {
-    const declared = [{ type: 'hotkey.pressed', title: text('Hotkey'), source: { kind: 'plugin', pluginId: 'hotkeys' } }];
+    const declared = [{ type: EVENT_KIND.hotkeyPressed, title: text('Hotkey'), source: { kind: 'plugin', pluginId: 'hotkeys' } }];
     const builtin = (trigger: string) => `builtin:${trigger}`;
     expect(triggerMessageKey('tiktok.room_stats')).toBe('automations.triggers.tiktok-room_stats');
-    expect(triggerLabel('tiktok.gift', declared as never, builtin, localize)).toBe('builtin:tiktok.gift');
-    expect(triggerLabel('hotkey.pressed', declared as never, builtin, localize)).toBe('Hotkey');
+    expect(triggerLabel(EVENT_KIND.tiktokGift, declared as never, builtin, localize)).toBe('builtin:tiktok.gift');
+    expect(triggerLabel(EVENT_KIND.hotkeyPressed, declared as never, builtin, localize)).toBe('Hotkey');
     expect(triggerLabel('custom.thing', [], builtin, localize)).toBe('custom.thing');
-    expect(triggerOptions(declared as never, builtin, localize).at(-1)).toEqual({ value: 'hotkey.pressed', label: 'Hotkey', plugin: 'hotkeys' });
+    expect(triggerOptions(declared as never, builtin, localize).at(-1)).toEqual({ value: EVENT_KIND.hotkeyPressed, label: 'Hotkey', plugin: 'hotkeys' });
   });
 
   it('recognizes host-owned triggers only', () => {
-    expect(isBuiltinTrigger('tiktok.gift')).toBe(true);
+    expect(isBuiltinTrigger(EVENT_KIND.tiktokGift)).toBe(true);
     expect(isBuiltinTrigger('plugin.emit')).toBe(true);
-    expect(isBuiltinTrigger('hotkey.pressed')).toBe(false);
+    expect(isBuiltinTrigger(EVENT_KIND.hotkeyPressed)).toBe(false);
     expect(isBuiltinTrigger('')).toBe(false);
   });
 

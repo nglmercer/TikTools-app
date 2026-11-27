@@ -8,6 +8,7 @@ import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import ExploreList from '../../../../../../src/web/features/explore-catalog/ui/ExploreList.vue';
+import { PLUGIN_ID, RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -35,9 +36,9 @@ function deferred<T>() {
 
 type Handler = (method: string, params: Record<string, unknown>) => unknown;
 
-async function mountList(handler: Handler, installed: string[] = [], announce: string[] | null = ['catalog.items']) {
+async function mountList(handler: Handler, installed: string[] = [], announce: string[] | null = [RPC.catalogItems]) {
   const { client, calls } = createFakeControlClient((method, params) => {
-    if (method === 'rpc.discover') return { methods: (announce ?? []).map((name) => ({ name })) };
+    if (method === RPC.rpcDiscover) return { methods: (announce ?? []).map((name) => ({ name })) };
     return handler(method, (params ?? {}) as Record<string, unknown>);
   });
   const stores = createStoreHarness(client);
@@ -58,10 +59,10 @@ const rowTitles = (wrapper: Awaited<ReturnType<typeof mountList>>['wrapper']) =>
 describe('ExploreList', () => {
   it('renders plugins, templates and profiles as rows with their own action', async () => {
     const { wrapper, calls } = await mountList(() => ({
-      items: [wire('plugin', 'acme.tts', 'Acme TTS'), wire('template', 'tpl-1', t('overlays.kinds.gift.name')), wire('profile', 'prof-1', 'Starter pack')],
+      items: [wire('plugin', PLUGIN_ID.acmeTts, 'Acme TTS'), wire('template', 'tpl-1', t('overlays.kinds.gift.name')), wire('profile', 'prof-1', 'Starter pack')],
       nextCursor: null,
     }));
-    expect(calls.find((call) => call.method === 'catalog.items')?.params).toMatchObject({ limit: 25 });
+    expect(calls.find((call) => call.method === RPC.catalogItems)?.params).toMatchObject({ limit: 25 });
     expect(rowTitles(wrapper)).toEqual(['Acme TTS', t('overlays.kinds.gift.name'), 'Starter pack']);
     const [plugin, template, profile] = wrapper.findAll('.explore-list__row');
     expect(plugin!.get('[role="img"]').attributes('aria-label')).toBe('Plugin');
@@ -78,8 +79,8 @@ describe('ExploreList', () => {
 
   it('opens a plugin and tells whether it is installed; the install icon starts the signed package review', async () => {
     const { wrapper, calls } = await mountList(
-      (method) => (method === 'plugins.packages.inspect' ? { change: 'install', name: 'x' } : {
-        items: [wire('plugin', 'acme.tts', 'Acme TTS'), wire('plugin', 'acme.have', 'Acme Have')],
+      (method) => (method === RPC.pluginsPackagesInspect ? { change: 'install', name: 'x' } : {
+        items: [wire('plugin', PLUGIN_ID.acmeTts, 'Acme TTS'), wire('plugin', 'acme.have', 'Acme Have')],
         nextCursor: null,
       }),
       ['acme.have'],
@@ -89,10 +90,10 @@ describe('ExploreList', () => {
     expect(have!.find('[role="img"][aria-label="Installed"]').exists()).toBe(true);
     await fresh!.get('button.explore-list__open').trigger('click');
     await have!.get('button.explore-list__open').trigger('click');
-    expect(wrapper.emitted('openPlugin')).toEqual([['acme.tts', false], ['acme.have', true]]);
+    expect(wrapper.emitted('openPlugin')).toEqual([[PLUGIN_ID.acmeTts, false], ['acme.have', true]]);
     await fresh!.get('button[aria-label="Install Acme TTS"]').trigger('click');
     await flushPromises();
-    expect(calls.at(-1)).toEqual({ method: 'plugins.packages.inspect', params: { spec: { kind: 'registry', id: 'acme.tts' } } });
+    expect(calls.at(-1)).toEqual({ method: RPC.pluginsPackagesInspect, params: { spec: { kind: 'registry', id: PLUGIN_ID.acmeTts } } });
   });
 
   it('does not repeat plugins the page already lists itself', async () => {
@@ -128,7 +129,7 @@ describe('ExploreList', () => {
       let healthy = false;
       const { wrapper } = await mountList(() => {
         if (!healthy) throw new ControlCallError('unavailable', 'cloud down', { cloud: { code: 'offline' } });
-        return { items: [wire('plugin', 'acme.tts', 'Acme TTS')], nextCursor: null };
+        return { items: [wire('plugin', PLUGIN_ID.acmeTts, 'Acme TTS')], nextCursor: null };
       });
       expect(wrapper.text()).toContain(t('exploreCatalog.unavailable'));
       expect(wrapper.text()).toContain('The PC is offline');
@@ -194,7 +195,7 @@ describe('ExploreList', () => {
     await wrapper.get('button[aria-label="Load more"]').trigger('click');
     await flushPromises();
     expect(rowTitles(wrapper)).toEqual(['One', 'Two']);
-    expect(calls.filter((call) => call.method === 'catalog.items').at(-1)?.params).toMatchObject({ cursor: 'c1' });
+    expect(calls.filter((call) => call.method === RPC.catalogItems).at(-1)?.params).toMatchObject({ cursor: 'c1' });
     expect(wrapper.find('button[aria-label="Load more"]').exists()).toBe(false);
   });
 });

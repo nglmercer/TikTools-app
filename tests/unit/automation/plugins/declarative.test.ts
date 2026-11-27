@@ -22,13 +22,14 @@ import {
   toPluginPageDescriptor,
   isSecretField,
 } from '../../../../src/automation/plugins/declarative.ts';
+import { EVENT_KIND, PLUGIN_ID } from '../../../shared/index.ts';
 
 test('option source ids round-trip', () => {
-  expect(optionSourceId('sonicboom.server.speak', 'voice')).toBe(
+  expect(optionSourceId(PLUGIN_ID.sonicboomServerSpeak, 'voice')).toBe(
     'plugin-action-options:sonicboom.server.speak:voice',
   );
   expect(parseOptionSourceId('plugin-action-options:sonicboom.server.speak:voice')).toEqual({
-    actionType: 'sonicboom.server.speak',
+    actionType: PLUGIN_ID.sonicboomServerSpeak,
     field: 'voice',
   });
   expect(parseOptionSourceId('voices')).toBeUndefined();
@@ -83,12 +84,12 @@ test('secret detection reads schema and hints', () => {
 
 test('template and nav ids round-trip', () => {
   expect(splitTemplateId('sonicboom.server/chat-tts')).toEqual({
-    pluginId: 'sonicboom.server',
+    pluginId: PLUGIN_ID.sonicboomServer,
     templateId: 'chat-tts',
   });
   expect(splitTemplateId('chat-tts')).toBeUndefined();
-  expect(parsePluginNavId(pluginNavId('sonicboom.server', 'connection'))).toEqual({
-    pluginId: 'sonicboom.server',
+  expect(parsePluginNavId(pluginNavId(PLUGIN_ID.sonicboomServer, 'connection'))).toEqual({
+    pluginId: PLUGIN_ID.sonicboomServer,
     pageId: 'connection',
   });
   expect(parsePluginNavId('feed')).toBeUndefined();
@@ -97,16 +98,16 @@ test('template and nav ids round-trip', () => {
 test('page descriptors enforce the fixed widget set', () => {
   const valid = {
     id: 'connection',
-    pluginId: 'sonicboom.server',
+    pluginId: PLUGIN_ID.sonicboomServer,
     title: { default: 'Connection' },
     sections: [
       { kind: 'text', text: { default: 'Hello' } },
       { kind: 'form' },
       { kind: 'connection' },
       { kind: 'list', optionsFrom: 'plugin-action-options:a.b:c' },
-      { kind: 'tts', actionType: 'sonicboom.server.speak', voicesFrom: 'plugin-action-options:sonicboom.server.speak:voice' },
+      { kind: 'tts', actionType: PLUGIN_ID.sonicboomServerSpeak, voicesFrom: 'plugin-action-options:sonicboom.server.speak:voice' },
     ],
-    source: { kind: 'plugin', pluginId: 'sonicboom.server' },
+    source: { kind: 'plugin', pluginId: PLUGIN_ID.sonicboomServer },
   };
   expect(toPluginPageDescriptor(valid)?.sections).toHaveLength(5);
   for (const kind of ['html', 'script', 'component', 'iframe', 'webview']) {
@@ -132,7 +133,7 @@ test('page descriptors enforce the fixed widget set', () => {
 test('mergePluginUis drops invalid descriptors and dedupes by plugin', () => {
   const text = { default: 'Text to Speech', i18key: '' };
   const valid = {
-    pluginId: 'sonicboom.server',
+    pluginId: PLUGIN_ID.sonicboomServer,
     apiVersion: 1,
     mode: 'webview',
     entry: 'ui/dist/index.html',
@@ -141,21 +142,21 @@ test('mergePluginUis drops invalid descriptors and dedupes by plugin', () => {
   expect(mergePluginUis(undefined)).toEqual([]);
   const merged = mergePluginUis([valid, valid, { mode: 'nope' }, null]);
   expect(merged).toHaveLength(1);
-  expect(merged[0]?.pluginId).toBe('sonicboom.server');
+  expect(merged[0]?.pluginId).toBe(PLUGIN_ID.sonicboomServer);
 });
 
 test('typed ui-only pages join navigation without duplicating legacy entries', () => {
   const title = { default: 'Text to Speech', i18key: '' };
   const legacy: PluginPageDescriptor = {
     id: 'tts',
-    pluginId: 'sonicboom.server',
+    pluginId: PLUGIN_ID.sonicboomServer,
     title,
     icon: 'voice',
     sections: [{ kind: 'list', optionsFrom: 'plugin-action-options:a.b:c' }],
-    source: { kind: 'plugin', pluginId: 'sonicboom.server' },
+    source: { kind: 'plugin', pluginId: PLUGIN_ID.sonicboomServer },
   };
   const ui: PluginUiDescriptor = {
-    pluginId: 'sonicboom.server',
+    pluginId: PLUGIN_ID.sonicboomServer,
     apiVersion: 1,
     mode: 'declarative',
     pages: [
@@ -169,13 +170,13 @@ test('typed ui-only pages join navigation without duplicating legacy entries', (
   };
   const merged = mergePluginNavigationPages([legacy], [ui]);
   expect(merged.map((page) => page.id)).toEqual(['tts', 'main']);
-  expect(merged[0]).toMatchObject({ pluginId: 'sonicboom.server', connectionOnly: false });
-  expect(merged[1]).toMatchObject({ pluginId: 'sonicboom.server', connectionOnly: false });
+  expect(merged[0]).toMatchObject({ pluginId: PLUGIN_ID.sonicboomServer, connectionOnly: false });
+  expect(merged[1]).toMatchObject({ pluginId: PLUGIN_ID.sonicboomServer, connectionOnly: false });
 });
 
 test('typed ui connection-only pages stay out of the sidebar projection', () => {
   const ui: PluginUiDescriptor = {
-    pluginId: 'sonicboom.server',
+    pluginId: PLUGIN_ID.sonicboomServer,
     apiVersion: 1,
     mode: 'declarative',
     pages: [{
@@ -208,15 +209,15 @@ test('connection-only pages are owned by the Connections tab', () => {
 test('tts outputs source stays optional and never drops the panel', () => {
   const section = {
     kind: 'tts',
-    actionType: 'sonicboom.server.speak',
+    actionType: PLUGIN_ID.sonicboomServerSpeak,
     voicesFrom: 'plugin-action-options:sonicboom.server.speak:voice',
   };
   const page = (entry: JsonValue) => ({
     id: 'tts',
-    pluginId: 'sonicboom.server',
+    pluginId: PLUGIN_ID.sonicboomServer,
     title: { default: 'TTS' },
     sections: [entry],
-    source: { kind: 'plugin', pluginId: 'sonicboom.server' },
+    source: { kind: 'plugin', pluginId: PLUGIN_ID.sonicboomServer },
   });
   // Declared outputs enable the selector.
   expect(
@@ -239,7 +240,7 @@ test('autocomplete contributions keep their claims and gain a source', () => {
     id: 'textintel/stable-views',
     pluginId: 'textintel',
     prefixes: ['event.intel.comment.', '  event.intel.user.  '],
-    triggers: ['tiktok.chat'],
+    triggers: [EVENT_KIND.tiktokChat],
     source: { kind: 'plugin', pluginId: 'textintel' },
   });
   expect(parsed?.id).toBe('textintel/stable-views');

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ProcessorStatusEntry, ProcessorStatusMetrics } from '../../../../../../src/shared/messages.ts';
 import { sampleEventForType } from '../../../../../../src/automation/event-registry.ts';
 import { processorMetricRows, processorPreviewEvent, processorStatusTone } from '../../../../../../src/web/entities/processor/lib/processors.ts';
+import { EVENT_KIND } from '../../../../../shared/index.ts';
 
 const metrics: ProcessorStatusMetrics = {
   calls: 10,
@@ -53,9 +54,9 @@ describe('processor panel helpers', () => {
   });
 
   it('preview events follow the first subscription with a chat fallback', () => {
-    expect(processorPreviewEvent(entry(['tiktok.gift'])).type).toBe('tiktok.gift');
+    expect(processorPreviewEvent(entry([EVENT_KIND.tiktokGift])).type).toBe(EVENT_KIND.tiktokGift);
     const fallback = processorPreviewEvent(entry([]));
-    expect(fallback.type).toBe('tiktok.chat');
+    expect(fallback.type).toBe(EVENT_KIND.tiktokChat);
     expect(typeof fallback.data).toBe('object');
     // Unknown plugin event types degrade to a minimal envelope.
     const unknown = processorPreviewEvent(entry(['plugin.unknown']));
@@ -64,13 +65,13 @@ describe('processor panel helpers', () => {
   });
 
   it('preview events replay matching live data instead of the sample', () => {
-    const live = sampleEventForType('tiktok.gift');
+    const live = sampleEventForType(EVENT_KIND.tiktokGift);
     (live.data as Record<string, unknown>)['giftName'] = 'Galaxy';
-    const replay = processorPreviewEvent(entry(['tiktok.gift']), live);
+    const replay = processorPreviewEvent(entry([EVENT_KIND.tiktokGift]), live);
     expect((replay.data as Record<string, unknown>)['giftName']).toBe('Galaxy');
     // A mismatched live event degrades to the sample of the subscribed type.
-    const chat = sampleEventForType('tiktok.chat');
-    const fallback = processorPreviewEvent(entry(['tiktok.gift']), chat);
+    const chat = sampleEventForType(EVENT_KIND.tiktokChat);
+    const fallback = processorPreviewEvent(entry([EVENT_KIND.tiktokGift]), chat);
     expect((fallback.data as Record<string, unknown>)['giftName']).toBe('Rose');
   });
 });

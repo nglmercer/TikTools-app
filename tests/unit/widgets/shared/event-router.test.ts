@@ -10,6 +10,7 @@ import {
   makeTestShareEnvelope,
   makeTestSubscribeEnvelope,
 } from '../../../../src/widgets/shared/test-events.ts';
+import { EVENT_KIND, TOPIC } from '../../../shared/index.ts';
 
 describe('event router', () => {
   test('routes follow and gift envelopes to typed events', () => {
@@ -22,7 +23,7 @@ describe('event router', () => {
     const gift = routeLiveEvent(makeTestGiftEnvelope());
     expect(gift?.kind).toBe('gift');
     if (gift?.kind === 'gift') {
-      expect(gift.event.type).toBe('tiktok.gift');
+      expect(gift.event.type).toBe(EVENT_KIND.tiktokGift);
       expect(gift.event.data.streakable).toBe(false);
     }
   });
@@ -31,8 +32,8 @@ describe('event router', () => {
     const chat = routeLiveEvent(makeTestChatEnvelope({ comment: 'hello' }));
     expect(chat?.kind).toBe('chat');
     if (chat?.kind === 'chat') {
-      expect(chat.event.type).toBe('tiktok.chat');
-      if (chat.event.type === 'tiktok.chat') {
+      expect(chat.event.type).toBe(EVENT_KIND.tiktokChat);
+      if (chat.event.type === EVENT_KIND.tiktokChat) {
         expect(chat.event.data.comment).toBe('hello');
       }
     }
@@ -53,7 +54,7 @@ describe('event router', () => {
     const like = routeLiveEvent(makeTestLikeEnvelope({ count: 7 }));
     expect(like?.kind).toBe('like');
     if (like?.kind === 'like') {
-      expect(like.event.type).toBe('tiktok.like');
+      expect(like.event.type).toBe(EVENT_KIND.tiktokLike);
       expect(like.event.data.count).toBe(7);
     }
   });
@@ -65,8 +66,8 @@ describe('event router', () => {
 
   test('ignores gaps, unknown types, and malformed frames', () => {
     expect(routeLiveEvent(makeTestGapEnvelope())).toBeNull();
-    expect(routeLiveEvent({ topic: 'live.event', data: { eventType: 'tiktok.chat', event: null } })).toBeNull();
-    expect(routeLiveEvent({ topic: 'live.event', data: {} })).toBeNull();
+    expect(routeLiveEvent({ topic: TOPIC.liveEvent, data: { eventType: EVENT_KIND.tiktokChat, event: null } })).toBeNull();
+    expect(routeLiveEvent({ topic: TOPIC.liveEvent, data: {} })).toBeNull();
     expect(routeLiveEvent(null)).toBeNull();
     expect(routeLiveEvent({ type: 'pong' })).toBeNull();
   });

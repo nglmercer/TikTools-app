@@ -10,6 +10,7 @@ import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testin
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import type { ConnectionStatus, LiveChannel } from '@/types.ts';
 import ConnectionsPage from '../../../../../../src/web/pages/connections/ui/ConnectionsPage.vue';
+import { RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -25,10 +26,10 @@ const rooms: LiveChannel[] = [
 
 async function mountPage(status: ConnectionStatus = 'idle', announce: string[] = []) {
   const { client, calls } = createFakeControlClient((method) => {
-    if (method === 'rpc.discover') return { methods: announce.map((name) => ({ name })) };
-    if (method === 'integrations.connections') return { items: [] };
+    if (method === RPC.rpcDiscover) return { methods: announce.map((name) => ({ name })) };
+    if (method === RPC.integrationsConnections) return { items: [] };
     if (method === 'live.channels') return { rooms, fetchedAt: Date.now(), source: t('automations.runs.testBadge') };
-    if (method === 'live.connect' || method === 'live.pick') return { connected: true, uniqueId: 'luna', roomId: '1', connectionId: 'c', native: true };
+    if (method === RPC.liveConnect || method === 'live.pick') return { connected: true, uniqueId: 'luna', roomId: '1', connectionId: 'c', native: true };
     return {};
   });
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:any(.*)*', component: { render: () => null } }] });
@@ -56,7 +57,7 @@ describe('ConnectionsPage', () => {
     expect(connection.uniqueId).toBe('luna');
     await buttonByText(wrapper, t('connection.connect')).trigger('click');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'live.connect')?.params).toMatchObject({ uniqueId: 'luna' });
+    expect(calls.find((call) => call.method === RPC.liveConnect)?.params).toMatchObject({ uniqueId: 'luna' });
   });
 
   it('offers recent creators and a random room', async () => {
@@ -67,7 +68,7 @@ describe('ConnectionsPage', () => {
     expect(items.map((item) => item.textContent?.trim())).toEqual(['@luna', '@mango']);
     items[1]!.click();
     await flushPromises();
-    expect(calls.find((call) => call.method === 'live.connect')?.params).toMatchObject({ uniqueId: 'mango' });
+    expect(calls.find((call) => call.method === RPC.liveConnect)?.params).toMatchObject({ uniqueId: 'mango' });
     connection.status = 'idle';
     await nextTick();
     await wrapper.get('button[aria-label="Connect to a random LIVE"]').trigger('click');
@@ -117,7 +118,7 @@ describe('ConnectionsPage', () => {
     expect(rows[0]!.text()).toContain('1,520');
     await rows[1]!.get('button').trigger('click');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'live.connect')?.params).toMatchObject({ uniqueId: 'mango' });
+    expect(calls.find((call) => call.method === RPC.liveConnect)?.params).toMatchObject({ uniqueId: 'mango' });
   });
 
   it('points to plugins when no server connection exists', async () => {
@@ -131,7 +132,7 @@ describe('ConnectionsPage', () => {
     expect(wrapper.find('button[aria-label="Webhooks"]').exists()).toBe(false);
     expect(wrapper.find('.cloud-connections').exists()).toBe(false);
 
-    const announced = await mountPage('idle', ['integrations.connections']);
+    const announced = await mountPage('idle', [RPC.integrationsConnections]);
     const panels = announced.wrapper.findAll('.base-panel').length;
     await announced.wrapper.get('button[aria-label="Webhooks"]').trigger('click');
     await flushPromises();
@@ -140,7 +141,7 @@ describe('ConnectionsPage', () => {
     expect(servers.get('.base-panel__title').text()).toBe(t('connections.tabs.webhooks'));
     // The same panel switched area: no third panel was stacked.
     expect(announced.wrapper.findAll('.base-panel')).toHaveLength(panels);
-    expect(announced.calls.some((call) => call.method === 'integrations.connections')).toBe(true);
+    expect(announced.calls.some((call) => call.method === RPC.integrationsConnections)).toBe(true);
   });
 
   it('starts the monitor with the typed creator and follows the host when it stops', async () => {
@@ -151,7 +152,7 @@ describe('ConnectionsPage', () => {
     await buttonByText(wrapper, t('connection.connect')).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'live.monitor.start')?.params).toMatchObject({ uniqueId: 'mango' });
-    expect(calls.some((call) => call.method === 'live.connect')).toBe(false);
+    expect(calls.some((call) => call.method === RPC.liveConnect)).toBe(false);
     expect(monitorSwitch.element.checked).toBe(true);
 
     const status = (enabled: boolean): LiveMonitorStatus => ({

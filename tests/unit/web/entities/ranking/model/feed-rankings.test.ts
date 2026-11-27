@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ControlClient, GapHandler, TopicHandler } from '@/shared/api/control-client.ts';
 import type { RankingDefinition } from '../../../../../../src/web/entities/ranking/types.ts';
 import { createFeedRankings, feedRankingDefinition, FEED_RANKING_IDS } from '../../../../../../src/web/entities/ranking/model/feed-rankings.ts';
+import { EVENT_KIND, RPC } from '../../../../../shared/index.ts';
 
 export function rankingSnapshot(rankingId: string, creatorId: string, roomId: string, scores: number[], revision = 1) {
   return {
@@ -26,14 +27,14 @@ function fakeHost(options: { fail?: boolean } = {}) {
     call: async (method: string, params: Record<string, unknown> = {}) => {
       calls.push({ method, params });
       if (options.fail) throw new Error('rankings unavailable');
-      if (method === 'rankings.list') return { rankings: [...definitions.values()] };
-      if (method === 'rankings.create') { definitions.set(String(params['id']), params as unknown as RankingDefinition); return { ok: true }; }
+      if (method === RPC.rankingsList) return { rankings: [...definitions.values()] };
+      if (method === RPC.rankingsCreate) { definitions.set(String(params['id']), params as unknown as RankingDefinition); return { ok: true }; }
       if (method === 'rankings.update') {
         const definition = params['definition'] as RankingDefinition;
         definitions.set(definition.id, definition);
         return { ok: true };
       }
-      if (method === 'rankings.snapshot') {
+      if (method === RPC.rankingsSnapshot) {
         const definition = definitions.get(String(params['id']))!;
         return rankingSnapshot(definition.id, definition.creatorId, definition.roomId, scores[definition.id] ?? []);
       }
@@ -61,7 +62,7 @@ describe('feed rankings', () => {
 
     expect(host.definitions.get(FEED_RANKING_IDS.top)).toEqual(feedRankingDefinition('top', 'luna', 'room-1'));
     expect(host.definitions.get(FEED_RANKING_IDS.likes)?.sources).toEqual([
-      { source: 'tiktok.like', metric: 'like.count', weight: 1, enabled: true },
+      { source: EVENT_KIND.tiktokLike, metric: 'like.count', weight: 1, enabled: true },
     ]);
     expect(rankings.rankingsAvailable.value).toBe(true);
     expect(rankings.topRanking.value?.entries.map((entry) => entry.score)).toEqual([500, 20]);
@@ -87,7 +88,7 @@ describe('feed rankings', () => {
     host.calls.length = 0;
 
     await rankings.connect('luna', 'room-1');
-    expect(host.calls.map((call) => call.method)).toEqual(['rankings.list', 'rankings.snapshot', 'rankings.snapshot']);
+    expect(host.calls.map((call) => call.method)).toEqual([RPC.rankingsList, RPC.rankingsSnapshot, RPC.rankingsSnapshot]);
 
     host.calls.length = 0;
     await rankings.connect('luna', 'room-2');

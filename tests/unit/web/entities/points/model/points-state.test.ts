@@ -6,6 +6,7 @@ import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
 import type { ViewerRecord } from '../../../../../../src/shared/messages.ts';
 import { defaultPointsConfig } from '../../../../../../src/web/entities/points/model/default-config.ts';
 import { createPointsState } from '../../../../../../src/web/entities/points/model/points-state.ts';
+import { RPC, TOPIC } from '../../../../../shared/index.ts';
 
 function viewer(uniqueId: string, points: number): ViewerRecord {
   return {
@@ -36,7 +37,7 @@ function stubControl(board: ViewerRecord[]): ControlClient & {
     call: <T,>(method: string, _params?: RpcParams): Promise<T> => {
       void _params;
       calls.push(method);
-      if (method === 'points.leaderboard') return Promise.resolve({ viewers: board } as T);
+      if (method === RPC.pointsLeaderboard) return Promise.resolve({ viewers: board } as T);
       if (method === 'points.config.get') return Promise.resolve(defaultPointsConfig as T);
       return Promise.reject(new Error(`unstubbed ${method}`)) as Promise<T>;
     },
@@ -63,12 +64,12 @@ describe('createPointsState new viewers', () => {
     const points = createPointsState(control);
     expect(points.leaderboard.value).toHaveLength(0);
 
-    const handler = control.topics.get('points.changed');
+    const handler = control.topics.get(TOPIC.pointsChanged);
     expect(handler).toBeDefined();
     handler?.({ uniqueId: 'new-user', delta: 5, totalPoints: 5, level: 1 } as never);
     await flushPromises();
 
-    expect(control.calls).toContain('points.leaderboard');
+    expect(control.calls).toContain(RPC.pointsLeaderboard);
     expect(points.leaderboard.value.map((entry) => entry.uniqueId)).toContain('new-user');
   });
 
@@ -78,7 +79,7 @@ describe('createPointsState new viewers', () => {
     await points.refresh();
     const callsBefore = control.calls.length;
 
-    const handler = control.topics.get('points.changed');
+    const handler = control.topics.get(TOPIC.pointsChanged);
     handler?.({ uniqueId: 'alice', delta: 2, totalPoints: 12, level: 1 } as never);
     await new Promise((resolve) => setTimeout(resolve, 120));
 
@@ -89,7 +90,7 @@ describe('createPointsState new viewers', () => {
   it('a burst of unknown viewers triggers only one refresh', async () => {
     const control = stubControl([viewer('a', 1), viewer('b', 1)]);
     const points = createPointsState(control);
-    const handler = control.topics.get('points.changed');
+    const handler = control.topics.get(TOPIC.pointsChanged);
     expect(handler).toBeDefined();
 
     handler?.({ uniqueId: 'a', delta: 1, totalPoints: 1, level: 1 } as never);
@@ -97,7 +98,7 @@ describe('createPointsState new viewers', () => {
     handler?.({ uniqueId: 'c', delta: 1, totalPoints: 1, level: 1 } as never);
     await flushPromises();
 
-    expect(control.calls.filter((method) => method === 'points.leaderboard')).toHaveLength(1);
+    expect(control.calls.filter((method) => method === RPC.pointsLeaderboard)).toHaveLength(1);
     expect(points.leaderboard.value).toHaveLength(2);
   });
 });
@@ -107,7 +108,7 @@ it('10k absolute awards produce one board replacement', async () => {
   const points = createPointsState(control);
   await points.refresh();
   const before = points.leaderboard.value;
-  const handler = control.topics.get('points.changed');
+  const handler = control.topics.get(TOPIC.pointsChanged);
   for (let i = 0; i < 10_000; i += 1) {
     handler?.({ uniqueId: 'alice', delta: 1, totalPoints: i, level: 2 } as never);
   }
@@ -115,7 +116,7 @@ it('10k absolute awards produce one board replacement', async () => {
   await new Promise((resolve) => setTimeout(resolve, 120));
   expect(points.leaderboard.value).not.toBe(before);
   expect(points.leaderboard.value[0]?.points).toBe(9_999);
-  expect(control.calls.filter((method) => method === 'points.leaderboard')).toHaveLength(1);
+  expect(control.calls.filter((method) => method === RPC.pointsLeaderboard)).toHaveLength(1);
   points.dispose();
 });
 
@@ -124,7 +125,7 @@ it('dispose cancels pending award commits', async () => {
   const points = createPointsState(control);
   await points.refresh();
   const before = points.leaderboard.value;
-  control.topics.get('points.changed')?.({ uniqueId: 'alice', totalPoints: 12, level: 1 } as never);
+  control.topics.get(TOPIC.pointsChanged)?.({ uniqueId: 'alice', totalPoints: 12, level: 1 } as never);
   points.dispose();
   await new Promise((resolve) => setTimeout(resolve, 120));
   expect(points.leaderboard.value).toBe(before);
@@ -137,13 +138,13 @@ it('an in-flight snapshot preserves awards committed after the request began', a
   const originalCall = control.call;
   let resolveBoard!: (value: unknown) => void;
   control.call = <T,>(method: string, params?: RpcParams): Promise<T> => {
-    if (method === 'points.leaderboard') {
+    if (method === RPC.pointsLeaderboard) {
       return new Promise((resolve) => { resolveBoard = resolve as (value: unknown) => void; });
     }
     return originalCall<T>(method, params);
   };
   const refreshing = points.refresh();
-  control.topics.get('points.changed')?.({ uniqueId: 'alice', totalPoints: 25, level: 2 } as never);
+  control.topics.get(TOPIC.pointsChanged)?.({ uniqueId: 'alice', totalPoints: 25, level: 2 } as never);
   await new Promise((resolve) => setTimeout(resolve, 120));
   resolveBoard({ viewers: [viewer('alice', 10)] });
   await refreshing;
@@ -157,7 +158,7 @@ it('native board snapshots supersede slow board RPCs while config refresh still 
   let resolveBoard!: (value: unknown) => void;
   control.call = <T,>(method: string, params?: RpcParams): Promise<T> => {
     if (method === 'points.config.get') return Promise.resolve({ ...defaultPointsConfig, currencyName: t('feed.profile.stats.coins') } as T);
-    if (method === 'points.leaderboard') return new Promise((resolve) => { resolveBoard = resolve as (value: unknown) => void; });
+    if (method === RPC.pointsLeaderboard) return new Promise((resolve) => { resolveBoard = resolve as (value: unknown) => void; });
     return original<T>(method, params);
   };
   const points = createPointsState(control);
@@ -174,7 +175,7 @@ it('clears a previous failure once a refresh succeeds', async () => {
   const control = stubControl([viewer('alice', 10)]);
   const original = control.call;
   control.call = <T,>(method: string, params?: RpcParams): Promise<T> =>
-    method === 'points.leaderboard' ? Promise.reject(new Error('host down')) : original<T>(method, params);
+    method === RPC.pointsLeaderboard ? Promise.reject(new Error('host down')) : original<T>(method, params);
   const points = createPointsState(control);
   await points.refresh();
   expect(points.error.value).toBe('host down');

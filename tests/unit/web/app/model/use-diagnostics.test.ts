@@ -8,6 +8,7 @@ import { diagnosticLog } from '@/shared/diagnostics/log.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { useDiagnostics } from '../../../../../src/web/app/model/use-diagnostics.ts';
+import { ACCOUNT_STATE } from '../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 beforeEach(() => diagnosticLog.clear());
@@ -33,19 +34,19 @@ describe('useDiagnostics', () => {
   it('records the Cloud diagnostics as a structured entry in the log', async () => {
     const stores = await mountDiagnostics();
     const account = stores.use(() => useAccountStore());
-    account.status = { origin: 'http://127.0.0.1:3000', state: 'signed-in', accountId: 'acc-1', persistence: 'memory-only' } as never;
+    account.status = { origin: 'http://127.0.0.1:3000', state: ACCOUNT_STATE.signedIn, accountId: 'acc-1', persistence: ACCOUNT_STATE.memoryOnly } as never;
     await nextTick();
     const entry = diagnosticLog.entries.value.filter(item => item.code === 'account.status').at(-1);
     expect(entry).toBeTruthy();
     expect(entry!.level).toBe('info');
-    expect(entry!.fields.map(field => field.value)).toEqual(expect.arrayContaining(['signed-in', 'acc-1']));
+    expect(entry!.fields.map(field => field.value)).toEqual(expect.arrayContaining([ACCOUNT_STATE.signedIn, 'acc-1']));
     expect(entry!.details).toBe('');
   });
 
   it('drops the history of an account when another one signs in', async () => {
     const stores = await mountDiagnostics();
     const account = stores.use(() => useAccountStore());
-    const status = (accountId: string | null) => ({ origin: 'https://cloud.example', state: 'signed-in', accountId, persistence: 'memory' }) as never;
+    const status = (accountId: string | null) => ({ origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId, persistence: 'memory' }) as never;
     account.status = status('account-a');
     stores.use(() => useCatalogStore()).error = 'private detail of account a';
     await nextTick();

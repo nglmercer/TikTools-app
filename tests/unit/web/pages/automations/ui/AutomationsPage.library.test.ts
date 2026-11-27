@@ -1,5 +1,6 @@
 import { t, mountPage, buttonByLabel, goBack, documentButton, selectRow, it, expect, vi, nextTick, libraryJournal, flushPromises, afterEach, beforeEach, resetResolutionPreference } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
 import { runGuideAction } from '../../../../../../src/web/features/guided-help/model/guide-actions.ts';
+import { ACTION_TYPE, RPC } from '../../../../../shared/index.ts';
 
 beforeEach(() => { localStorage.clear(); resetResolutionPreference('manual'); });
 afterEach(() => resetResolutionPreference('automatic'));
@@ -9,13 +10,13 @@ it('blocks profile and template changes until the initial coherent library is re
     let reject!: (failure: unknown) => void;
     const held = new Promise<never>((_resolve, fail) => { reject = fail; });
     let blocked = true;
-    const f = await mountPage((method) => method === 'automation.snapshot' && blocked ? held : undefined, false);
+    const f = await mountPage((method) => method === RPC.automationSnapshot && blocked ? held : undefined, false);
     const profile = f.wrapper.get('.profile-toolbar [role="combobox"]');
     const menu = f.wrapper.get('.profile-toolbar [aria-haspopup="menu"]');
     expect(profile.attributes('disabled')).toBeDefined(); expect(menu.attributes('disabled')).toBeDefined();
     expect(buttonByLabel(f.wrapper, t('automations.templates.open')).attributes('disabled')).toBeDefined();
     expect(f.wrapper.get('[data-test="library-loading"]').text()).toContain('Loading saved profiles');
-    expect(f.calls.some((call) => call.method === 'automation.library.submit')).toBe(false);
+    expect(f.calls.some((call) => call.method === RPC.automationLibrarySubmit)).toBe(false);
     await f.wrapper.get('[data-test="library-retry-loading"]').trigger('click'); await flushPromises();
     blocked = false; reject(new Error('initial snapshot unavailable')); await f.initializing; await flushPromises();
     expect(f.wrapper.text()).toContain('initial snapshot unavailable');
@@ -25,7 +26,7 @@ it('blocks profile and template changes until the initial coherent library is re
     expect(buttonByLabel(f.wrapper, t('automations.templates.open')).attributes('disabled')).toBeUndefined();
     expect(f.wrapper.find('[data-test="library-loading"]').exists()).toBe(false);
     expect(f.wrapper.text()).not.toContain('initial snapshot unavailable');
-    expect(f.calls.some((call) => call.method === 'automation.library.submit' || call.method === 'app.state.set')).toBe(false);
+    expect(f.calls.some((call) => call.method === RPC.automationLibrarySubmit || call.method === RPC.appStateSet)).toBe(false);
     await menu.trigger('click'); await nextTick();
     Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((entry) => entry.textContent?.trim() === t('automations.profile.create'))!.click();
     await flushPromises();
@@ -39,10 +40,10 @@ it('blocks profile and template changes until the initial coherent library is re
   });
 
   it('keeps the runtime variables as their own tab next to events and actions', async () => {
-    const { wrapper, calls } = await mountPage((method) => (method === 'globals.list' ? { globals: { commandPort: '46665' } } : undefined));
+    const { wrapper, calls } = await mountPage((method) => (method === RPC.globalsList ? { globals: { commandPort: '46665' } } : undefined));
     expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Events (2)', 'Actions (1)', t('automations.library.variables')]);
     expect(wrapper.find('.globals-editor').exists()).toBe(false);
-    expect(calls.some((call) => call.method === 'globals.list')).toBe(false);
+    expect(calls.some((call) => call.method === RPC.globalsList)).toBe(false);
     await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === t('automations.library.variables'))!.trigger('click');
     await flushPromises();
     expect(wrapper.findAll('.globals-editor input').map((input) => (input.element as HTMLInputElement).value)).toEqual(['commandPort', '46665']);
@@ -51,7 +52,7 @@ it('blocks profile and template changes until the initial coherent library is re
   });
 
   it('keeps an unsaved variable draft while switching tabs and saves it through the same contract', async () => {
-    const { wrapper, calls } = await mountPage((method) => (method === 'globals.list' ? { globals: { commandPort: '46665' } } : method === 'globals.set' ? { ok: true } : undefined));
+    const { wrapper, calls } = await mountPage((method) => (method === RPC.globalsList ? { globals: { commandPort: '46665' } } : method === RPC.globalsSet ? { ok: true } : undefined));
     const tab = (name: string) => wrapper.findAll('[role="tab"]').find((item) => item.text().startsWith(name))!;
     await tab(t('automations.library.variables')).trigger('click');
     await flushPromises();
@@ -61,17 +62,17 @@ it('blocks profile and template changes until the initial coherent library is re
     expect((wrapper.findAll('.globals-editor input')[1]!.element as HTMLInputElement).value).toBe('25575');
     await buttonByLabel(wrapper, t('globals.save')).trigger('click');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'globals.set')?.params).toEqual({ key: 'commandPort', value: '25575' });
+    expect(calls.find((call) => call.method === RPC.globalsSet)?.params).toEqual({ key: 'commandPort', value: '25575' });
   });
 
   it('opens on the variables from the old Settings link', async () => {
-    const { wrapper } = await mountPage((method) => (method === 'globals.list' ? { globals: { a: '1' } } : undefined), true, { query: '?view=variables' });
+    const { wrapper } = await mountPage((method) => (method === RPC.globalsList ? { globals: { a: '1' } } : undefined), true, { query: '?view=variables' });
     expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe(t('automations.library.variables'));
     expect(wrapper.find('.globals-editor').exists()).toBe(true);
   });
 
   it('follows variables deep links after the page is already mounted', async () => {
-    const { wrapper, router } = await mountPage((method) => (method === 'globals.list' ? { globals: { a: '1' } } : undefined));
+    const { wrapper, router } = await mountPage((method) => (method === RPC.globalsList ? { globals: { a: '1' } } : undefined));
     expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Events (2)');
     await router.push('/automations?view=variables');
     await flushPromises();
@@ -88,7 +89,7 @@ it('blocks profile and template changes until the initial coherent library is re
     await flushPromises();
     expect(router.currentRoute.value.query.createAction).toBeUndefined();
     expect(document.querySelector('.type-picker__groups')).toBeTruthy();
-    expect(Array.from(document.querySelectorAll('input')).some((input) => input.value === 'core.fetch')).toBe(true);
+    expect(Array.from(document.querySelectorAll('input')).some((input) => input.value === ACTION_TYPE.coreFetch)).toBe(true);
   });
 
   it('semantic guide creation opens an unsaved draft of the requested type without submitting it', async () => {
@@ -100,8 +101,8 @@ it('blocks profile and template changes until the initial coherent library is re
     await flushPromises();
 
     expect(wrapper.find('.action-editor').exists()).toBe(true);
-    expect(wrapper.text()).toContain('core.fetch');
-    expect(calls.some((call) => call.method === 'automation.create' || call.method === 'automation.update')).toBe(false);
+    expect(wrapper.text()).toContain(ACTION_TYPE.coreFetch);
+    expect(calls.some((call) => call.method === RPC.automationCreate || call.method === RPC.automationUpdate)).toBe(false);
   });
 
   it('semantic guide opening reuses an existing matching action instead of creating a duplicate', async () => {
@@ -113,14 +114,14 @@ it('blocks profile and template changes until the initial coherent library is re
     await flushPromises();
 
     expect(wrapper.get('.action-editor .base-panel__title').text()).toContain('Log gift');
-    expect(calls.some((call) => call.method === 'automation.create' || call.method === 'automation.update')).toBe(false);
+    expect(calls.some((call) => call.method === RPC.automationCreate || call.method === RPC.automationUpdate)).toBe(false);
   });
 
   it('has no Cloud tab in the library: the Cloud library is a tab of the templates dialog', async () => {
     const { wrapper } = await mountPage();
     const library = () => wrapper.findAll('[role="tab"]').map((tab) => tab.text());
     expect(library()).toEqual(['Events (2)', 'Actions (1)', t('automations.library.variables')]);
-    const unified = await mountPage(undefined, true, { announce: ['catalog.items'] });
+    const unified = await mountPage(undefined, true, { announce: [RPC.catalogItems] });
     expect(unified.wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Events (2)', 'Actions (1)', t('automations.library.variables')]);
     expect(document.querySelector('dialog[open]')).toBeNull();
   });

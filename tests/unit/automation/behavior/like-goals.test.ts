@@ -5,11 +5,12 @@ import { applyConditionTemplate } from '../../../../src/automation/behavior/cond
 import { liveGoalTemplates } from '../../../../src/automation/behavior/live-goal-templates.ts';
 import { normalizeEvent } from '../../../../src/automation/behavior/schema.ts';
 import { parseRuleTemplate } from '../../../../src/web/entities/rule-template/lib/rule-templates.ts';
+import { ACTION_TYPE, EVENT_KIND } from '../../../shared/index.ts';
 
 function likeBatch(previous: number, total: number, count = total - previous): AutomationEvent {
   return {
     id: `simulated-like-${total}`,
-    type: 'tiktok.like',
+    type: EVENT_KIND.tiktokLike,
     timestamp: total,
     data: {
       count,
@@ -61,14 +62,14 @@ describe('legacy like goal template compatibility', () => {
     const filters = applyConditionTemplate(liveGoalTemplates()[0]!, { goal: '150' });
     const normalized = normalizeEvent({
       schemaVersion: 1, id: 'like-150', name: 'First 150',
-      enabled: true, trigger: 'tiktok.like', filters,
+      enabled: true, trigger: EVENT_KIND.tiktokLike, filters,
       cooldownMs: 0, cooldownScope: 'global', actionIds: [], runMode: 'all',
     });
     expect(normalized.filters).toEqual(filters);
     const result = parseRuleTemplate({
       templateVersion: 1, id: 'like-150', title: 'First 150 likes',
-      actions: [{ name: 'Log likes', typeId: 'core.log', config: { message: '150 likes' } }],
-      event: { name: 'First 150', trigger: 'tiktok.like', filters },
+      actions: [{ name: 'Log likes', typeId: ACTION_TYPE.coreLog, config: { message: '150 likes' } }],
+      event: { name: 'First 150', trigger: EVENT_KIND.tiktokLike, filters },
     });
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.template.event.filters).toEqual(filters);

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { callWithMeta, createControlClient } from '../../../../../src/web/shared/api/control-client.ts';
+import { ACCOUNT_STATE, RPC, TOPIC } from '../../../../shared/index.ts';
 
 type MockIpc = {
   sent: string[];
@@ -92,7 +93,7 @@ describe('createControlClient', () => {
       const meta = { resourceVersions: [{ kind: 'workflow', id: 'welcome', scope: 'host', revision: '4' }], hostInstanceId: 'host-instance', command: { commandId: 'delete-once', state: 'succeeded', resource: { kind: 'workflow', id: 'welcome', scope: 'host' }, committedAt: 1794000000000 } };
       respond(sentId(), { result: { id: 'welcome', deleted: true }, meta });
       await expect(pending).resolves.toEqual({ result: { id: 'welcome', deleted: true }, meta });
-      const expired = callWithMeta(control, 'system.info', { commandId: 'delete-once' });
+      const expired = callWithMeta(control, RPC.systemInfo, { commandId: 'delete-once' });
       respond(sentId(), { error: { code: 'command_expired', message: 'unknown historical outcome', data: { commandId: 'delete-once', state: 'unknown' } } });
       await expect(expired).rejects.toMatchObject({ code: 'command_expired', data: { commandId: 'delete-once', state: 'unknown' } });
       control.detach();
@@ -142,10 +143,10 @@ describe('createControlClient', () => {
 
     it('allows a bounded complete local library submission while other methods retain their ceiling', async () => {
       const ipc = installMockIpc(); const control = createControlClient(); control.attach();
-      const pending = control.call('automation.library.submit', { blob: 'x'.repeat(2 * 1024 * 1024) });
+      const pending = control.call(RPC.automationLibrarySubmit, { blob: 'x'.repeat(2 * 1024 * 1024) });
       expect(ipc.sent).toHaveLength(1);
       respond(sentId(), { result: { accepted: true } }); await expect(pending).resolves.toEqual({ accepted: true });
-      await expect(control.call('automation.library.submit', { blob: 'x'.repeat(8 * 1024 * 1024 + 64 * 1024) })).rejects.toMatchObject({ code: 'too_large' });
+      await expect(control.call(RPC.automationLibrarySubmit, { blob: 'x'.repeat(8 * 1024 * 1024 + 64 * 1024) })).rejects.toMatchObject({ code: 'too_large' });
       expect(ipc.sent).toHaveLength(1); control.detach();
     });
 
@@ -181,8 +182,8 @@ describe('createControlClient', () => {
         void pending.then(() => { settled = true; });
         await vi.advanceTimersByTimeAsync(5);
         expect(settled).toBe(false);
-        respond(sentId(), { result: { state: 'signed-in' } });
-        await expect(pending).resolves.toEqual({ state: 'signed-in' });
+        respond(sentId(), { result: { state: ACCOUNT_STATE.signedIn } });
+        await expect(pending).resolves.toEqual({ state: ACCOUNT_STATE.signedIn });
         await expect(control.call('system.ping', {}, { timeoutMs: 300_001 })).rejects.toMatchObject({ code: 'client' });
         expect(ipc.sent).toHaveLength(1);
         control.detach();
@@ -259,13 +260,13 @@ describe('createControlClient', () => {
       const control = createControlClient();
       control.attach();
       const seen: unknown[] = [];
-      const unsubscribe = control.onTopic('points.changed', (data) => seen.push(data));
+      const unsubscribe = control.onTopic(TOPIC.pointsChanged, (data) => seen.push(data));
       const receive = hostMessage();
-      receive(JSON.stringify({ method: 'event', params: { topic: 'points.changed', data: { uniqueId: 'alice' } } }));
-      receive(JSON.stringify({ method: 'event', params: { topic: 'live.event', data: {} } }));
+      receive(JSON.stringify({ method: 'event', params: { topic: TOPIC.pointsChanged, data: { uniqueId: 'alice' } } }));
+      receive(JSON.stringify({ method: 'event', params: { topic: TOPIC.liveEvent, data: {} } }));
       expect(seen).toEqual([{ uniqueId: 'alice' }]);
       unsubscribe();
-      receive(JSON.stringify({ method: 'event', params: { topic: 'points.changed', data: { uniqueId: 'bob' } } }));
+      receive(JSON.stringify({ method: 'event', params: { topic: TOPIC.pointsChanged, data: { uniqueId: 'bob' } } }));
       expect(seen).toEqual([{ uniqueId: 'alice' }]);
       control.detach();
     });
@@ -277,12 +278,12 @@ describe('createControlClient', () => {
       const seen: number[] = [];
       const topics: unknown[] = [];
       const unsubscribe = control.onGap((lost) => seen.push(lost));
-      control.onTopic('points.changed', (data) => topics.push(data));
+      control.onTopic(TOPIC.pointsChanged, (data) => topics.push(data));
       const receive = hostMessage();
       receive(JSON.stringify({ jsonrpc: '2.0', method: 'event.gap', params: { lost: 12, resync: true } }));
       expect(seen).toEqual([12]);
       expect(topics).toEqual([]);
-      receive(JSON.stringify({ method: 'event', params: { topic: 'points.changed', data: { uniqueId: 'alice' } } }));
+      receive(JSON.stringify({ method: 'event', params: { topic: TOPIC.pointsChanged, data: { uniqueId: 'alice' } } }));
       expect(topics).toEqual([{ uniqueId: 'alice' }]);
       receive(JSON.stringify({ method: 'event.gap', params: { resync: true } }));
       expect(seen).toEqual([12, 0]);
@@ -339,7 +340,7 @@ describe('createControlClient', () => {
       const control = createControlClient();
       control.attach();
       const seen: unknown[] = [];
-      control.onTopic('live.ui-event', (data) => seen.push(data));
+      control.onTopic(TOPIC.liveUiEvent, (data) => seen.push(data));
       const configuring = control.setPresentation?.(view);
       const first = JSON.parse(ipc.sent.at(-1)!) as { id: string; params: { revision: number } };
       respond(first.id, { result: { version: 1, revision: 1 } });
@@ -349,7 +350,7 @@ describe('createControlClient', () => {
       hostMessage()(
         JSON.stringify({
           method: 'event',
-          params: { topic: 'live.ui-event', revision: first.params.revision, data: 'stale' },
+          params: { topic: TOPIC.liveUiEvent, revision: first.params.revision, data: 'stale' },
         }),
       );
       expect(seen).toEqual([]);
@@ -364,7 +365,7 @@ describe('createControlClient', () => {
       control.attach();
       const events: unknown[] = [];
       const pushes: unknown[] = [];
-      control.onTopic('live.ui-event', (data) => events.push(data));
+      control.onTopic(TOPIC.liveUiEvent, (data) => events.push(data));
       control.onPush('leaderboard', (data) => pushes.push(data));
       const configuring = control.setPresentation?.(view);
       respond(sentId(), { result: { generation: 2, revision: 1 } });
@@ -372,7 +373,7 @@ describe('createControlClient', () => {
       const receive = hostWindow().__tiktools_receive_batch__!;
       const stale = JSON.stringify({
         method: 'event',
-        params: { topic: 'live.ui-event', generation: 1, revision: 1, data: 'stale' },
+        params: { topic: TOPIC.liveUiEvent, generation: 1, revision: 1, data: 'stale' },
       });
       receive([stale, JSON.stringify({ type: 'leaderboard', viewers: [] })], 1);
       expect(events).toEqual([]);
@@ -381,7 +382,7 @@ describe('createControlClient', () => {
         [
           JSON.stringify({
             method: 'event',
-            params: { topic: 'live.ui-event', generation: 2, revision: 1, data: 'current' },
+            params: { topic: TOPIC.liveUiEvent, generation: 2, revision: 1, data: 'current' },
           }),
         ],
         2,
@@ -427,11 +428,11 @@ it('uses the browser transport without native globals and resynchronizes after r
   } });
   const gap = vi.fn(); control.onGap(gap); control.attach();
   expect(control.setPresentation).toBeUndefined();
-  const pending = control.call('system.info');
+  const pending = control.call(RPC.systemInfo);
   const id = (JSON.parse(sent[0]!) as { id: string }).id;
   receive(JSON.stringify({ type: 'rpc-response', response: { id, result: { platform: 'AndroidTermux' } } }));
   await expect(pending).resolves.toEqual({ platform: 'AndroidTermux' });
-  const mutation = control.call('globals.set', { key: 'test', value: 'value' });
+  const mutation = control.call(RPC.globalsSet, { key: 'test', value: 'value' });
   const rejection = expect(mutation).rejects.toMatchObject({ code: 'transport' });
   disconnect('connection lost'); await rejection;
   reconnect(); expect(gap).toHaveBeenCalledWith(0);

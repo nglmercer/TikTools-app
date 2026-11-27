@@ -5,16 +5,17 @@ import type { LiveAction, LiveEvent } from '../../../../../../src/automation/beh
 import { i18n } from '@/shared/i18n/i18n.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import AutomationLibrary from '../../../../../../src/web/widgets/automation-library/ui/AutomationLibrary.vue';
+import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 
-const action: LiveAction = { schemaVersion: 2, id: 'action', name: 'Action', typeId: 'core.log', enabled: false, config: { message: 'hello' } };
-const event: LiveEvent = { schemaVersion: 1, id: 'event', name: 'Event', enabled: false, trigger: 'tiktok.chat', filters: [], cooldownMs: 0, cooldownScope: 'global', runMode: 'all', actionIds: ['action'] };
+const action: LiveAction = { schemaVersion: 2, id: 'action', name: 'Action', typeId: ACTION_TYPE.coreLog, enabled: false, config: { message: 'hello' } };
+const event: LiveEvent = { schemaVersion: 1, id: 'event', name: 'Event', enabled: false, trigger: EVENT_KIND.tiktokChat, filters: [], cooldownMs: 0, cooldownScope: 'global', runMode: 'all', actionIds: ['action'] };
 
 it.each(['events', 'actions'] as const)('a %s switch requests a toggle without selecting the row before its change event', async (tab) => {
   const wrapper = mountWithPlugins(AutomationLibrary, {
     attachTo: document.body,
-    props: { tab, events: [event], actions: [action], actionTypes: [], availableTypes: new Set(['core.log']), eventTypes: [], runs: [] },
+    props: { tab, events: [event], actions: [action], actionTypes: [], availableTypes: new Set([ACTION_TYPE.coreLog]), eventTypes: [], runs: [] },
   });
 
   // A row selection opens the mobile sheet immediately, before pointerup/click.
@@ -36,7 +37,7 @@ it.each(['events', 'actions'] as const)('the %s row menu duplicates and deletes 
   const id = tab === 'events' ? event.id : action.id;
   const wrapper = mountWithPlugins(AutomationLibrary, {
     attachTo: document.body,
-    props: { tab, events: [event], actions: [action], actionTypes: [], availableTypes: new Set(['core.log']), eventTypes: [], runs: [] },
+    props: { tab, events: [event], actions: [action], actionTypes: [], availableTypes: new Set([ACTION_TYPE.coreLog]), eventTypes: [], runs: [] },
   });
   const kebab = () => wrapper.get(`button[aria-label="${i18n.global.t('automations.library.rowActions', { name: tab === 'events' ? event.name : action.name })}"]`);
   const item = (key: string) => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
@@ -57,7 +58,7 @@ it.each(['events', 'actions'] as const)('the %s row menu duplicates and deletes 
 
 it.each(['events', 'actions'] as const)('the %s table distinguishes an unmatched query from an empty library', async (tab) => {
   const wrapper = mountWithPlugins(AutomationLibrary, { props: {
-    tab, events: [event], actions: [action], actionTypes: [], availableTypes: new Set(['core.log']),
+    tab, events: [event], actions: [action], actionTypes: [], availableTypes: new Set([ACTION_TYPE.coreLog]),
     eventTypes: [], runs: [], eventQuery: 'missing', actionQuery: 'missing',
   } });
   expect(wrapper.findAll('.base-empty-state')).toHaveLength(1);

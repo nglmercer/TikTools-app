@@ -6,6 +6,7 @@ import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import ExploreToolbar from '../../../../../../src/web/features/explore-catalog/ui/ExploreToolbar.vue';
+import { RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -14,7 +15,7 @@ afterEach(() => { vi.useRealTimers(); });
 
 async function mountToolbar() {
   const { client, calls } = createFakeControlClient((method) => {
-    if (method === 'rpc.discover') return { methods: [{ name: 'catalog.items' }, { name: 'catalog.mine' }] };
+    if (method === RPC.rpcDiscover) return { methods: [{ name: RPC.catalogItems }, { name: RPC.catalogMine }] };
     return { items: [], nextCursor: null };
   });
   const stores = createStoreHarness(client);
@@ -43,7 +44,7 @@ describe('ExploreToolbar', () => {
     await flushPromises();
     expect(catalog.filters.type).toBe('template');
     expect(wrapper.get('button[aria-label="Templates"]').attributes('aria-pressed')).toBe('true');
-    expect(queries(calls).at(-1)).toEqual(['catalog.items', { query: '', limit: 25, kind: 'template' }]);
+    expect(queries(calls).at(-1)).toEqual([RPC.catalogItems, { query: '', limit: 25, kind: 'template' }]);
     await wrapper.get('button[aria-label="Profiles"]').trigger('click');
     expect(catalog.filters.type).toBe('profile');
     expect(wrapper.get('button[aria-label="Templates"]').attributes('aria-pressed')).toBe('false');
@@ -56,11 +57,11 @@ describe('ExploreToolbar', () => {
     await wrapper.get('button[aria-label="My library"]').trigger('click');
     await flushPromises();
     expect(catalog.filters.view).toBe('mine');
-    expect(queries(calls).at(-1)?.[0]).toBe('catalog.mine');
+    expect(queries(calls).at(-1)?.[0]).toBe(RPC.catalogMine);
     await wrapper.get('button[aria-label="My library"]').trigger('click');
     await flushPromises();
     expect(catalog.filters.view).toBe('all');
-    expect(queries(calls).at(-1)?.[0]).toBe('catalog.items');
+    expect(queries(calls).at(-1)?.[0]).toBe(RPC.catalogItems);
   });
 
   it('applies the search after a short pause, once, and at once on Enter', async () => {
@@ -70,11 +71,11 @@ describe('ExploreToolbar', () => {
     await input.setValue('tts');
     expect(queries(calls)).toEqual([]);
     await vi.advanceTimersByTimeAsync(300);
-    expect(queries(calls)).toEqual([['catalog.items', { query: 'tts', limit: 25 }]]);
+    expect(queries(calls)).toEqual([[RPC.catalogItems, { query: 'tts', limit: 25 }]]);
     await input.setValue('gift');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
-    expect(queries(calls).at(-1)).toEqual(['catalog.items', { query: 'gift', limit: 25 }]);
+    expect(queries(calls).at(-1)).toEqual([RPC.catalogItems, { query: 'gift', limit: 25 }]);
     await vi.advanceTimersByTimeAsync(300);
     expect(queries(calls)).toHaveLength(2);
   });

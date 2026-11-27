@@ -9,6 +9,7 @@ import { readTourProgress, writeTourProgress } from '../../../../../../src/web/f
 import { tourRegistry } from '../../../../../../src/web/features/guided-help/model/registry.ts';
 import { tourCatalogs } from '../../../../../../src/web/features/guided-help/catalogs';
 import { mountGuideTargets, removeGuideFixtures } from '../support/dom.ts';
+import { RPC } from '../../../../../shared/index.ts';
 
 function driverFixture() {
   let config: Config = {};
@@ -472,7 +473,7 @@ describe('account and backup tour', () => {
     }
     const test = setup();
     const root = mountGuideTargets('account', tourRegistry.backup.steps.map((step) => step.target));
-    const session = test.coordinator.startTour('backup', { scope: root, locale: 'en', signedIn: true, capabilities: ['cloud.plan.get', 'cloud.backup.createNamed', 'cloud.backup.list'] });
+    const session = test.coordinator.startTour('backup', { scope: root, locale: 'en', signedIn: true, capabilities: [RPC.cloudPlanGet, 'cloud.backup.createNamed', RPC.cloudBackupList] });
     await flushPromises();
     expect(await session.ready).toBe(true);
     for (let index = 1; index < 4; index++) {
@@ -488,7 +489,7 @@ describe('account and backup tour', () => {
     for (const signedIn of [undefined, false, () => false] as const) {
       const test = setup();
       const root = mountGuideTargets('account', tourRegistry.backup.steps.map((step) => step.target));
-      const session = test.coordinator.startTour('backup', { scope: root, locale: 'en', signedIn, capabilities: ['cloud.plan.get', 'cloud.backup.createNamed', 'cloud.backup.list'] });
+      const session = test.coordinator.startTour('backup', { scope: root, locale: 'en', signedIn, capabilities: [RPC.cloudPlanGet, 'cloud.backup.createNamed', RPC.cloudBackupList] });
       await flushPromises();
       expect(await session.ready).toBe(false);
       expect(await session.done).toBe('unavailable');

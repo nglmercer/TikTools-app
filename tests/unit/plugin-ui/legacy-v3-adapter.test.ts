@@ -2,16 +2,17 @@ import { expect, test } from 'vitest';
 
 import type { PluginPageDescriptor } from '../../../src/automation/behavior/types.ts';
 import { adaptLegacyPage } from '../../../src/plugin-ui/legacy-v3-adapter.ts';
+import { PLUGIN_ID } from '../../shared/index.ts';
 
 const text = { default: 'Title', i18key: '' };
 
 function page(sections: PluginPageDescriptor['sections']): PluginPageDescriptor {
   return {
     id: 'main',
-    pluginId: 'sonicboom.server',
+    pluginId: PLUGIN_ID.sonicboomServer,
     title: text,
     sections,
-    source: { kind: 'plugin', pluginId: 'sonicboom.server' },
+    source: { kind: 'plugin', pluginId: PLUGIN_ID.sonicboomServer },
   };
 }
 
@@ -48,7 +49,7 @@ test('adapts legacy tts sections to a neutral status note', () => {
       {
         kind: 'tts',
         title: text,
-        actionType: 'sonicboom.server.speak',
+        actionType: PLUGIN_ID.sonicboomServerSpeak,
         voicesFrom: 'plugin-action-options:sonicboom.server.speak:voice',
         outputsFrom: 'plugin-action-options:sonicboom.server.set-output-device:device',
       },

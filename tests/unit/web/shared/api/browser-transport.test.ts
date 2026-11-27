@@ -1,5 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { createBrowserTransport, touchLocalSession } from '../../../../../src/web/shared/api/browser-transport.ts';
+import { RPC } from '../../../../shared/index.ts';
 
 class Socket {
   readyState = 0;
@@ -32,10 +33,10 @@ test('large atomic library submits are scoped by method and still respect the bo
   const socket = new Socket(); const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', socket: () => socket as unknown as WebSocket });
   const connected = transport.connect(); socket.open(); await connected;
   const source = 'x'.repeat(2 * 1024 * 1024);
-  transport.send(JSON.stringify({ method: 'automation.library.submit', params: { source } })); expect(socket.sent).toHaveLength(1);
-  expect(() => transport.send(JSON.stringify({ method: 'automation.update', params: { source } }))).toThrow('queue is full');
+  transport.send(JSON.stringify({ method: RPC.automationLibrarySubmit, params: { source } })); expect(socket.sent).toHaveLength(1);
+  expect(() => transport.send(JSON.stringify({ method: RPC.automationUpdate, params: { source } }))).toThrow('queue is full');
   socket.bufferedAmount = 7 * 1024 * 1024;
-  expect(() => transport.send(JSON.stringify({ method: 'automation.library.submit', params: { source } }))).toThrow('queue is full');
+  expect(() => transport.send(JSON.stringify({ method: RPC.automationLibrarySubmit, params: { source } }))).toThrow('queue is full');
   transport.detach();
 });
 

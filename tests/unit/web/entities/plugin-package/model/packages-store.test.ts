@@ -5,6 +5,7 @@ import { ControlCallError } from '@/shared/api/control-client.ts';
 import { createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import type { JobSnapshot } from '../../../../../../src/web/entities/plugin-package/api/package-types.ts';
 import { usePackagesStore } from '../../../../../../src/web/entities/plugin-package/model/packages-store.ts';
+import { PLUGIN_ID, RPC } from '../../../../../shared/index.ts';
 
 function harness(handler: (method: string, params: RpcParams | undefined) => unknown) {
   const calls: { method: string; params: RpcParams | undefined }[] = [];
@@ -30,11 +31,11 @@ function harness(handler: (method: string, params: RpcParams | undefined) => unk
 }
 
 function job(overrides: Partial<JobSnapshot>): JobSnapshot {
-  return { id: 'job-1', kind: 'update', pluginId: 'acme.tts', stage: 'queued', status: 'queued', createdAt: 1, updatedAt: 1, ...overrides };
+  return { id: 'job-1', kind: 'update', pluginId: PLUGIN_ID.acmeTts, stage: 'queued', status: 'queued', createdAt: 1, updatedAt: 1, ...overrides };
 }
 
 const preview = {
-  id: 'acme.tts',
+  id: PLUGIN_ID.acmeTts,
   name: 'Acme TTS',
   version: '1.1.0',
   consentToken: 'token-2',
@@ -44,7 +45,7 @@ const preview = {
 describe('packages store', () => {
   it('updates only releases with a currently verified Cloud status', async () => {
     const { store, calls } = harness((method) => {
-      if (method === 'plugins.updates.list') return { checkedAt: 1, updates: [
+      if (method === RPC.pluginsUpdatesList) return { checkedAt: 1, updates: [
         { id:'allowed', latest:'2.0.0', latestStatus:'approved' },
         { id:'revoked', latest:'2.0.0', latestStatus:'key-revoked' },
         { id:'unknown', latest:'2.0.0' },
@@ -65,16 +66,16 @@ describe('packages store', () => {
     const { store } = harness((method) => {
       if (method !== 'registry.package') return {};
       calls += 1;
-      if (calls === 1) return { registry:'official', document:{ id:'acme.tts', name:'Acme', releases:[] }, liveStatuses:{ '1.0.0':'approved' } };
+      if (calls === 1) return { registry:'official', document:{ id:PLUGIN_ID.acmeTts, name:'Acme', releases:[] }, liveStatuses:{ '1.0.0':'approved' } };
       if (calls === 2) return new Promise((resolve) => { releaseOld = resolve; });
       throw new Error('offline');
     });
-    await store.loadRemotePackage('official', 'acme.tts');
+    await store.loadRemotePackage('official', PLUGIN_ID.acmeTts);
     expect(store.remotePackages['official/acme.tts']?.liveStatuses?.['1.0.0']).toBe('approved');
-    const old = store.loadRemotePackage('official', 'acme.tts');
+    const old = store.loadRemotePackage('official', PLUGIN_ID.acmeTts);
     expect(store.remotePackages['official/acme.tts']?.liveStatuses).toEqual({});
-    await store.loadRemotePackage('official', 'acme.tts');
-    releaseOld({ registry:'official', document:{ id:'acme.tts', name:'Acme', releases:[] }, liveStatuses:{ '1.0.0':'approved' } });
+    await store.loadRemotePackage('official', PLUGIN_ID.acmeTts);
+    releaseOld({ registry:'official', document:{ id:PLUGIN_ID.acmeTts, name:'Acme', releases:[] }, liveStatuses:{ '1.0.0':'approved' } });
     await old;
     expect(store.remotePackages['official/acme.tts']?.liveStatuses).toEqual({});
     expect(store.remoteErrors['official/acme.tts']).toBe('offline');
@@ -82,7 +83,7 @@ describe('packages store', () => {
 
   it('keeps update actions disabled after a failed current-status refresh', async () => {
     const { store, calls } = harness((method) => {
-      if (method === 'plugins.updates.list') return { checkedAt: 1, updates: [{ id:'acme.tts', latest:'2.0.0', latestStatus:'approved' }] };
+      if (method === RPC.pluginsUpdatesList) return { checkedAt: 1, updates: [{ id:PLUGIN_ID.acmeTts, latest:'2.0.0', latestStatus:'approved' }] };
       if (method === 'plugins.updates.check') throw new Error('offline');
       return { receipts: [], jobs: [] };
     });
@@ -97,7 +98,7 @@ describe('packages store', () => {
     let finishList!: (value: unknown) => void;
     let finishCheck!: (value: unknown) => void;
     const { store } = harness((method) => {
-      if (method === 'plugins.updates.list') return new Promise((resolve) => { finishList = resolve; });
+      if (method === RPC.pluginsUpdatesList) return new Promise((resolve) => { finishList = resolve; });
       if (method === 'plugins.updates.check') return new Promise((resolve) => { finishCheck = resolve; });
       return { receipts: [], jobs: [] };
     });
@@ -137,9 +138,9 @@ describe('packages store', () => {
     let lists = 0;
     let finishFirst!: (value: unknown) => void;
     let finishSecond!: (value: unknown) => void;
-    const report = (checkedAt: number, latestStatus: string) => ({ checkedAt, updates: [{ id:'acme.tts', latest:'2.0.0', latestStatus }] });
+    const report = (checkedAt: number, latestStatus: string) => ({ checkedAt, updates: [{ id:PLUGIN_ID.acmeTts, latest:'2.0.0', latestStatus }] });
     const { store, topics } = harness((method) => {
-      if (method === 'plugins.updates.list') {
+      if (method === RPC.pluginsUpdatesList) {
         lists += 1;
         if (lists === 1) return report(10, 'approved');
         return new Promise((resolve) => { if (lists === 2) finishFirst = resolve; else finishSecond = resolve; });
@@ -162,31 +163,31 @@ describe('packages store', () => {
   it('keeps an active check authoritative when an older notification arrives', async () => {
     let finishCheck!: (value: unknown) => void;
     let current = 'approved';
-    const report = (latestStatus: string) => ({ checkedAt: 1, updates: [{ id:'acme.tts', latest:'2.0.0', latestStatus }] });
+    const report = (latestStatus: string) => ({ checkedAt: 1, updates: [{ id:PLUGIN_ID.acmeTts, latest:'2.0.0', latestStatus }] });
     const { store, topics, calls } = harness((method) => {
-      if (method === 'plugins.updates.list') return report(current);
+      if (method === RPC.pluginsUpdatesList) return report(current);
       if (method === 'plugins.updates.check') return new Promise((resolve) => { finishCheck = resolve; });
       return { receipts: [], jobs: [] };
     });
     await store.initialize();
     const checking = store.checkUpdates();
     topics.get('plugin.updates')?.({ report: report('approved') });
-    expect(calls.filter((call) => call.method === 'plugins.updates.list')).toHaveLength(1);
+    expect(calls.filter((call) => call.method === RPC.pluginsUpdatesList)).toHaveLength(1);
     expect(store.updates?.updates[0]?.latestStatus).toBe('unknown');
     current = 'yanked';
     finishCheck(report('yanked'));
     await checking;
     await flushPromises();
-    expect(calls.filter((call) => call.method === 'plugins.updates.list')).toHaveLength(2);
+    expect(calls.filter((call) => call.method === RPC.pluginsUpdatesList)).toHaveLength(2);
     expect(store.updates?.updates[0]?.latestStatus).toBe('yanked');
   });
 
   it('reloads an event received while another window makes the check busy', async () => {
     let failCheck!: (reason: Error) => void;
     let current = 'approved';
-    const report = (latestStatus: string) => ({ checkedAt: 1, updates: [{ id:'acme.tts', latest:'2.0.0', latestStatus }] });
+    const report = (latestStatus: string) => ({ checkedAt: 1, updates: [{ id:PLUGIN_ID.acmeTts, latest:'2.0.0', latestStatus }] });
     const { store, topics, calls } = harness((method) => {
-      if (method === 'plugins.updates.list') return report(current);
+      if (method === RPC.pluginsUpdatesList) return report(current);
       if (method === 'plugins.updates.check') return new Promise((_resolve, reject) => { failCheck = reject; });
       return { receipts: [], jobs: [] };
     });
@@ -197,21 +198,21 @@ describe('packages store', () => {
     failCheck(new Error('another update check is in progress'));
     await checking;
     await flushPromises();
-    expect(calls.filter((call) => call.method === 'plugins.updates.list')).toHaveLength(2);
+    expect(calls.filter((call) => call.method === RPC.pluginsUpdatesList)).toHaveLength(2);
     expect(store.updates?.updates[0]?.latestStatus).toBe('yanked');
     expect(store.checkingUpdates).toBe(false);
   });
 
   it('normalizes partial version responses to empty lists', async () => {
     const { store } = harness((method) => (method === 'plugins.packages.versions' ? { installed: '1.0.0' } : {}));
-    await store.loadVersions('acme.tts');
-    expect(store.versions['acme.tts']).toMatchObject({ id: 'acme.tts', installed: '1.0.0', retained: [], available: [] });
+    await store.loadVersions(PLUGIN_ID.acmeTts);
+    expect(store.versions[PLUGIN_ID.acmeTts]).toMatchObject({ id: PLUGIN_ID.acmeTts, installed: '1.0.0', retained: [], available: [] });
   });
 
   it('keeps only the latest review when inspections overlap', async () => {
     let resolveFirst!: (value: unknown) => void;
     const { store } = harness((method, params) => {
-      if (method !== 'plugins.packages.inspect') return {};
+      if (method !== RPC.pluginsPackagesInspect) return {};
       const spec = (params as { spec: { path: string } }).spec;
       if (spec.path === 'first') return new Promise((resolve) => (resolveFirst = resolve));
       return { ...preview, name: 'Second' };
@@ -227,7 +228,7 @@ describe('packages store', () => {
     const { store } = harness(() => {
       throw new ControlCallError('install_failed', 'no build', { code: 'incompatible', message: 'no build' });
     });
-    await store.reviewSpec({ kind: 'spec', spec: 'acme.tts' });
+    await store.reviewSpec({ kind: 'spec', spec: PLUGIN_ID.acmeTts });
     expect(store.review.error?.code).toBe('incompatible');
     expect(store.review.loading).toBe(false);
   });
@@ -238,7 +239,7 @@ describe('packages store', () => {
       return { receipts: [], jobs: [], updates: [], checkedAt: 0 };
     });
     await store.initialize();
-    await store.updatePlugin('acme.tts', '1.1.0');
+    await store.updatePlugin(PLUGIN_ID.acmeTts, '1.1.0');
     topics.get('plugin.job')?.({
       job: job({ status: 'failed', error: { code: 'consent-required', message: 'review', details: preview } }),
     });
@@ -246,7 +247,7 @@ describe('packages store', () => {
     expect(store.review.mode).toBe('update');
     await store.confirmReview();
     expect(calls.filter((call) => call.method === 'plugins.packages.update').at(-1)?.params).toEqual({
-      pluginId: 'acme.tts',
+      pluginId: PLUGIN_ID.acmeTts,
       version: '1.1.0',
       consentToken: 'token-2',
     });
@@ -254,8 +255,8 @@ describe('packages store', () => {
 
   it('refreshes receipts and drops the update entry after a successful job', async () => {
     const { store, topics, calls } = harness((method) => {
-      if (method === 'plugins.updates.list') {
-        return { updates: [{ id: 'acme.tts', latest: '1.1.0', current: '1.0.0', latestStatus: 'approved' }], checkedAt: 1 };
+      if (method === RPC.pluginsUpdatesList) {
+        return { updates: [{ id: PLUGIN_ID.acmeTts, latest: '1.1.0', current: '1.0.0', latestStatus: 'approved' }], checkedAt: 1 };
       }
       return { receipts: [], jobs: [] };
     });

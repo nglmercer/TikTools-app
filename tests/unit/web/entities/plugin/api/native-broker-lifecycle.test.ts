@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
+import { TOPIC } from '../../../../../shared/index.ts';
 
 function harness() {
   const script = readFileSync(join(process.cwd(), 'crates', 'tiktools-desktop', 'src', 'plugin_webview', 'init.js'), 'utf8');
@@ -58,9 +59,9 @@ test('native broker bounds admission and rejects all pending requests on teardow
 
 test('native subscriptions bound topic and callback ownership and dispose idempotently', async () => {
   const { window } = harness();
-  const off = Array.from({ length: 128 }, () => window.tiktools.events.subscribe(['plugin.event'], () => {}));
+  const off = Array.from({ length: 128 }, () => window.tiktools.events.subscribe([TOPIC.pluginEvent], () => {}));
   expect(window.__tiktools_broker_diagnostics__().listeners).toBe(128);
-  expect(() => window.tiktools.events.subscribe(['plugin.event'], () => {})).toThrow('limit');
+  expect(() => window.tiktools.events.subscribe([TOPIC.pluginEvent], () => {})).toThrow('limit');
   for (const unsubscribe of off) { unsubscribe(); unsubscribe(); }
   expect(window.__tiktools_broker_diagnostics__().listeners).toBe(0);
   window.__tiktools_broker_dispose__();

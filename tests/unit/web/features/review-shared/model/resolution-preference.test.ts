@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from 'vitest';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import { DEFAULT_RESOLUTION_MODE, loadResolutionPreference, manualReview, resetResolutionPreference, resolutionMode, RESOLUTION_MODE_KEY, setResolutionMode } from '../../../../../../src/web/features/review-shared/model/resolution-preference.ts';
+import { RPC } from '../../../../../shared/index.ts';
 
 afterEach(() => resetResolutionPreference());
 
@@ -36,8 +37,8 @@ test('automatic resolution is an explicit opt-in stored value', async () => {
 test('loads and persists the advanced manual mode', async () => {
   let stored = 'manual';
   const { client, calls } = createFakeControlClient((method, params) => {
-    if (method === 'app.state.get') return { state: { [RESOLUTION_MODE_KEY]: stored } };
-    if (method === 'app.state.set') { stored = String(params?.value); return {}; }
+    if (method === RPC.appStateGet) return { state: { [RESOLUTION_MODE_KEY]: stored } };
+    if (method === RPC.appStateSet) { stored = String(params?.value); return {}; }
     throw new Error(`unexpected ${method}`);
   });
   await loadResolutionPreference(client);
@@ -47,5 +48,5 @@ test('loads and persists the advanced manual mode', async () => {
   await setResolutionMode(client, 'automatic');
   expect(stored).toBe('automatic');
   expect(resolutionMode.value).toBe('automatic');
-  expect(calls.filter((call) => call.method === 'app.state.set')).toHaveLength(1);
+  expect(calls.filter((call) => call.method === RPC.appStateSet)).toHaveLength(1);
 });

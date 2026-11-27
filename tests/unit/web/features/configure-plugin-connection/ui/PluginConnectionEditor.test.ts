@@ -4,6 +4,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { AUTOSAVE_DEBOUNCE_MS } from '@/entities/plugin/lib/connection-settings.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import PluginConnectionEditor from '../../../../../../src/web/features/configure-plugin-connection/ui/PluginConnectionEditor.vue';
+import { PLUGIN_ID } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -16,7 +17,7 @@ const settings = {
 };
 function mountEditor(required: boolean, authorized: boolean) {
   return mountWithPlugins(PluginConnectionEditor, { attachTo: document.body, props: {
-    pluginId: 'sonicboom.server', pluginName: 'SonicBoom', guided: true, actionOptions: {}, settings,
+    pluginId: PLUGIN_ID.sonicboomServer, pluginName: 'SonicBoom', guided: true, actionOptions: {}, settings,
     supportsProvisioning: true,
     connection: { ok: authorized, reachable: true, latencyMs: 5, at: 1,
       serverInfo: { authRequired: required, authorized, modelStatus: 'downloading', setupComplete: true, playback: true } },

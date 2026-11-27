@@ -9,16 +9,17 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { controlClientKey } from '@/shared/api/use-control-client.ts';
 import { activateLocale } from '@/shared/i18n/i18n.ts';
 import OwnerLibraryReview from '../../../../../../src/web/features/recover-owner-library/ui/OwnerLibraryReview.vue';
+import { ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach); beforeEach(() => activateLocale('en')); afterEach(() => activateLocale('en'));
 function fixture() {
   const source: BehaviorSnapshot = { actions: [], events: [], plugins: [], actionTypes: [], translations: {} };
   const native = nativeDefinitionHost((method, params, options) => {
-    if (method === 'app.state.get') return { state: {} };
-    if (method === 'automation.snapshot') {
+    if (method === RPC.appStateGet) return { state: {} };
+    if (method === RPC.automationSnapshot) {
       options?.onMetadata?.({ resourceVersions: [...source.actions.map((r) => ({ kind: 'automation', scope: 'action', id: r.id, revision: '1' })), ...source.events.map((r) => ({ kind: 'automation', scope: 'event', id: r.id, revision: '1' }))] }); return structuredClone(source);
     }
-    if (method === 'automation.create') {
+    if (method === RPC.automationCreate) {
       const record = params?.record as LiveAction | LiveEvent;
       if (params?.kind === 'action') source.actions.push(structuredClone(record as LiveAction)); else source.events.push(structuredClone(record as LiveEvent));
       options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: record.id, revision: '1' }] }); return record;
@@ -33,8 +34,8 @@ function fixture() {
 test('a lost graph reply retains its reviewed source and current comparison without resubmitting', async () => {
   const f = fixture(); await flushPromises(); await f.journal.refreshSnapshot();
   const mutation: LibraryMutation = { operation: 'apply-template', profileId: 'default', entry: {
-    actions: [{ schemaVersion: 2, id: 'act-frozen', name: 'Frozen action', enabled: false, typeId: 'core.log', config: { message: 'private-source' } }],
-    event: { schemaVersion: 1, id: 'evt-frozen', name: 'Frozen event', enabled: false, trigger: 'tiktok.chat', filters: [], actionIds: ['act-frozen'], cooldownMs: 0, cooldownScope: 'global', runMode: 'all' },
+    actions: [{ schemaVersion: 2, id: 'act-frozen', name: 'Frozen action', enabled: false, typeId: ACTION_TYPE.coreLog, config: { message: 'private-source' } }],
+    event: { schemaVersion: 1, id: 'evt-frozen', name: 'Frozen event', enabled: false, trigger: EVENT_KIND.tiktokChat, filters: [], actionIds: ['act-frozen'], cooldownMs: 0, cooldownScope: 'global', runMode: 'all' },
   } };
   const storing = vi.spyOn(Storage.prototype, 'setItem');
   try {
@@ -65,7 +66,7 @@ test('a lost graph reply retains its reviewed source and current comparison with
     }
     const foundSource = currentReview.text();
     expect(foundSource).toContain('Frozen event');
-    expect(f.calls.filter((call) => call.method === 'automation.library.submit')).toHaveLength(1);
+    expect(f.calls.filter((call) => call.method === RPC.automationLibrarySubmit)).toHaveLength(1);
     expect(storing).not.toHaveBeenCalled();
     f.journal.dismiss(); await outcome;
   } finally { storing.mockRestore(); }
@@ -73,8 +74,8 @@ test('a lost graph reply retains its reviewed source and current comparison with
 
 test('membership review names the exact saved action and requested profile', async () => {
   const f = fixture(); await flushPromises();
-  const action: LiveAction = { schemaVersion: 2, id: 'saved-target', name: 'Original saved action', enabled: false, typeId: 'core.log', config: {} };
-  await f.native.handle('automation.create', { kind: 'action', record: action });
+  const action: LiveAction = { schemaVersion: 2, id: 'saved-target', name: 'Original saved action', enabled: false, typeId: ACTION_TYPE.coreLog, config: {} };
+  await f.native.handle(RPC.automationCreate, { kind: 'action', record: action });
   f.native.library.setCatalog({ packs: [{ id: 'requested-profile', name: 'Original selected profile', description: '', eventIds: [], actionIds: [] }], activeId: 'default', templates: [] });
   await f.journal.refreshSnapshot();
   const outcome = f.journal.request({ operation: 'assign-record', kind: 'action', id: action.id, profileId: 'requested-profile' }).catch((failure: unknown) => failure);
@@ -84,6 +85,6 @@ test('membership review names the exact saved action and requested profile', asy
   expect(records.get('strong').text()).toBe('Original saved action');
   expect(f.review.text()).toContain('Original selected profile');
   expect(f.journal.draft.value?.mutation).toMatchObject({ kind: 'action', id: 'saved-target', profileId: 'requested-profile' });
-  expect(f.calls.some((call) => call.method === 'automation.library.submit')).toBe(false);
+  expect(f.calls.some((call) => call.method === RPC.automationLibrarySubmit)).toBe(false);
   f.journal.dismiss(); await outcome;
 });

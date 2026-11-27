@@ -7,13 +7,14 @@ import { useGlobalsStore } from '@/entities/runtime-global/model/globals-store.t
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import RuntimeGlobalsEditor from '../../../../../../src/web/features/edit-runtime-globals/ui/RuntimeGlobalsEditor.vue';
+import { RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
 
 async function mountEditor(handler: Parameters<typeof createFakeControlClient>[0], typed = false) {
-  const { client, calls } = createFakeControlClient((method, params, options) => method === 'rpc.discover'
-    ? { methods: (typed ? ['globals.typed.list', 'globals.typed.replace'] : []).map((name) => ({ name })) }
+  const { client, calls } = createFakeControlClient((method, params, options) => method === RPC.rpcDiscover
+    ? { methods: (typed ? [RPC.globalsTypedList, RPC.globalsTypedReplace] : []).map((name) => ({ name })) }
     : handler(method, params, options));
   const harness = createStoreHarness(client);
   const capabilities = harness.use(() => useCapabilityStore());
@@ -39,12 +40,12 @@ describe('RuntimeGlobalsEditor', () => {
 
   it('saves edited values through the store', async () => {
     const { wrapper, calls } = await mountEditor((method) =>
-      method === 'globals.list' ? { globals: { commandPort: '46665' } } : { ok: true },
+      method === RPC.globalsList ? { globals: { commandPort: '46665' } } : { ok: true },
     );
     await wrapper.findAll('input')[1]!.setValue('25575');
     await saveButton(wrapper).trigger('click');
     await flushPromises();
-    expect(calls.at(-1)).toEqual({ method: 'globals.set', params: { key: 'commandPort', value: '25575' } });
+    expect(calls.at(-1)).toEqual({ method: RPC.globalsSet, params: { key: 'commandPort', value: '25575' } });
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
   });
 
@@ -80,15 +81,15 @@ describe('RuntimeGlobalsEditor', () => {
     await discardButton(wrapper).trigger('click');
     expect(wrapper.findAll('input').map((input) => input.element.value)).toEqual(['commandPort', '46665']);
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
-    expect(calls.some((call) => call.method === 'globals.set')).toBe(false);
+    expect(calls.some((call) => call.method === RPC.globalsSet)).toBe(false);
   });
 
   it('edits explicit types and masks secrets while saving only through the local typed API', async () => {
     const secret = 'local-editor-private-value';
     const revision = 'a'.repeat(64);
     const { wrapper, calls } = await mountEditor((method, params) => {
-      if (method === 'globals.typed.list') return { revision, variables: { port: { type: 'text', value: '8080' }, token: { type: 'secret', value: secret } } };
-      if (method === 'globals.typed.replace') return { revision: 'b'.repeat(64), variables: params?.variables };
+      if (method === RPC.globalsTypedList) return { revision, variables: { port: { type: 'text', value: '8080' }, token: { type: 'secret', value: secret } } };
+      if (method === RPC.globalsTypedReplace) return { revision: 'b'.repeat(64), variables: params?.variables };
       throw new Error(`unexpected method ${method}`);
     }, true);
     const rows = wrapper.findAll('[role="row"]').slice(1);
@@ -97,11 +98,11 @@ describe('RuntimeGlobalsEditor', () => {
     await rows[0]!.get('input[aria-label="Value"]').setValue('46665');
     await saveButton(wrapper).trigger('click');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'globals.typed.replace')).toEqual({ method: 'globals.typed.replace', params: {
+    expect(calls.find((call) => call.method === RPC.globalsTypedReplace)).toEqual({ method: RPC.globalsTypedReplace, params: {
       expectedRevision: revision,
       variables: { port: { type: 'number', value: 46665 }, token: { type: 'secret', value: secret } },
     } });
-    expect(calls.some((call) => call.method.startsWith('sync.') || call.method === 'globals.set')).toBe(false);
+    expect(calls.some((call) => call.method.startsWith('sync.') || call.method === RPC.globalsSet)).toBe(false);
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
     expect(JSON.stringify(localStorage)).not.toContain(secret);
   });
@@ -109,8 +110,8 @@ describe('RuntimeGlobalsEditor', () => {
   it('retains a dirty draft and its original revision after a conflicting save and a fresh host read', async () => {
     let revision = 'a'.repeat(64);
     const { wrapper, calls, store } = await mountEditor((method) => {
-      if (method === 'globals.typed.list') return { revision, variables: { port: { type: 'number', value: revision.startsWith('a') ? 1 : 3 } } };
-      if (method === 'globals.typed.replace') { revision = 'b'.repeat(64); throw new ControlCallError('conflict', 'runtime variables changed; reload before saving'); }
+      if (method === RPC.globalsTypedList) return { revision, variables: { port: { type: 'number', value: revision.startsWith('a') ? 1 : 3 } } };
+      if (method === RPC.globalsTypedReplace) { revision = 'b'.repeat(64); throw new ControlCallError('conflict', 'runtime variables changed; reload before saving'); }
       throw new Error(`unexpected method ${method}`);
     }, true);
     await wrapper.get('input[aria-label="Value"]').setValue('2');
@@ -121,7 +122,7 @@ describe('RuntimeGlobalsEditor', () => {
     expect((wrapper.get('input[aria-label="Value"]').element as HTMLInputElement).value).toBe('2');
     await saveButton(wrapper).trigger('click');
     await flushPromises();
-    expect(calls.filter((call) => call.method === 'globals.typed.replace').map((call) => call.params?.expectedRevision)).toEqual(['a'.repeat(64), 'a'.repeat(64)]);
+    expect(calls.filter((call) => call.method === RPC.globalsTypedReplace).map((call) => call.params?.expectedRevision)).toEqual(['a'.repeat(64), 'a'.repeat(64)]);
     await discardButton(wrapper).trigger('click');
     await flushPromises();
     expect((wrapper.get('input[aria-label="Value"]').element as HTMLInputElement).value).toBe('3');
@@ -133,13 +134,13 @@ describe('RuntimeGlobalsEditor', () => {
     await wrapper.get('select[aria-label="Type"]').setValue('number');
     expect(wrapper.get('[role="alert"]').text()).toContain('Enter a finite number');
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
-    expect(calls.some((call) => call.method === 'globals.typed.replace')).toBe(false);
+    expect(calls.some((call) => call.method === RPC.globalsTypedReplace)).toBe(false);
   });
 
   it('keeps a secret masked and blocks legacy saving when host capabilities change', async () => {
     const { wrapper, calls, capabilities } = await mountEditor((method) => {
-      if (method === 'globals.typed.list') return { revision: 'a'.repeat(64), variables: { ordinary: { type: 'secret', value: 'private-draft' } } };
-      if (method === 'globals.list') return { globals: { otherHost: 'public' } };
+      if (method === RPC.globalsTypedList) return { revision: 'a'.repeat(64), variables: { ordinary: { type: 'secret', value: 'private-draft' } } };
+      if (method === RPC.globalsList) return { globals: { otherHost: 'public' } };
       throw new Error(`unexpected method ${method}`);
     }, true);
     await wrapper.get('input[aria-label="Value"]').setValue('unsaved-private-draft');
@@ -149,7 +150,7 @@ describe('RuntimeGlobalsEditor', () => {
     expect((wrapper.get('input[aria-label="Value"]').element as HTMLInputElement).value).toBe('unsaved-private-draft');
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
     expect(wrapper.get('[role="alert"]').text()).toContain('This host does not support these variable types');
-    expect(calls.some((call) => call.method === 'globals.set' || call.method === 'globals.typed.replace')).toBe(false);
+    expect(calls.some((call) => call.method === RPC.globalsSet || call.method === RPC.globalsTypedReplace)).toBe(false);
     await discardButton(wrapper).trigger('click');
     await flushPromises();
     expect(wrapper.findAll('input').map((input) => input.element.value)).toEqual(['otherHost', 'public']);

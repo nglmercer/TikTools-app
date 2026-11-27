@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import type { ControlClient, PushHandler, TopicHandler } from '@/shared/api/control-client.ts';
 import { usePlugins } from '@/entities/plugin/model/plugins-state.ts';
 import { useAutomation } from '../../../../../../src/web/entities/automation/model/automation-state.ts';
+import { TOPIC } from '../../../../../shared/index.ts';
 
 function harness() {
   const topics = new Map<string, Set<TopicHandler>>();
@@ -33,7 +34,7 @@ test('100 feature remounts return subscriptions to baseline and cancel debounced
   for (let cycle = 0; cycle < 100; ++cycle) {
     const automation = useAutomation(state.client);
     const plugins = usePlugins(state.client, { translate: (key) => key, refreshBehavior: async () => {}, reportError() {} });
-    for (const handler of state.topics.get('workflow.changed') ?? []) handler({});
+    for (const handler of state.topics.get(TOPIC.workflowChanged) ?? []) handler({});
     for (const handler of state.topics.get('plugin.progress') ?? []) handler({ pluginId: 'p', state: 'ready', message: '' });
     automation.dispose(); plugins.dispose();
     automation.dispose(); plugins.dispose();

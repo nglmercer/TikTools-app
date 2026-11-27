@@ -15,6 +15,7 @@ import {
   unregisterAutocompleteContributionsForPlugin,
 } from '../../../src/automation/autocomplete-registry.ts';
 import type { PluginAutocompleteContribution } from '../../../src/automation/behavior/types.ts';
+import { EVENT_KIND } from '../../shared/index.ts';
 
 afterEach(() => {
   resetAutocompleteRegistry();
@@ -41,7 +42,7 @@ function textintelSnapshot(): PluginAutocompleteContribution[] {
           hint: { default: 'True when TextIntel blocked this chat message.', i18key: '' },
         },
       ],
-      triggers: ['tiktok.chat'],
+      triggers: [EVENT_KIND.tiktokChat],
       source: { ...source },
     },
   ];
@@ -78,16 +79,16 @@ describe('provider-namespace convention', () => {
 describe('snapshot-seeded contributions', () => {
   test('registry starts empty: unowned paths fail open', () => {
     expect(autocompleteContributions()).toEqual([]);
-    expect(isAutocompletePathAvailable('event.intel.comment.tts.text', 'tiktok.chat')).toBe(true);
-    expect(contributionFieldsForTrigger('tiktok.chat')).toEqual([]);
+    expect(isAutocompletePathAvailable('event.intel.comment.tts.text', EVENT_KIND.tiktokChat)).toBe(true);
+    expect(contributionFieldsForTrigger(EVENT_KIND.tiktokChat)).toEqual([]);
   });
 
   test('seeded stable views are suggested while their owner is available', () => {
     applySnapshotContributions(textintelSnapshot());
-    expect(isAutocompletePathAvailable('event.intel.comment.tts.text', 'tiktok.chat')).toBe(true);
-    expect(isAutocompletePathAvailable('event.intel.user.nickname.tts.text', 'tiktok.gift')).toBe(true);
+    expect(isAutocompletePathAvailable('event.intel.comment.tts.text', EVENT_KIND.tiktokChat)).toBe(true);
+    expect(isAutocompletePathAvailable('event.intel.user.nickname.tts.text', EVENT_KIND.tiktokGift)).toBe(true);
     setAutocompletePluginState('textintel', { installed: true, enabled: true });
-    expect(isAutocompletePathAvailable('event.intel.comment.tts.text', 'tiktok.chat')).toBe(true);
+    expect(isAutocompletePathAvailable('event.intel.comment.tts.text', EVENT_KIND.tiktokChat)).toBe(true);
   });
 
   test('seeded views hide while their owner is disabled, uninstalled, or unavailable', () => {
@@ -98,25 +99,25 @@ describe('snapshot-seeded contributions', () => {
       { installed: true, enabled: true, available: false },
     ]) {
       syncAutocompletePluginStates([{ id: 'textintel', ...state }]);
-      expect(isAutocompletePathAvailable('event.intel.comment.tts.text', 'tiktok.chat')).toBe(false);
-      expect(isAutocompletePathAvailable('event.intel.user.nickname.tts.text', 'tiktok.gift')).toBe(false);
+      expect(isAutocompletePathAvailable('event.intel.comment.tts.text', EVENT_KIND.tiktokChat)).toBe(false);
+      expect(isAutocompletePathAvailable('event.intel.user.nickname.tts.text', EVENT_KIND.tiktokGift)).toBe(false);
       // Core paths are untouched by the plugin state.
-      expect(isAutocompletePathAvailable('event.data.comment', 'tiktok.chat')).toBe(true);
+      expect(isAutocompletePathAvailable('event.data.comment', EVENT_KIND.tiktokChat)).toBe(true);
     }
   });
 
   test('moderation verdict field is pushed for chat and gated by availability', () => {
     applySnapshotContributions(textintelSnapshot());
     const blocked = 'event.intel.providers.textintel.comment.moderation.blocked';
-    const chat = contributionFieldsForTrigger('tiktok.chat');
+    const chat = contributionFieldsForTrigger(EVENT_KIND.tiktokChat);
     expect(chat.map((field) => field.path)).toContain(blocked);
     expect(chat.find((field) => field.path === blocked)?.label.en).toBe('Moderation blocked');
-    expect(contributionFieldsForTrigger('tiktok.gift').map((field) => field.path)).not.toContain(blocked);
+    expect(contributionFieldsForTrigger(EVENT_KIND.tiktokGift).map((field) => field.path)).not.toContain(blocked);
     // Union queries (no trigger) keep the discovery path.
     expect(contributionFieldsForTrigger().map((field) => field.path)).toContain(blocked);
     syncAutocompletePluginStates([{ id: 'textintel', installed: true, enabled: false }]);
-    expect(contributionFieldsForTrigger('tiktok.chat')).toEqual([]);
-    expect(contributionFieldsForTrigger('tiktok.chat', { includeDisabled: true }).map((field) => field.path))
+    expect(contributionFieldsForTrigger(EVENT_KIND.tiktokChat)).toEqual([]);
+    expect(contributionFieldsForTrigger(EVENT_KIND.tiktokChat, { includeDisabled: true }).map((field) => field.path))
       .toContain(blocked);
   });
 
@@ -132,7 +133,7 @@ describe('snapshot-seeded contributions', () => {
     // seeded origin while the local push survives.
     applySnapshotContributions([]);
     expect(autocompleteContributions().map((entry) => entry.id)).toEqual(['local.views']);
-    expect(isAutocompletePathAvailable('event.intel.comment.tts.text', 'tiktok.chat')).toBe(true);
+    expect(isAutocompletePathAvailable('event.intel.comment.tts.text', EVENT_KIND.tiktokChat)).toBe(true);
   });
 
   test('malformed snapshot entries are skipped, never fatal', () => {
@@ -175,12 +176,12 @@ describe('register / unregister API', () => {
       { id: 'a', installed: true, enabled: false },
       { id: 'b', installed: true, enabled: true },
     ]);
-    expect(isAutocompletePathAvailable('event.intel.comment.tts.text', 'tiktok.chat')).toBe(true);
+    expect(isAutocompletePathAvailable('event.intel.comment.tts.text', EVENT_KIND.tiktokChat)).toBe(true);
     syncAutocompletePluginStates([
       { id: 'a', installed: true, enabled: false },
       { id: 'b', installed: true, enabled: false },
     ]);
-    expect(isAutocompletePathAvailable('event.intel.comment.tts.text', 'tiktok.chat')).toBe(false);
+    expect(isAutocompletePathAvailable('event.intel.comment.tts.text', EVENT_KIND.tiktokChat)).toBe(false);
   });
 
   test('trigger scoping gates only the declared triggers', () => {
@@ -188,11 +189,11 @@ describe('register / unregister API', () => {
       id: 'demo.chat',
       pluginId: 'demo',
       prefixes: ['event.data.demo.'],
-      triggers: ['tiktok.chat'],
+      triggers: [EVENT_KIND.tiktokChat],
     });
     syncAutocompletePluginStates([{ id: 'demo', installed: true, enabled: false }]);
-    expect(isAutocompletePathAvailable('event.data.demo.deep', 'tiktok.chat')).toBe(false);
-    expect(isAutocompletePathAvailable('event.data.demo.deep', 'tiktok.gift')).toBe(true);
+    expect(isAutocompletePathAvailable('event.data.demo.deep', EVENT_KIND.tiktokChat)).toBe(false);
+    expect(isAutocompletePathAvailable('event.data.demo.deep', EVENT_KIND.tiktokGift)).toBe(true);
     // Union queries cannot prove the path belongs to another trigger.
     expect(isAutocompletePathAvailable('event.data.demo.deep')).toBe(false);
   });
@@ -218,6 +219,6 @@ describe('plugin state sync', () => {
     resetAutocompleteRegistry();
     expect(autocompleteContributions()).toEqual([]);
     expect(isAutocompletePluginAvailable('textintel')).toBe(true);
-    expect(isAutocompletePathAvailable('event.intel.comment.tts.text', 'tiktok.chat')).toBe(true);
+    expect(isAutocompletePathAvailable('event.intel.comment.tts.text', EVENT_KIND.tiktokChat)).toBe(true);
   });
 });

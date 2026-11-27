@@ -2,13 +2,14 @@ import { expect, test } from 'vitest';
 
 import type { JsonValue } from '../../../src/shared/json.ts';
 import { normalizeAction } from '../../../src/plugin-ui/actions.ts';
+import { PLUGIN_ID, RPC } from '../../shared/index.ts';
 
 test('accepts every allowlisted action type', () => {
   expect(normalizeAction({ type: 'save-settings' })).toEqual({ type: 'save-settings' });
   expect(normalizeAction({ type: 'test-connection' })).toEqual({ type: 'test-connection' });
   expect(
-    normalizeAction({ type: 'plugin-action', actionType: 'sonicboom.server.speak' }),
-  ).toEqual({ type: 'plugin-action', actionType: 'sonicboom.server.speak' });
+    normalizeAction({ type: 'plugin-action', actionType: PLUGIN_ID.sonicboomServerSpeak }),
+  ).toEqual({ type: 'plugin-action', actionType: PLUGIN_ID.sonicboomServerSpeak });
   expect(normalizeAction({ type: 'refresh-source', source: 'plugin-action-options:a:b' })).toEqual(
     { type: 'refresh-source', source: 'plugin-action-options:a:b' },
   );
@@ -23,7 +24,7 @@ test('rejects generic RPC and malformed descriptors', () => {
     undefined as unknown as JsonValue,
     null as unknown as JsonValue,
     'save-settings' as unknown as JsonValue,
-    { type: 'rpc', method: 'app.state.get' },
+    { type: 'rpc', method: RPC.appStateGet },
     { type: 'eval', code: 'alert(1)' },
     { type: 'plugin-action' },
     { type: 'plugin-action', actionType: '../../etc/passwd' },

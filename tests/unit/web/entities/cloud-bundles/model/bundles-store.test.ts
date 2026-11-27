@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { MAX_IMAGE_BYTES, useBundlesStore } from '../../../../../../src/web/entities/cloud-bundles/model/bundles-store.ts';
+import { RPC } from '../../../../../shared/index.ts';
 
 const id = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
 
 function host(handler: (method: string, params: unknown) => unknown) {
   const { client, calls } = createFakeControlClient((method, params) => {
-    if (method === 'rpc.discover') return { methods: [{ name: 'bundles.packages.preflight' }, { name: 'bundles.assets.upload' }] };
+    if (method === RPC.rpcDiscover) return { methods: [{ name: RPC.bundlesPackagesPreflight }, { name: 'bundles.assets.upload' }] };
     return handler(method, params);
   });
   return { stores: createStoreHarness(client), calls };
@@ -21,7 +22,7 @@ describe('bundles store', () => {
     const big = new File([new Uint8Array(MAX_IMAGE_BYTES + 1)], 'big.png', { type: 'image/png' });
     expect(await bundles.upload(big)).toBe(false);
     expect(bundles.error).toBe('size');
-    expect(calls.map((call) => call.method)).toEqual(['rpc.discover']);
+    expect(calls.map((call) => call.method)).toEqual([RPC.rpcDiscover]);
   });
 
   it('uploads base64 bytes and keeps the returned asset', async () => {
@@ -38,7 +39,7 @@ describe('bundles store', () => {
 
   it('shows the preflight for the requested package and never applies it', async () => {
     const { stores, calls } = host((method) => {
-      if (method === 'bundles.packages.preflight') {
+      if (method === RPC.bundlesPackagesPreflight) {
         return { items: [{ kind: 'overlay', id, version: null, revision: 2, required: true, status: 'revisionChanged', permissions: 'none' }], blocking: [{}], canApply: false, applyMode: 'clientJournal' };
       }
       throw new Error(method);
@@ -48,6 +49,6 @@ describe('bundles store', () => {
     await bundles.checkPackage(id);
     expect(bundles.preflight?.canApply).toBe(false);
     expect(bundles.preflight?.items[0]?.status).toBe('revisionChanged');
-    expect(calls.map((call) => call.method)).toEqual(['rpc.discover', 'bundles.packages.preflight']);
+    expect(calls.map((call) => call.method)).toEqual([RPC.rpcDiscover, RPC.bundlesPackagesPreflight]);
   });
 });

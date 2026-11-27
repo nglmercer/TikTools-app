@@ -17,25 +17,26 @@ import {
   makeTestGiftEnvelope,
   makeTestUser,
 } from '../../../../src/widgets/shared/test-events.ts';
+import { TOPIC } from '../../../shared/index.ts';
 
 describe('event parser', () => {
   test('accepts well-formed envelopes and rejects malformed frames', () => {
-    expect(isDomainEventEnvelope({ topic: 'live.event', data: {} })).toBe(true);
-    expect(isDomainEventEnvelope({ topic: 'live.event' })).toBe(false);
+    expect(isDomainEventEnvelope({ topic: TOPIC.liveEvent, data: {} })).toBe(true);
+    expect(isDomainEventEnvelope({ topic: TOPIC.liveEvent })).toBe(false);
     expect(isDomainEventEnvelope({ data: {} })).toBe(false);
     expect(isDomainEventEnvelope(null)).toBe(false);
-    expect(isDomainEventEnvelope('live.event')).toBe(false);
+    expect(isDomainEventEnvelope(TOPIC.liveEvent)).toBe(false);
     expect(isDomainEventEnvelope([])).toBe(false);
   });
 
   test('recognizes gateway control messages', () => {
     expect(isGatewayControlMessage({ type: 'authenticated' })).toBe(true);
     expect(isGatewayControlMessage({ type: 'pong' })).toBe(true);
-    expect(isGatewayControlMessage({ type: 'subscribed', topics: ['live.event'] })).toBe(true);
+    expect(isGatewayControlMessage({ type: 'subscribed', topics: [TOPIC.liveEvent] })).toBe(true);
     expect(isGatewayControlMessage({ type: 'error', error: 'nope' })).toBe(true);
-    expect(isGatewayControlMessage({ type: 'subscribed', topics: 'live.event' })).toBe(false);
+    expect(isGatewayControlMessage({ type: 'subscribed', topics: TOPIC.liveEvent })).toBe(false);
     expect(isGatewayControlMessage({ type: 'bogus' })).toBe(false);
-    expect(isGatewayControlMessage({ topic: 'live.event', data: {} })).toBe(false);
+    expect(isGatewayControlMessage({ topic: TOPIC.liveEvent, data: {} })).toBe(false);
   });
 
   test('parses follow envelopes into typed events', () => {
@@ -54,10 +55,10 @@ describe('event parser', () => {
 
   test('rejects non-live topics and malformed payloads without throwing', () => {
     expect(parseLiveEvent({ topic: 'room.stats', data: {} })).toBeNull();
-    expect(parseLiveEvent({ topic: 'live.event', data: null })).toBeNull();
-    expect(parseLiveEvent({ topic: 'live.event', data: { eventType: 'x' } })).toBeNull();
+    expect(parseLiveEvent({ topic: TOPIC.liveEvent, data: null })).toBeNull();
+    expect(parseLiveEvent({ topic: TOPIC.liveEvent, data: { eventType: 'x' } })).toBeNull();
     expect(
-      parseLiveEvent({ topic: 'live.event', data: { eventType: 'x', event: { id: '', type: 'x' } } }),
+      parseLiveEvent({ topic: TOPIC.liveEvent, data: { eventType: 'x', event: { id: '', type: 'x' } } }),
     ).toBeNull();
   });
 
@@ -69,7 +70,7 @@ describe('event parser', () => {
     const follow = makeTestFollowEnvelope();
     const followEvent = (follow.data as Record<string, unknown>)['event'] as Record<string, unknown>;
     const tampered = {
-      topic: 'live.event',
+      topic: TOPIC.liveEvent,
       data: { eventType: FOLLOW_EVENT_TYPE, event: { ...followEvent, data: { action: 'one' } } },
     };
     const parsed = parseLiveEvent(tampered);

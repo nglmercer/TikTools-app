@@ -1,4 +1,5 @@
 import { callbacks, createControl, describe, expect, it, createLiveFeedState } from '../../../../../../src/web/entities/live-event/model/testing/live-feed-fixture.ts';
+import { TOPIC } from '../../../../../shared/index.ts';
 
 describe('authoritative core likes ranking', () => {
   it('keeps the likes ranking independent of feed history, and rejects another room', () => {
@@ -11,7 +12,7 @@ describe('authoritative core likes ranking', () => {
       harness.emit('live.likes-ranking', {
         creatorId: 'creator', roomId: 'room-a', leaders: [preconnectLeader],
       } as never);
-      harness.emit('live.connected', { uniqueId: 'creator', roomId: 'room-a' } as never);
+      harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: 'room-a' } as never);
       expect(live.likeLeaders.value).toEqual([preconnectLeader]);
       const alice = { rank: 1, score: 150, uniqueId: 'alice', nickname: 'Alice', userId: '1' };
       const bob = { rank: 2, score: 90, uniqueId: 'bob', nickname: 'Bob', userId: '2' };
@@ -38,9 +39,9 @@ describe('authoritative core likes ranking', () => {
       expect(live.likeLeaders.value.map((leader) => leader.uniqueId)).toEqual(['bob', 'alice']);
 
       // Rejoining the same room does not clear authoritative session totals.
-      harness.emit('live.connected', { uniqueId: 'creator', roomId: 'room-a' } as never);
+      harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: 'room-a' } as never);
       expect(live.likeLeaders.value).toHaveLength(2);
-      harness.emit('live.connected', { uniqueId: 'creator', roomId: 'room-b' } as never);
+      harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: 'room-b' } as never);
       expect(live.likeLeaders.value).toHaveLength(0);
     } finally {
       live.dispose();

@@ -4,9 +4,10 @@ import type { LiveAction, LiveEvent } from '../../../../../../src/automation/beh
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import type { AutomationRecordVersion } from '@/entities/automation/model/record-versions.ts';
 import { useAutomationEditor, type AutomationEditorGateway } from '../../../../../../src/web/features/edit-automation-record/model/automation-editor.ts';
+import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
 
-const action: LiveAction = { id: 'same', name: 'Initial', schemaVersion: 2, enabled: true, typeId: 'core.log', config: { message: 'one' } };
-const event: LiveEvent = { id: 'same', name: 'Event', schemaVersion: 1, enabled: true, trigger: 'tiktok.chat', filters: [], cooldownMs: 0, cooldownScope: 'user', runMode: 'all', actionIds: ['same'] };
+const action: LiveAction = { id: 'same', name: 'Initial', schemaVersion: 2, enabled: true, typeId: ACTION_TYPE.coreLog, config: { message: 'one' } };
+const event: LiveEvent = { id: 'same', name: 'Event', schemaVersion: 1, enabled: true, trigger: EVENT_KIND.tiktokChat, filters: [], cooldownMs: 0, cooldownScope: 'user', runMode: 'all', actionIds: ['same'] };
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (error: unknown) => void;

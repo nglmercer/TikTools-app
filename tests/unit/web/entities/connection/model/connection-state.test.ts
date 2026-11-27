@@ -4,6 +4,7 @@ import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import { useConnection } from '../../../../../../src/web/entities/connection/model/connection-state.ts';
 import { getSavedUsername } from '../../../../../../src/web/entities/connection/lib/creator-preferences.ts';
+import { RPC, TOPIC } from '../../../../../shared/index.ts';
 
 function stubControl(overrides?: Partial<ControlClient>): ControlClient & {
   calls: Array<{ method: string; params?: RpcParams }>;
@@ -190,7 +191,7 @@ describe('useConnection creator/input sync', () => {
     const connection = useConnection(control, callbacks);
     connection.setUniqueId('stale_typing');
 
-    topics.get('live.connected')?.({ uniqueId: '@Canonical_Name' } as never);
+    topics.get(TOPIC.liveConnected)?.({ uniqueId: '@Canonical_Name' } as never);
 
     expect(connection.status.value).toBe('connected');
     expect(connection.activeCreator.value).toBe('Canonical_Name');
@@ -275,7 +276,7 @@ describe('useConnection refreshStatus', () => {
 test('a stale failed connect cannot overwrite a later disconnect', async () => {
   let failConnect: ((error: Error) => void) | undefined;
   const control = stubControl({
-    call: <T,>(method: string): Promise<T> => method === 'live.connect'
+    call: <T,>(method: string): Promise<T> => method === RPC.liveConnect
       ? new Promise<T>((_resolve, reject) => { failConnect = reject; })
       : Promise.resolve({ connected: false } as T),
   });
@@ -338,7 +339,7 @@ describe('useConnection reconnect reporting', () => {
     expect(connection.reconnectAttempt.value).toBe(2);
     expect(connection.reconnectDelayMs.value).toBe(4000);
 
-    topics.get('live.connected')?.({ uniqueId: 'alice' } as never);
+    topics.get(TOPIC.liveConnected)?.({ uniqueId: 'alice' } as never);
     expect(connection.status.value).toBe('connected');
     expect(connection.reconnectAttempt.value).toBeNull();
     expect(connection.reconnectDelayMs.value).toBeNull();
@@ -404,7 +405,7 @@ describe('useConnection reconnect vs creator switch', () => {
 });
 
 describe('useConnection cancellation', () => {
-  test.each(['live.connect', 'live.pick'])('ignores a late result from a cancelled %s', async (method) => {
+  test.each([RPC.liveConnect, 'live.pick'])('ignores a late result from a cancelled %s', async (method) => {
     let finish: ((value: unknown) => void) | undefined;
     const control = stubControl({
       call: <T,>(requested: string): Promise<T> => {
@@ -449,7 +450,7 @@ describe('useConnection terminal transport failures', () => {
     topics.get('live.reconnecting')?.({ attempt: 1, delayMs: 30000 } as never);
     expect(connection.status.value).toBe('retrying');
     expect(connection.error.value).toBe('');
-    topics.get('live.connected')?.({ uniqueId: 'alice' } as never);
+    topics.get(TOPIC.liveConnected)?.({ uniqueId: 'alice' } as never);
     expect(connection.status.value).toBe('connected');
     expect(connection.reconnectDelayMs.value).toBeNull();
   });

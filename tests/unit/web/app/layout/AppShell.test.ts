@@ -10,6 +10,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { nativeDefinitionHost } from '@/entities/automation/testing/native-definition-fixture.ts';
 import { importLibraryDocument } from '@/entities/cloud-bundles/lib/library-import.ts';
 import AppShell from '../../../../../src/web/app/layout/AppShell.vue';
+import { ACTION_TYPE, EVENT_KIND, RPC } from '../../../../shared/index.ts';
 
 afterEach(() => {
   diagnosticView.open.value = false;
@@ -64,13 +65,13 @@ const libraryDocumentId = '00000000-0000-4000-8000-000000000001';
 
 describe('AppShell library review', () => {
   const template = { templateVersion: 1, id: 'shell-template', title: 'Shell template', description: '', icon: 'gift',
-    actions: [{ name: 'act', typeId: 'core.log', config: {} }], event: { name: 'evt', trigger: 'tiktok.chat' } };
+    actions: [{ name: 'act', typeId: ACTION_TYPE.coreLog, config: {} }], event: { name: 'evt', trigger: EVENT_KIND.tiktokChat } };
   async function mountOwnerShell() {
     const native = nativeDefinitionHost((method, params, options) => {
-      if (method === 'automation.snapshot') { options?.onMetadata?.({ resourceVersions: [] }); return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} }; }
-      if (method === 'app.state.get') return { state: {} };
+      if (method === RPC.automationSnapshot) { options?.onMetadata?.({ resourceVersions: [] }); return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} }; }
+      if (method === RPC.appStateGet) return { state: {} };
       if (method === 'cloudLibrary.read') return { meta: { id: libraryDocumentId, revision: '1', sha256: 'a'.repeat(64) }, document: template };
-      if (method === 'automation.create') {
+      if (method === RPC.automationCreate) {
         options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }] });
         return params?.record;
       }
@@ -110,7 +111,7 @@ describe('AppShell library review', () => {
     await flushPromises(); await outcome;
     expect(settled).toBe(true);
     expect(dialogs()).toHaveLength(0);
-    expect(shell.calls.filter((call) => call.method === 'automation.library.submit')).toHaveLength(1);
+    expect(shell.calls.filter((call) => call.method === RPC.automationLibrarySubmit)).toHaveLength(1);
     shell.wrapper.unmount();
   });
 });

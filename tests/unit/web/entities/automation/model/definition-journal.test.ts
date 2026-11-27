@@ -8,12 +8,13 @@ import { useAutomationEditor } from '@/features/edit-automation-record/model/aut
 import { nativeDefinitionHost } from '../../../../../../src/web/entities/automation/testing/native-definition-fixture.ts';
 import { parseDefinitionState, parseDefinitionSubmission, type DefinitionState, type DefinitionWrite } from '../../../../../../src/web/entities/automation/model/definition-contracts.ts';
 import { definitionJournal } from '../../../../../../src/web/entities/automation/model/definition-journal.ts';
+import { ACTION_TYPE, RPC } from '../../../../../shared/index.ts';
 
-const source = (): LiveAction => ({ schemaVersion: 2, id: 'saved', name: 'Saved action', enabled: false, typeId: 'core.log', config: { message: 'private source' } });
+const source = (): LiveAction => ({ schemaVersion: 2, id: 'saved', name: 'Saved action', enabled: false, typeId: ACTION_TYPE.coreLog, config: { message: 'private source' } });
 function fixture() {
   let record = source(); let revision = '1'; let writes = 0;
   const native = nativeDefinitionHost((method, params, options) => {
-    if (['automation.create', 'automation.update', 'automation.enable', 'automation.disable'].includes(method)) {
+    if ([RPC.automationCreate, RPC.automationUpdate, 'automation.enable', RPC.automationDisable].includes(method)) {
       ++writes; revision = String(BigInt(String(options?.meta?.expectedRevision)) + 1n);
       record = structuredClone(params?.record as LiveAction ?? { ...record, enabled: method === 'automation.enable' });
       options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: 'action', id: record.id, revision }] });
@@ -50,7 +51,7 @@ describe('native Owner definition journal', () => {
     await editor.readForReview(); expect(editor.adoptReview()).toBe(true);
     expect(editor.state.value?.revision).toBe('2');
     expect(editor.state.value?.candidate.name).toBe('Newer unsaved text');
-    expect(f.calls.filter((c) => c.method === 'automation.definition.submit')).toHaveLength(1);
+    expect(f.calls.filter((c) => c.method === RPC.automationDefinitionSubmit)).toHaveLength(1);
     editor.dispose();
   });
 
@@ -64,7 +65,7 @@ describe('native Owner definition journal', () => {
     await recovered.refresh(); await recovered.resolve();
     expect(recovered.state.value?.recent[0]?.receipt?.revision).toBe('9007199254740994');
     expect(f.writes()).toBe(1);
-    expect(reloaded.calls.every((c) => c.method !== 'automation.definition.submit')).toBe(true);
+    expect(reloaded.calls.every((c) => c.method !== RPC.automationDefinitionSubmit)).toBe(true);
   });
 
   test('pending authority transitions, shared in-flight operations and host changes block before submit', async () => {
@@ -80,7 +81,7 @@ describe('native Owner definition journal', () => {
     release(); await held;
     f.native.replaceState({ ...f.native.state(), hostInstanceId: 'replacement' });
     await expect(f.journal.submit(f.input, f.host)).rejects.toMatchObject({ code: 'host_restarted' });
-    expect(f.calls.some((c) => c.method === 'automation.definition.submit')).toBe(false);
+    expect(f.calls.some((c) => c.method === RPC.automationDefinitionSubmit)).toBe(false);
   });
 
   test('unsafe source is refused before native requests and no journal writes browser storage', async () => {
@@ -109,15 +110,15 @@ describe('native Owner definition journal', () => {
     expect((ack.value as LiveAction).name).toBe('Saved action');
     expect((ack.value as LiveAction).config.message).toBe('private source');
     expect(f.writes()).toBe(1);
-    expect(f.calls.filter((c) => c.method === 'automation.definition.submit')).toHaveLength(1);
-    expect(f.calls.find((c) => c.method === 'automation.definition.submit')?.params).toMatchObject({ operation: 'update', id: 'saved', expectedRevision: '1', hostId: 'host-a' });
+    expect(f.calls.filter((c) => c.method === RPC.automationDefinitionSubmit)).toHaveLength(1);
+    expect(f.calls.find((c) => c.method === RPC.automationDefinitionSubmit)?.params).toMatchObject({ operation: 'update', id: 'saved', expectedRevision: '1', hostId: 'host-a' });
   });
 
   test('known success without a fresh acknowledgement requires review and cannot borrow an older rejection', async () => {
     const f = fixture();
     const transport = createFakeControlClient(async (method, params, options) => {
       const result = await f.native.handle(method, params, options);
-      if (method !== 'automation.definition.submit') return result;
+      if (method !== RPC.automationDefinitionSubmit) return result;
       const submission = result as { state: DefinitionState; acknowledgement: unknown };
       const success = submission.state.recent[0]!;
       submission.state.recent.push({ ...success, intent: { ...success.intent, commandId: `owner-definition-${'f'.repeat(32)}` }, outcome: 'rejected', receipt: null, errorCode: 'revision_conflict' });
@@ -127,7 +128,7 @@ describe('native Owner definition journal', () => {
     await expect(journal.submit(f.input, f.host)).rejects.toMatchObject({ code: 'unconfirmed' });
     expect(journal.state.value?.recent[0]?.outcome).toBe('succeeded');
     expect(f.writes()).toBe(1);
-    expect(transport.calls.filter((c) => c.method === 'automation.definition.submit')).toHaveLength(1);
+    expect(transport.calls.filter((c) => c.method === RPC.automationDefinitionSubmit)).toHaveLength(1);
   });
 
   test('recovery never archives a changed pending identity or consent invalidated during the read', async () => {

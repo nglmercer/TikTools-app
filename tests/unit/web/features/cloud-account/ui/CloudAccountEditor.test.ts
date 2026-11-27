@@ -8,11 +8,12 @@ import { ControlCallError } from '@/shared/api/control-client.ts';
 import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import CloudAccountEditor from '../../../../../../src/web/features/cloud-account/ui/CloudAccountEditor.vue';
+import { ACCOUNT_STATE, RPC } from '../../../../../shared/index.ts';
 
 function signedIn(overrides: Partial<AccountStatus> = {}): AccountStatus {
   return {
     origin: 'http://127.0.0.1:3000',
-    state: 'signed-in',
+    state: ACCOUNT_STATE.signedIn,
     accountId: 'user-1',
     email: 'user@example.com',
     displayName: 'Test User',
@@ -24,8 +25,8 @@ function signedIn(overrides: Partial<AccountStatus> = {}): AccountStatus {
 
 function setup(status: AccountStatus) {
   const { client } = createFakeControlClient((method) => {
-    if (method === 'cloud.status') return status;
-    if (method === 'cloud.restore') {
+    if (method === RPC.cloudStatus) return status;
+    if (method === RPC.cloudRestore) {
       throw new ControlCallError('unavailable', 'no saved cloud session', { reason: 'no-saved-session' });
     }
     throw new Error(`unexpected ${method}`);
@@ -39,7 +40,7 @@ function setup(status: AccountStatus) {
 describe('CloudAccountEditor', () => {
   afterEach(async () => { await activateLocale('en'); });
   it('shows only a sign-in button when signed out, with no technical details', async () => {
-    const wrapper = setup({ origin: 'https://cloud.example', state: 'signed-out', persistence: 'keychain' });
+    const wrapper = setup({ origin: 'https://cloud.example', state: ACCOUNT_STATE.signedOut, persistence: 'keychain' });
     await flushPromises();
     expect(wrapper.text()).toContain(t('account.signIn'));
     expect(wrapper.text()).not.toContain('cloud.example');
@@ -49,7 +50,7 @@ describe('CloudAccountEditor', () => {
   it('turns network failures into a friendly message', async () => {
     const wrapper = setup({
       origin: 'https://cloud.example',
-      state: 'signed-out',
+      state: ACCOUNT_STATE.signedOut,
       persistence: 'keychain',
       error: 'cloud login failed: error sending request for url',
     });
@@ -87,15 +88,15 @@ describe('CloudAccountEditor', () => {
     const [signIn, cancel, manual] = [t('account.signIn'), t('common.cancel'), t('account.openManually')] as const;
     let finish!: (status: AccountStatus) => void;
     const pending = new Promise<AccountStatus>((resolve) => { finish = resolve; });
-    const out: AccountStatus = { origin: 'https://cloud.example', state: 'signed-out', persistence: 'keychain' };
+    const out: AccountStatus = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedOut, persistence: 'keychain' };
     const { client } = createFakeControlClient((method) => {
-      if (method === 'cloud.status') return out;
-      if (method === 'cloud.restore') throw new ControlCallError('unavailable', 'no saved session', { reason: 'no-saved-session' });
-      if (method === 'cloud.login.reserve') return { operationId: '0123456789abcdef0123456789abcdef' };
-      if (method === 'cloud.login.begin') return { browserUrl: 'https://cloud.example/desktop/login' };
+      if (method === RPC.cloudStatus) return out;
+      if (method === RPC.cloudRestore) throw new ControlCallError('unavailable', 'no saved session', { reason: 'no-saved-session' });
+      if (method === RPC.cloudLoginReserve) return { operationId: '0123456789abcdef0123456789abcdef' };
+      if (method === RPC.cloudLoginBegin) return { browserUrl: 'https://cloud.example/desktop/login' };
       if (method === 'cloud.login.open') throw new Error('browser unavailable');
       if (method === 'cloud.login.complete') return pending;
-      if (method === 'cloud.login.cancel') return out;
+      if (method === RPC.cloudLoginCancel) return out;
       throw new Error(`unexpected ${method}`);
     });
     const wrapper = mountWithPlugins(CloudAccountEditor, { global: { plugins: storePlugins(client) } });
@@ -122,16 +123,16 @@ describe('CloudAccountEditor', () => {
     const calls: string[] = [];
     const { client } = createFakeControlClient((method) => {
       calls.push(method);
-      if (method === 'cloud.status') return signedIn();
-      if (method === 'cloud.plan.get') {
+      if (method === RPC.cloudStatus) return signedIn();
+      if (method === RPC.cloudPlanGet) {
         return {
           plan: 'free',
           limits: { maxRecords: 1000, maxBytes: 8_388_608, maxAssets: 200, maxAssetsBytes: 33_554_432, maxOverlays: 50, maxOverlayBytes: 16_777_216, maxBackups: 3, maxBackupBytes: 16_777_216 },
           usage: { records: 0, recordBytes: 0, assets: 0, assetBytes: 0, overlays: 0, overlayBytes: 0, backups: 0, backupBytes: 0 },
         };
       }
-      if (method === 'cloud.backup.list') return { items: [] };
-      if (method === 'cloud.logout') return { origin: null, state: 'signed-out', persistence: 'keychain' };
+      if (method === RPC.cloudBackupList) return { items: [] };
+      if (method === 'cloud.logout') return { origin: null, state: ACCOUNT_STATE.signedOut, persistence: 'keychain' };
       throw new Error(`unexpected ${method}`);
     });
     const wrapper = mountWithPlugins(CloudAccountEditor, { global: { plugins: storePlugins(client) } });

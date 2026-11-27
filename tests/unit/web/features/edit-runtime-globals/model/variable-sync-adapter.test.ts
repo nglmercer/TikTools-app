@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import { createVariableSyncAdapter, type VariableComparison } from '../../../../../../src/web/features/edit-runtime-globals/model/variable-sync-adapter.ts';
+import { RPC } from '../../../../../shared/index.ts';
 
 function row(partial: Partial<VariableComparison> = {}): VariableComparison {
   return { review: 'reviewed-first', name: 'port', local: { type: 'number', value: 8 }, cloud: null, cloudDeleted: false, localSecret: false, blockedLocal: false, pendingStatus: null, canSend: true, canApply: false, canWithdraw: false, ...partial };
@@ -51,7 +52,7 @@ describe('native Variables Changes adapter', () => {
     await fixture.adapter.list();
     await fixture.adapter.push!([shown[0]!.id]);
     expect(fixture.calls.at(-1)).toMatchObject({ method: 'sync.v2.variables.send', params: { review: 'reviewed-first' } });
-    expect(fixture.calls.some((call) => call.method === 'sync.v2.now' || call.method === 'sync.v2.section' || call.method === 'globals.typed.replace')).toBe(false);
+    expect(fixture.calls.some((call) => call.method === 'sync.v2.now' || call.method === 'sync.v2.section' || call.method === RPC.globalsTypedReplace)).toBe(false);
   });
   it('fetches only into the cache and withdraws without replacing local values', async () => {
     const { adapter, calls, reloadLocal, refreshStatus } = setup();

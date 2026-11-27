@@ -7,6 +7,7 @@ import { createLiveFeedState } from '@/entities/live-event/model/live-feed-state
 import { flushPromises } from '@vue/test-utils';
 import type { AnalyticsTotals, GiftCatalogEntry, UiEvent } from '../../../../src/shared/messages.ts';
 import { DEMO_ACTIVITY_LENGTH } from '../../../../src/web/demo/fixtures/audience.ts';
+import { RPC, TOPIC } from '../../../shared/index.ts';
 
 describe('public demo host', () => {
   it('populates the feed, profiles, gift catalog and analytics from the same six fictional viewers', async () => {
@@ -60,7 +61,7 @@ describe('public demo host', () => {
       expect(host.step()).toBe(false);
     }
     host.setConnectionExample('normal');
-    await client.call('live.connect', { uniqueId: 'demo_creator' });
+    await client.call(RPC.liveConnect, { uniqueId: 'demo_creator' });
     expect(host.state.liveStatus.connected).toBe(true);
     expect(host.step()).toBe(true);
     dispose();
@@ -89,9 +90,9 @@ describe('public demo host', () => {
   it('connects, delivers an event and records a simulated automation result', async () => {
     const { host, client, dispose } = createDemoFixture('connection');
     const feed: unknown[] = []; const runs: unknown[] = [];
-    client.onTopic('live.ui-event', (event) => feed.push(event)); client.onTopic('automation.run.completed', (run) => runs.push(run));
+    client.onTopic(TOPIC.liveUiEvent, (event) => feed.push(event)); client.onTopic('automation.run.completed', (run) => runs.push(run));
     expect(host.step()).toBe(false);
-    await client.call('live.connect', { uniqueId: 'fictional_creator' });
+    await client.call(RPC.liveConnect, { uniqueId: 'fictional_creator' });
     expect(host.step()).toBe(true);
     await Promise.resolve();
     expect(feed).toHaveLength(1); expect(runs).toHaveLength(1);
@@ -117,7 +118,7 @@ describe('public demo host', () => {
       const client = createControlClient({ transport: a.transport }); client.attach();
       const status = await client.call<{ connected: boolean }>('live.status', {});
       expect(status.connected, `${id} should only be seeded live when it reads live events`).toBe(id === 'feed');
-      for (const method of ['system.info', 'app.state.get', 'automation.snapshot', 'automation.runs', 'points.config.get', 'points.leaderboard', 'live.status', 'live.monitor.status', 'creators.recent', 'globals.list', 'processors.status', 'widgets.status']) expect(await client.call(method, {})).toBeDefined();
+      for (const method of [RPC.systemInfo, RPC.appStateGet, RPC.automationSnapshot, RPC.automationRuns, 'points.config.get', RPC.pointsLeaderboard, 'live.status', 'live.monitor.status', 'creators.recent', RPC.globalsList, 'processors.status', 'widgets.status']) expect(await client.call(method, {})).toBeDefined();
       expect(client.diagnostics?.().pending).toBe(0); client.detach(); a.dispose(); b.dispose();
     }
   });

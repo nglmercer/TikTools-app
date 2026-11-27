@@ -7,11 +7,12 @@ import type { BehaviorSnapshot, LiveAction } from '../../../../../../src/automat
 import { ControlCallError, type ControlCallOptions, type RpcParams } from '@/shared/api/control-client.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import { useAutomation } from '../../../../../../src/web/entities/automation/model/automation-state.ts';
+import { ACTION_TYPE, RPC } from '../../../../../shared/index.ts';
 
 beforeEach(() => resetResolutionPreference('manual'));
 afterEach(() => resetResolutionPreference('automatic'));
 
-const original: LiveAction = { id: 'same', name: 'Initial', schemaVersion: 2, enabled: true, typeId: 'core.log', config: {} };
+const original: LiveAction = { id: 'same', name: 'Initial', schemaVersion: 2, enabled: true, typeId: ACTION_TYPE.coreLog, config: {} };
 function fixture() {
   const snapshot: BehaviorSnapshot = { actions: [original], events: [], actionTypes: [], plugins: [], translations: {} };
   let revision = '1';
@@ -23,9 +24,9 @@ function fixture() {
   const meta = (id = 'same') => ({ resourceVersions: [{ kind: 'automation', scope: 'action', id, revision }] });
   const native = nativeDefinitionHost((method, params, options) => {
     requests.push({ method, params, meta: options?.meta });
-    if (method === 'system.info') return { features: { persistence } };
-    if (method === 'automation.runs') return { runs: [] };
-    if (method === 'automation.snapshot') {
+    if (method === RPC.systemInfo) return { features: { persistence } };
+    if (method === RPC.automationRuns) return { runs: [] };
+    if (method === RPC.automationSnapshot) {
       const body = structuredClone(snapshot);
       if (metadata) options?.onMetadata?.({ resourceVersions: body.actions.map((record) => ({ kind: 'automation', scope: 'action', id: record.id, revision })) });
       const hold = holdNextSnapshot; holdNextSnapshot = undefined;
@@ -36,12 +37,12 @@ function fixture() {
       if (metadata) options?.onMetadata?.(meta());
       return structuredClone(snapshot.actions[0]);
     }
-    if (method === 'automation.update' || method === 'automation.create') {
-      if (options?.meta?.expectedRevision !== (method === 'automation.create' ? (missing ? revision : '0') : revision) && persistence !== false) {
+    if (method === RPC.automationUpdate || method === RPC.automationCreate) {
+      if (options?.meta?.expectedRevision !== (method === RPC.automationCreate ? (missing ? revision : '0') : revision) && persistence !== false) {
         throw new ControlCallError('revision_conflict', 'Host changed', meta());
       }
-      if (method === 'automation.update' && missing) throw new ControlCallError('automation_not_found', 'Deleted', meta());
-      revision = String(BigInt(method === 'automation.create' && !missing ? '0' : revision) + 1n);
+      if (method === RPC.automationUpdate && missing) throw new ControlCallError('automation_not_found', 'Deleted', meta());
+      revision = String(BigInt(method === RPC.automationCreate && !missing ? '0' : revision) + 1n);
       const record = structuredClone(params?.record) as LiveAction;
       snapshot.actions = [record]; missing = false;
       if (metadata) options?.onMetadata?.(meta(record.id));
@@ -79,15 +80,15 @@ test('saved-base updates keep their precondition after refresh and never recreat
   await expect(f.automation.saveRecordAndRefresh('action', { ...original, name: 'Draft' }, { revision: base!, create: false, host: f.automation.sourceHost.value })).rejects.toMatchObject({ code: 'revision_conflict' });
   f.setMissing('2');
   await expect(f.automation.saveRecordAndRefresh('action', original, { revision: '2', create: false, host: f.automation.sourceHost.value })).rejects.toMatchObject({ code: 'not_found' });
-  expect(f.requests.filter((r) => r.method === 'automation.update').map((r) => r.meta)).toEqual([{ expectedRevision: '1' }, { expectedRevision: '2' }]);
-  expect(f.requests.some((r) => r.method === 'automation.create')).toBe(false);
+  expect(f.requests.filter((r) => r.method === RPC.automationUpdate).map((r) => r.meta)).toEqual([{ expectedRevision: '1' }, { expectedRevision: '2' }]);
+  expect(f.requests.some((r) => r.method === RPC.automationCreate)).toBe(false);
   f.automation.dispose();
 });
 
 test('new records use explicit create with zero; missing records expose the retained tombstone for reviewed recreation', async () => {
   const f = fixture(); await f.automation.refresh();
   await f.automation.saveRecordAndRefresh('action', { ...original, id: 'fresh' }, { revision: '0', create: true, host: f.automation.sourceHost.value });
-  expect(f.requests.find((r) => r.method === 'automation.create')?.meta).toEqual({ expectedRevision: '0' });
+  expect(f.requests.find((r) => r.method === RPC.automationCreate)?.meta).toEqual({ expectedRevision: '0' });
   f.setMissing('4');
   expect(await f.automation.readRecord('action', 'same')).toEqual({ record: null, revision: '4', host: { hostId: 'host-a', hostInstanceId: 'instance-a' } });
   const result = await f.automation.saveRecordAndRefresh('action', original, { revision: '4', create: true, host: f.automation.sourceHost.value });
@@ -99,8 +100,8 @@ test('a successful body without revision acknowledgement is unconfirmed and cann
   const f = fixture(); await f.automation.refresh();
   f.setMetadata(false);
   await expect(f.automation.saveRecordAndRefresh('action', original, { revision: '1', create: false, host: f.automation.sourceHost.value })).rejects.toMatchObject({ code: 'definition_journal_invalid' });
-  expect(f.requests.filter((r) => r.method === 'automation.update')).toHaveLength(1);
-  expect(f.requests.find((r) => r.method === 'automation.update')?.meta).toEqual({ expectedRevision: '1' });
+  expect(f.requests.filter((r) => r.method === RPC.automationUpdate)).toHaveLength(1);
+  expect(f.requests.find((r) => r.method === RPC.automationUpdate)?.meta).toEqual({ expectedRevision: '1' });
   await f.automation.refresh();
   // A malformed coherent snapshot cannot replace the last valid source/base.
   expect(f.automation.revisionFor('action', 'same')).toBe('1');
@@ -115,10 +116,10 @@ test('only explicitly non-persistent owner hosts allow an unversioned memory edi
     if (persistence === false) {
       expect(f.automation.revisionFor('action', 'same')).toBe(null);
       expect((await saving).revision).toBe(null);
-      expect(f.requests.find((r) => r.method === 'automation.update')?.meta).toBeUndefined();
+      expect(f.requests.find((r) => r.method === RPC.automationUpdate)?.meta).toBeUndefined();
     } else {
       await expect(saving).rejects.toMatchObject({ code: 'capability_unavailable' });
-      expect(f.requests.some((r) => r.method === 'automation.update')).toBe(false);
+      expect(f.requests.some((r) => r.method === RPC.automationUpdate)).toBe(false);
     }
     f.automation.dispose();
   }
@@ -147,12 +148,12 @@ test('a long-lived editor keeps its opening host when a replacement host has the
   expect(editor.state.value?.reviewRequired).toBe(true);
   expect(editor.state.value?.candidate.name).toBe('Draft for the original host');
   expect(editor.state.value?.host).toEqual({ hostId: 'host-a', hostInstanceId: 'instance-a' });
-  expect(f.calls.filter((call) => call.method === 'automation.definition.submit')).toHaveLength(0);
+  expect(f.calls.filter((call) => call.method === RPC.automationDefinitionSubmit)).toHaveLength(0);
   await editor.readForReview(); expect(editor.adoptReview()).toBe(true);
   expect(editor.state.value?.host).toEqual({ hostId: 'replacement-host', hostInstanceId: 'replacement-instance' });
   await editor.save();
-  expect(f.calls.filter((call) => call.method === 'automation.definition.submit')).toHaveLength(1);
-  expect(f.calls.find((call) => call.method === 'automation.definition.submit')?.params).toMatchObject({ hostId: 'replacement-host', hostInstanceId: 'replacement-instance' });
+  expect(f.calls.filter((call) => call.method === RPC.automationDefinitionSubmit)).toHaveLength(1);
+  expect(f.calls.find((call) => call.method === RPC.automationDefinitionSubmit)?.params).toMatchObject({ hostId: 'replacement-host', hostInstanceId: 'replacement-instance' });
   editor.dispose(); f.automation.dispose();
 });
 
@@ -165,7 +166,7 @@ test('persistent helpers never borrow a background projection host when the open
     () => f.automation.deleteRecord('action', 'same', '1'),
     () => f.automation.setRecordEnabled('action', 'same', false, '1'),
   ]) await expect(writing()).rejects.toMatchObject({ code: 'capability_unavailable' });
-  expect(f.calls.filter((call) => call.method === 'automation.definition.submit')).toHaveLength(0);
-  expect(f.requests.some((call) => ['automation.create', 'automation.update', 'automation.delete', 'automation.enable', 'automation.disable'].includes(call.method))).toBe(false);
+  expect(f.calls.filter((call) => call.method === RPC.automationDefinitionSubmit)).toHaveLength(0);
+  expect(f.requests.some((call) => [RPC.automationCreate, RPC.automationUpdate, RPC.automationDelete, 'automation.enable', RPC.automationDisable].includes(call.method))).toBe(false);
   f.automation.dispose();
 });

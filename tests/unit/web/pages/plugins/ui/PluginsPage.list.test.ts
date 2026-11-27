@@ -1,4 +1,5 @@
 import { describe, flushPromises, expect, it, vi, nextTick, t, plugin, mountPage, buttonByText, buttonByLabel, tabNames, openTab, selectPlugin, openItemMenu, detailsTitle, menuItems, menuItem } from '../../../../../../src/web/pages/plugins/ui/plugins-page-fixture.ts';
+import { EVENT_KIND, RPC } from '../../../../../shared/index.ts';
 
 describe('PluginsPage list', () => {
   it('saves the current view on leaving and cannot overwrite a later view from a delayed callback', async () => {
@@ -60,7 +61,7 @@ describe('PluginsPage list', () => {
 
   it('shows one navigation area with icon tabs, a search field and icon tools', async () => {
     const { wrapper } = await mountPage();
-    expect(tabNames(wrapper)).toEqual([t('plugins.catalog.browse'), 'Installed 1', t('plugins.catalog.updates'), t('plugins.views.processors')]);
+    expect(tabNames(wrapper)).toEqual([t(RPC.pluginsCatalogBrowse), 'Installed 1', t('plugins.catalog.updates'), t('plugins.views.processors')]);
     expect(wrapper.find('.plugins-page__toolbar').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('Plugins bring an external dependency');
     expect(wrapper.get('h2').text()).toBe(t('navigation.plugins'));
@@ -80,7 +81,7 @@ describe('PluginsPage list', () => {
   });
 
   it('lists installed plugins with a switch and counters, and flags only the ones that cannot load', async () => {
-    const broken = plugin('hotkeys', { available: false, unavailableReason: 'No input access' }, { eventTypeIds: ['hotkey.pressed'], actionTypeIds: [] });
+    const broken = plugin('hotkeys', { available: false, unavailableReason: 'No input access' }, { eventTypeIds: [EVENT_KIND.hotkeyPressed], actionTypeIds: [] });
     const { wrapper, calls } = await mountPage([plugin('deck'), broken]);
     const rows = wrapper.findAll('.plugin-catalog__row');
     expect(rows).toHaveLength(2);
@@ -100,7 +101,7 @@ describe('PluginsPage list', () => {
   it('lists installed plugins apart from bundled and registry plugins', async () => {
     const { wrapper, calls } = await mountPage();
     expect(wrapper.findAll('.plugin-catalog__row').map((item) => item.text())).toEqual([expect.stringContaining('DECK')]);
-    await openTab(wrapper, t('plugins.catalog.browse'));
+    await openTab(wrapper, t(RPC.pluginsCatalogBrowse));
     expect(calls.map((call) => call.method)).toContain('registry.search');
     const rows = wrapper.findAll('.plugin-catalog__row');
     expect(rows.map((item) => item.text())).toEqual([expect.stringContaining('TTS'), expect.stringContaining('Acme TTS')]);
@@ -236,7 +237,7 @@ describe('PluginsPage list', () => {
 
   it('activates a bundled plugin', async () => {
     const { wrapper, calls } = await mountPage();
-    await openTab(wrapper, t('plugins.catalog.browse'));
+    await openTab(wrapper, t(RPC.pluginsCatalogBrowse));
     await selectPlugin(wrapper, 'TTS');
     await buttonByText(wrapper, t('plugins.details.activate')).trigger('click');
     await flushPromises();

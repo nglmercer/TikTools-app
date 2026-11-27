@@ -7,6 +7,7 @@ import {
   registerConditionTemplates,
   type ConditionTemplate,
 } from '../../../../src/automation/behavior/condition-templates.ts';
+import { EVENT_KIND } from '../../../shared/index.ts';
 
 afterEach(() => {
   clearConditionTemplates();
@@ -24,18 +25,18 @@ function template(overrides: Partial<ConditionTemplate> = {}): ConditionTemplate
 describe('condition template registry', () => {
   test('registers and filters templates per trigger', () => {
     registerConditionTemplates([
-      template({ id: 'chat.only', triggers: ['tiktok.chat'] }),
+      template({ id: 'chat.only', triggers: [EVENT_KIND.tiktokChat] }),
       template({ id: 'any.where' }),
     ]);
-    expect(conditionTemplatesFor('tiktok.chat').map((entry) => entry.id).sort())
+    expect(conditionTemplatesFor(EVENT_KIND.tiktokChat).map((entry) => entry.id).sort())
       .toEqual(['any.where', 'chat.only']);
-    expect(conditionTemplatesFor('tiktok.gift').map((entry) => entry.id)).toEqual(['any.where']);
+    expect(conditionTemplatesFor(EVENT_KIND.tiktokGift).map((entry) => entry.id)).toEqual(['any.where']);
   });
 
   test('re-registering an id replaces the template', () => {
     registerConditionTemplates([template({ rows: [{ path: 'event.data.a', operator: 'eq', value: '1' }] })]);
     registerConditionTemplates([template({ rows: [{ path: 'event.data.b', operator: 'eq', value: '2' }] })]);
-    const found = conditionTemplatesFor('tiktok.chat');
+    const found = conditionTemplatesFor(EVENT_KIND.tiktokChat);
     expect(found).toHaveLength(1);
     expect(found[0]?.rows[0]?.path).toBe('event.data.b');
   });
@@ -47,13 +48,13 @@ describe('condition template registry', () => {
       template({ id: 'badrows', rows: [{ path: '  ', operator: 'eq', value: 'x' }] }),
       template({ id: 'ok' }),
     ]);
-    expect(conditionTemplatesFor('tiktok.chat').map((entry) => entry.id)).toEqual(['ok']);
+    expect(conditionTemplatesFor(EVENT_KIND.tiktokChat).map((entry) => entry.id)).toEqual(['ok']);
   });
 
   test('clear drops everything', () => {
     registerConditionTemplates([template()]);
     clearConditionTemplates();
-    expect(conditionTemplatesFor('tiktok.chat')).toEqual([]);
+    expect(conditionTemplatesFor(EVENT_KIND.tiktokChat)).toEqual([]);
   });
 });
 

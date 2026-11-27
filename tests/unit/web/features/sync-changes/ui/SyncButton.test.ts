@@ -8,18 +8,19 @@ import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { allCapabilities, fakeAdapter } from '../../../../../../src/web/features/sync-changes/testing/fake-adapter.ts';
 import SyncButton from '../../../../../../src/web/features/sync-changes/ui/SyncButton.vue';
+import { ACCOUNT_STATE, RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
 
-const account = (state: AccountStatus['state']): AccountStatus => ({ origin: 'http://127.0.0.1:3000', state, accountId: 'tester', persistence: 'memory-only', error: null });
+const account = (state: AccountStatus['state']): AccountStatus => ({ origin: 'http://127.0.0.1:3000', state, accountId: 'tester', persistence: ACCOUNT_STATE.memoryOnly, error: null });
 const status = (enabled: boolean): SyncStatus => ({ enabled, signedIn: true, syncing: false, pending: 0, conflicts: [], lastError: null, lastSyncedAt: null });
 
-async function mount(adapter: SyncAdapter, accountState: AccountStatus['state'] = 'signed-in', enabled = true) {
+async function mount(adapter: SyncAdapter, accountState: AccountStatus['state'] = ACCOUNT_STATE.signedIn, enabled = true) {
   const { client } = createFakeControlClient((method) => {
     if (method === 'sync.v2.selected') return enabled;
-    if (method === 'cloud.status') return account(accountState);
-    if (method === 'sync.status') return status(enabled);
+    if (method === RPC.cloudStatus) return account(accountState);
+    if (method === RPC.syncStatus) return status(enabled);
     throw new Error(`unexpected ${method}`);
   });
   const wrapper = mountWithPlugins(SyncButton, { attachTo: document.body, props: { adapter }, global: { plugins: storePlugins(client) } });
@@ -51,7 +52,7 @@ describe('SyncButton', () => {
   it('is disabled with the reason when the account is signed out', async () => {
     const { adapter, spies } = fakeAdapter(allCapabilities);
     delete (adapter as { requiresCloud?: boolean }).requiresCloud;
-    const wrapper = await mount(adapter, 'signed-out');
+    const wrapper = await mount(adapter, ACCOUNT_STATE.signedOut);
     expect(wrapper.get('button').attributes('disabled')).toBeDefined();
     expect(wrapper.find('.sync-button__badge').exists()).toBe(false);
     expect(wrapper.find('dialog').exists()).toBe(false);
@@ -61,7 +62,7 @@ describe('SyncButton', () => {
   it('opens preparation when Cloud sync is not enabled', async () => {
     const { adapter } = fakeAdapter(allCapabilities);
     delete (adapter as { requiresCloud?: boolean }).requiresCloud;
-    const wrapper = await mount(adapter, 'signed-in', false);
+    const wrapper = await mount(adapter, ACCOUNT_STATE.signedIn, false);
     expect(wrapper.get('button').attributes('disabled')).toBeUndefined();
     await wrapper.get('button').trigger('click');
     await flushPromises();
@@ -89,7 +90,7 @@ describe('SyncButton', () => {
   it('stays enabled and counts while signed out for a section that only compares with this device', async () => {
     const { adapter } = fakeAdapter({ reset: true, markReviewed: true });
     expect(adapter.requiresCloud).toBe(false);
-    const wrapper = await mount(adapter, 'signed-out', false);
+    const wrapper = await mount(adapter, ACCOUNT_STATE.signedOut, false);
     expect(wrapper.get('button').attributes('disabled')).toBeUndefined();
     expect(wrapper.get('button').text()).toBe('Changes · 4');
     await wrapper.get('button').trigger('click');

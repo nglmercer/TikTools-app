@@ -14,6 +14,7 @@ import {
   slugProfileId,
   useRuleProfiles,
 } from '../../../../../../src/web/entities/rule-template/model/rule-profiles-state.ts';
+import { ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
 
 function fakeControl(
   handler: (method: string, params: unknown) => Promise<unknown>,
@@ -46,8 +47,8 @@ const TEMPLATE = (id: string, gift: string) => ({
       giftName: { type: 'string', default: 'Rose' },
     },
   },
-  actions: [{ name: 'act', typeId: 'core.log', config: { message: gift } }],
-  event: { name: 'evt', trigger: 'tiktok.gift', filters: [{ path: 'event.data.giftName', operator: 'eq', value: '{{ params.giftName }}' }] },
+  actions: [{ name: 'act', typeId: ACTION_TYPE.coreLog, config: { message: gift } }],
+  event: { name: 'evt', trigger: EVENT_KIND.tiktokGift, filters: [{ path: 'event.data.giftName', operator: 'eq', value: '{{ params.giftName }}' }] },
 });
 
 const PROFILE = {
@@ -132,8 +133,8 @@ test('instantiation substitutes params with fresh ids', () => {
 test('register stores the pack and marks it active', async () => {
   const store: Record<string, string> = {};
   const { client } = fakeControl(async (method, params) => {
-    if (method === 'app.state.get') return { state: store };
-    if (method === 'app.state.set') {
+    if (method === RPC.appStateGet) return { state: store };
+    if (method === RPC.appStateSet) {
       const { key, value } = params as { key: string; value: string };
       store[key] = value;
       return { ok: true };
@@ -176,16 +177,16 @@ test('profile names slug to valid unique ids', () => {
 
 test('switch enables the target, disables everything else, prunes deleted rules', async () => {
   const store: Record<string, string> = {
-    'behavior.profiles.packs': JSON.stringify([
+    [RPC.behaviorProfilesPacks]: JSON.stringify([
       { id: 'a', name: 'A', description: '', eventIds: ['ea'], actionIds: ['aa', 'gone'] },
       { id: 'b', name: 'B', description: '', eventIds: ['eb'], actionIds: [] },
     ]),
-    'behavior.profiles.active': 'a',
+    [RPC.behaviorProfilesActive]: 'a',
   };
   const toggled: Array<{ kind: string; id: string; enabled: boolean }> = [];
   const { client } = fakeControl(async (method, params) => {
-    if (method === 'app.state.get') return { state: store };
-    if (method === 'app.state.set') {
+    if (method === RPC.appStateGet) return { state: store };
+    if (method === RPC.appStateSet) {
       const { key, value } = params as { key: string; value: string };
       store[key] = value;
       return { ok: true };
@@ -231,13 +232,13 @@ test('switch enables the target, disables everything else, prunes deleted rules'
 
 test('switch aborts without moving the active marker on host errors', async () => {
   const { client } = fakeControl(async (method) => {
-    if (method === 'app.state.get') {
+    if (method === RPC.appStateGet) {
       return {
         state: {
-          'behavior.profiles.packs': JSON.stringify([
+          [RPC.behaviorProfilesPacks]: JSON.stringify([
             { id: 'a', name: 'A', description: '', eventIds: ['ea'], actionIds: [] },
           ]),
-          'behavior.profiles.active': 'a',
+          [RPC.behaviorProfilesActive]: 'a',
         },
       };
     }
@@ -254,18 +255,18 @@ test('switch aborts without moving the active marker on host errors', async () =
 test('delete removes the pack and its rules, falling back to default', async () => {
   const deleted: Array<{ method: string; id: string }> = [];
   const { client } = fakeControl(async (method, params) => {
-    if (method === 'app.state.get') {
+    if (method === RPC.appStateGet) {
       return {
         state: {
-          'behavior.profiles.packs': JSON.stringify([
+          [RPC.behaviorProfilesPacks]: JSON.stringify([
             { id: 'a', name: 'A', description: '', eventIds: ['ea', 'gone'], actionIds: ['aa'] },
           ]),
-          'behavior.profiles.active': 'a',
+          [RPC.behaviorProfilesActive]: 'a',
         },
       };
     }
-    if (method === 'app.state.set') return { ok: true };
-    if (method === 'automation.delete') {
+    if (method === RPC.appStateSet) return { ok: true };
+    if (method === RPC.automationDelete) {
       const { id } = params as { id: string };
       if (id === 'gone') throw new ControlCallError('automation_not_found', 'gone');
       deleted.push({ method, id });
@@ -277,8 +278,8 @@ test('delete removes the pack and its rules, falling back to default', async () 
   await state.loadProfiles();
   await state.deletePack('a');
   expect(deleted).toEqual([
-    { method: 'automation.delete', id: 'ea' },
-    { method: 'automation.delete', id: 'aa' },
+    { method: RPC.automationDelete, id: 'ea' },
+    { method: RPC.automationDelete, id: 'aa' },
   ]);
   expect(state.packs.value).toEqual([]);
   expect(state.activeId.value).toBe(DEFAULT_PROFILE_ID);
@@ -288,11 +289,11 @@ test('delete removes the pack and its rules, falling back to default', async () 
 
 test('create makes an empty pack with a unique slug and keeps active', async () => {
   const { client } = fakeControl(async (method) => {
-    if (method === 'app.state.get') {
+    if (method === RPC.appStateGet) {
       return {
         state: {
-          'behavior.profiles.packs': JSON.stringify([{ id: 'board', name: 'Board', description: '', eventIds: [], actionIds: [] }]),
-          'behavior.profiles.active': 'board',
+          [RPC.behaviorProfilesPacks]: JSON.stringify([{ id: 'board', name: 'Board', description: '', eventIds: [], actionIds: [] }]),
+          [RPC.behaviorProfilesActive]: 'board',
         },
       };
     }
@@ -309,11 +310,11 @@ test('create makes an empty pack with a unique slug and keeps active', async () 
 
 test('hand-saved rules adopt into the active non-default pack only', async () => {
   const { client, calls } = fakeControl(async (method) => {
-    if (method === 'app.state.get') {
+    if (method === RPC.appStateGet) {
       return {
         state: {
-          'behavior.profiles.packs': JSON.stringify([{ id: 'a', name: 'A', description: '', eventIds: ['ea'], actionIds: [] }]),
-          'behavior.profiles.active': 'a',
+          [RPC.behaviorProfilesPacks]: JSON.stringify([{ id: 'a', name: 'A', description: '', eventIds: ['ea'], actionIds: [] }]),
+          [RPC.behaviorProfilesActive]: 'a',
         },
       };
     }
@@ -324,7 +325,7 @@ test('hand-saved rules adopt into the active non-default pack only', async () =>
   calls.length = 0;
   await state.adoptRule('event', 'fresh');
   expect(state.packs.value[0]?.eventIds).toEqual(['ea', 'fresh']);
-  expect(calls.some((call) => call.method === 'app.state.set')).toBe(true);
+  expect(calls.some((call) => call.method === RPC.appStateSet)).toBe(true);
   calls.length = 0;
   await state.adoptRule('event', 'ea');
   expect(calls).toEqual([]);
@@ -334,10 +335,10 @@ test('export mirrors the CLI profile shape and skips action-less events', () => 
   const exported = buildProfileDoc(
     { id: 'pack-a', name: 'A', description: '', eventIds: ['e1', 'e2'], actionIds: ['a1'] },
     [
-      { id: 'e1', name: 'First', enabled: true, trigger: 'tiktok.gift', filters: [], cooldownMs: 0, cooldownScope: 'global', runMode: 'all', actionIds: ['a1', 'stray'] },
-      { id: 'e2', name: 'Lonely', enabled: false, trigger: 'tiktok.chat', filters: [], cooldownMs: 0, cooldownScope: 'global', runMode: 'all', actionIds: [] },
+      { id: 'e1', name: 'First', enabled: true, trigger: EVENT_KIND.tiktokGift, filters: [], cooldownMs: 0, cooldownScope: 'global', runMode: 'all', actionIds: ['a1', 'stray'] },
+      { id: 'e2', name: 'Lonely', enabled: false, trigger: EVENT_KIND.tiktokChat, filters: [], cooldownMs: 0, cooldownScope: 'global', runMode: 'all', actionIds: [] },
     ],
-    [{ id: 'a1', name: 'Act', typeId: 'core.log', enabled: true, config: { message: 'hi' } }],
+    [{ id: 'a1', name: 'Act', typeId: ACTION_TYPE.coreLog, enabled: true, config: { message: 'hi' } }],
   );
   expect(exported.entries).toBe(1);
   expect(exported.skipped).toBe(1);
@@ -351,7 +352,7 @@ test('export mirrors the CLI profile shape and skips action-less events', () => 
 });
 
 test('malformed sidecar loads empty with an error, active falls back to default', async () => {
-  const { client } = fakeControl(async () => ({ state: { 'behavior.profiles.packs': 'nope' } }));
+  const { client } = fakeControl(async () => ({ state: { [RPC.behaviorProfilesPacks]: 'nope' } }));
   const state = useRuleProfiles(client, () => false);
   await state.loadProfiles();
   expect(state.packs.value).toEqual([]);

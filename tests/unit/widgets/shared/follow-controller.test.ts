@@ -6,6 +6,7 @@ import {
 } from '../../../../src/widgets/shared/follow-controller.ts';
 import { createFakeClock } from '../../../../src/widgets/shared/test-clock.ts';
 import { makeTestFollowEnvelope, makeTestGiftEnvelope } from '../../../../src/widgets/shared/test-events.ts';
+import { TOPIC } from '../../../shared/index.ts';
 
 function setup(options: { visibleMs?: number; queueCapacity?: number } = {}) {
   const fake = createFakeClock();
@@ -68,7 +69,7 @@ describe('follow controller', () => {
     expect(controller.handleEnvelope(envelope)).toBe('shown');
     expect(controller.handleEnvelope(envelope)).toBe('duplicate');
     expect(controller.handleEnvelope(makeTestGiftEnvelope())).toBe('ignored');
-    expect(controller.handleEnvelope({ topic: 'live.event', data: 'garbage' })).toBe('ignored');
+    expect(controller.handleEnvelope({ topic: TOPIC.liveEvent, data: 'garbage' })).toBe('ignored');
     expect(shown).toHaveLength(1);
   });
 

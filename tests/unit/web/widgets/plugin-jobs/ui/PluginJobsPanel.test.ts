@@ -4,11 +4,12 @@ import { usePackagesStore } from '@/entities/plugin-package/model/packages-store
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import PluginJobsPanel from '../../../../../../src/web/widgets/plugin-jobs/ui/PluginJobsPanel.vue';
+import { PLUGIN_ID } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 
 const now = Math.floor(Date.now() / 1000);
-const running = { id: 'j1', kind: 'install', pluginId: 'acme.tts', stage: 'download', status: 'running', progress: { done: 64, total: 100 }, createdAt: now, updatedAt: now };
+const running = { id: 'j1', kind: 'install', pluginId: PLUGIN_ID.acmeTts, stage: 'download', status: 'running', progress: { done: 64, total: 100 }, createdAt: now, updatedAt: now };
 const failed = { id: 'j2', kind: 'install', pluginId: 'acme.bad', stage: 'verify', status: 'failed', error: { code: 'unknown', message: 'Package rejected' }, createdAt: now, updatedAt: now + 5 };
 
 async function mountJobs(jobs: unknown[]) {
@@ -30,7 +31,7 @@ describe('PluginJobsPanel', () => {
   it('shows one thin strip per running job with the bar, the percentage and a cancel icon', async () => {
     const { wrapper, calls } = await mountJobs([running]);
     const strip = wrapper.get('.plugin-jobs__item');
-    expect(strip.text()).toContain('acme.tts');
+    expect(strip.text()).toContain(PLUGIN_ID.acmeTts);
     expect(strip.text()).toContain('64%');
     expect(strip.get('progress').attributes('aria-label')).toBe('Downloading');
     // Icons only: no text button, and the stage is not spelled out twice.

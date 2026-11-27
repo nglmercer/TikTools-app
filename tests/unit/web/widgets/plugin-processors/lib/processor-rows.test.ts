@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { ProcessorStatusEntry } from '../../../../../../src/shared/messages.ts';
 import { filterProcessors, processorKey } from '../../../../../../src/web/widgets/plugin-processors/lib/processor-rows.ts';
+import { EVENT_KIND } from '../../../../../shared/index.ts';
 
 function entry(pluginId: string, processorId: string, eventTypes: string[], status: ProcessorStatusEntry['status'] = 'ready') {
   return { pluginId, processorId, eventTypes, status } as ProcessorStatusEntry;
 }
 
-const entries = [entry('textintel', 'sentiment', ['tiktok.chat']), entry('deck', 'scene', [], 'circuit-open')];
+const entries = [entry('textintel', 'sentiment', [EVENT_KIND.tiktokChat]), entry('deck', 'scene', [], 'circuit-open')];
 
 describe('processor rows', () => {
   it('keys rows by plugin and processor', () => {

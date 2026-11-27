@@ -23,11 +23,12 @@ import {
   makeTestSubscribeEnvelope,
   TEST_EMULATABLE_TYPES,
 } from '../../../../src/widgets/shared/test-events.ts';
+import { EVENT_KIND } from '../../../shared/index.ts';
 
 describe('extended test-event factories', () => {
   test('like envelopes validate as like events', () => {
     const payload = parseLiveEvent(makeTestLikeEnvelope({ count: 7, total: 42 }));
-    expect(payload?.eventType).toBe('tiktok.like');
+    expect(payload?.eventType).toBe(EVENT_KIND.tiktokLike);
     expect(payload && isLikeEvent(payload.event)).toBe(true);
   });
 
@@ -80,7 +81,7 @@ describe('makeTestEnvelopeFor', () => {
   });
 
   test('merges data overrides and honors identity overrides', () => {
-    const envelope = makeTestEnvelopeFor('tiktok.gift', {
+    const envelope = makeTestEnvelopeFor(EVENT_KIND.tiktokGift, {
       id: 'custom-1',
       user: { uniqueId: 'luna_dev' },
       data: { giftName: 'Galaxy', diamondCount: 1000 },

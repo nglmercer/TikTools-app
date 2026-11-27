@@ -7,24 +7,25 @@ import {
   refreshEmulatedEvent,
 } from '../../../src/automation/event-emulation.ts';
 import { sampleEventForType } from '../../../src/automation/event-registry.ts';
+import { EVENT_KIND } from '../../shared/index.ts';
 
 describe('matchingLastEvent', () => {
   test('accepts only the trigger being emulated', () => {
-    const gift = sampleEventForType('tiktok.gift');
-    expect(matchingLastEvent('tiktok.gift', gift)).toBe(gift);
-    expect(matchingLastEvent('tiktok.chat', gift)).toBeUndefined();
-    expect(matchingLastEvent('tiktok.gift', null)).toBeUndefined();
-    expect(matchingLastEvent('tiktok.gift', undefined)).toBeUndefined();
+    const gift = sampleEventForType(EVENT_KIND.tiktokGift);
+    expect(matchingLastEvent(EVENT_KIND.tiktokGift, gift)).toBe(gift);
+    expect(matchingLastEvent(EVENT_KIND.tiktokChat, gift)).toBeUndefined();
+    expect(matchingLastEvent(EVENT_KIND.tiktokGift, null)).toBeUndefined();
+    expect(matchingLastEvent(EVENT_KIND.tiktokGift, undefined)).toBeUndefined();
   });
 });
 
 describe('emulateEventForType', () => {
   test('replays matching live data with a fresh timestamp', () => {
-    const live = sampleEventForType('tiktok.gift');
+    const live = sampleEventForType(EVENT_KIND.tiktokGift);
     live.timestamp = 1;
     (live.data as Record<string, unknown>)['giftName'] = 'Galaxy';
     const before = Date.now();
-    const { event, source } = emulateEventForType('tiktok.gift', live);
+    const { event, source } = emulateEventForType(EVENT_KIND.tiktokGift, live);
     expect(source).toBe('live');
     expect((event.data as Record<string, unknown>)['giftName']).toBe('Galaxy');
     expect(event.timestamp).toBeGreaterThanOrEqual(before);
@@ -33,17 +34,17 @@ describe('emulateEventForType', () => {
   });
 
   test('falls back to the registry sample on type mismatch', () => {
-    const chat = sampleEventForType('tiktok.chat');
-    const { event, source } = emulateEventForType('tiktok.gift', chat);
+    const chat = sampleEventForType(EVENT_KIND.tiktokChat);
+    const { event, source } = emulateEventForType(EVENT_KIND.tiktokGift, chat);
     expect(source).toBe('sample');
-    expect(event.type).toBe('tiktok.gift');
+    expect(event.type).toBe(EVENT_KIND.tiktokGift);
     expect((event.data as Record<string, unknown>)['giftName']).toBe('Rose');
   });
 });
 
 describe('refreshEmulatedEvent', () => {
   test('renews identity without touching the payload', () => {
-    const live = sampleEventForType('tiktok.chat');
+    const live = sampleEventForType(EVENT_KIND.tiktokChat);
     live.id = 'live-1';
     live.timestamp = 1;
     const replay = refreshEmulatedEvent(live, 'replay-1');

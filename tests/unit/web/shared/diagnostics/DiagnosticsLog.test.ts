@@ -5,6 +5,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import DiagnosticsLog from '../../../../../src/web/shared/diagnostics/DiagnosticsLog.vue';
 import { diagnosticLog, diagnosticView } from '../../../../../src/web/shared/diagnostics/log.ts';
+import { ACCOUNT_STATE } from '../../../../shared/index.ts';
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
 afterEach(() => { diagnosticLog.clear(); diagnosticView.source.value = ''; diagnosticView.entityId.value = ''; diagnosticView.selectedId.value = ''; vi.restoreAllMocks(); });
@@ -76,10 +77,10 @@ test('does not repeat identical details but preserves the full export text', asy
   expect(writeText.mock.calls[0]?.[0]).toContain('Not supported');
 });
 test('renders structured properties and a raw JSON view for the selected entry', async () => {
-  const entry = diagnosticLog.record({ source: 'account', level: 'info', code: 'account.status', message: 'Cloud diagnostics', fields: [{ label: 'State', value: 'signed-in' }] });
+  const entry = diagnosticLog.record({ source: 'account', level: 'info', code: 'account.status', message: 'Cloud diagnostics', fields: [{ label: 'State', value: ACCOUNT_STATE.signedIn }] });
   diagnosticView.selectedId.value = entry.id;
   const wrapper = mountWithPlugins(DiagnosticsLog);
-  expect(wrapper.get('.logs__fields').text()).toContain('signed-in');
+  expect(wrapper.get('.logs__fields').text()).toContain(ACCOUNT_STATE.signedIn);
   await wrapper.findAll('button').find(button => button.text() === t('diagnostics.showRaw'))!.trigger('click');
   expect(wrapper.get('.logs__raw').text()).toContain('account.status');
 });

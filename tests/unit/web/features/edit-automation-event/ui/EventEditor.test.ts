@@ -6,6 +6,7 @@ import { cloneRecord, createEvent } from '@/entities/automation/lib/automation-r
 import { i18n } from '@/shared/i18n/i18n.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import EventEditor from '../../../../../../src/web/features/edit-automation-event/ui/EventEditor.vue';
+import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string) => i18n.global.t(key);
@@ -13,9 +14,9 @@ function button(wrapper: VueWrapper, key: string) {
   return wrapper.findAll('button').find((item) => item.attributes('aria-label') === t(key))!;
 }
 function mountEditor() {
-  const event: LiveEvent = { ...createEvent('Original'), trigger: 'tiktok.chat', actionIds: ['first', 'second'] };
+  const event: LiveEvent = { ...createEvent('Original'), trigger: EVENT_KIND.tiktokChat, actionIds: ['first', 'second'] };
   const actions: LiveAction[] = ['first', 'second'].map((id) => ({
-    schemaVersion: 2, id, name: id, enabled: true, typeId: 'core.log', config: { message: id },
+    schemaVersion: 2, id, name: id, enabled: true, typeId: ACTION_TYPE.coreLog, config: { message: id },
   }));
   const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {
     event, baseline: event, actions, eventTypes: [], gifts: [], viewers: [], testRuns: [],
@@ -64,7 +65,7 @@ it('duplicates a condition right below itself from the row action menu', async (
   const filters: EventFilter[] = [
     { path: 'event.data.text', operator: 'starts-with', value: '!play' },
   ];
-  const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: 'tiktok.chat', filters };
+  const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: EVENT_KIND.tiktokChat, filters };
   const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {
     event, baseline: event, actions: [], eventTypes: [], gifts: [], viewers: [], testRuns: [],
   } });
@@ -84,7 +85,7 @@ it('combines conditions with one global AND/OR toggle and no false missing-value
     { path: 'event.data.text', operator: 'starts-with', value: '!play' },
     { path: 'event.data.text', operator: 'contains', value: 'vip' },
   ];
-  const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: 'tiktok.chat', filters };
+  const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: EVENT_KIND.tiktokChat, filters };
   const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {
     event, baseline: event, actions: [], eventTypes: [], gifts: [], viewers: [], testRuns: [],
   } });
@@ -170,7 +171,7 @@ it('filters the action list without changing selection on save', async () => {
 });
 
 it('keeps the enable switch in the General section header and mutes an inactive editor', async () => {
-  const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: 'tiktok.chat' };
+  const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: EVENT_KIND.tiktokChat };
   const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {
     event, baseline: event, actions: [], eventTypes: [], gifts: [], viewers: [], testRuns: [],
   } });
@@ -188,7 +189,7 @@ it('removes a condition through the row action menu', async () => {
     { path: 'event.data.text', operator: 'starts-with', value: '!play' },
     { path: 'event.data.text', operator: 'contains', value: 'vip' },
   ];
-  const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: 'tiktok.chat', filters };
+  const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: EVENT_KIND.tiktokChat, filters };
   const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {
     event, baseline: event, actions: [], eventTypes: [], gifts: [], viewers: [], testRuns: [],
   } });
@@ -209,7 +210,7 @@ it('edits capture aliases in their own tab', async () => {
     { path: 'event.data.text', operator: 'starts-with', value: '!play' },
     { path: 'event.data.text', operator: 'starts-with', value: '/play' },
   ];
-  const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: 'tiktok.chat', filters };
+  const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: EVENT_KIND.tiktokChat, filters };
   const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {
     event, baseline: event, actions: [], eventTypes: [], gifts: [], viewers: [], testRuns: [],
   } });
@@ -241,7 +242,7 @@ it('falls back to execCommand when the clipboard API rejects', async () => {
   const event: LiveEvent = {
     ...createEvent('Original'),
     enabled: true,
-    trigger: 'tiktok.chat',
+    trigger: EVENT_KIND.tiktokChat,
     filters: [{ path: 'event.data.text', operator: 'starts-with', value: '!play', as: 'prefix' }],
   };
   const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {

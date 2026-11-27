@@ -5,6 +5,7 @@ import { activateLocale } from '@/shared/i18n/i18n.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import PluginVersionsPane from '../../../../../../src/web/widgets/plugin-details/ui/PluginVersionsPane.vue';
+import { RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 afterEach(async () => { await activateLocale('en'); });
@@ -16,7 +17,7 @@ function setup(kind: 'registry' | 'file') {
     policy:{ channel:'stable', autoUpdate:'notify', pinned:false }, retained:[{ version:'1.0.0', retainedAt:1 }] };
   const { client, calls } = createFakeControlClient((method) => {
     if (method === 'plugins.packages.versions') return { id:receipt.id, installed:receipt.version, receipt, retained:receipt.retained, registry:'old-source', available:[] };
-    if (method === 'plugins.packages.inspect') return { id:receipt.id, version:'1.0.0', consentToken:'review-token' };
+    if (method === RPC.pluginsPackagesInspect) return { id:receipt.id, version:'1.0.0', consentToken:'review-token' };
     if (method === 'plugins.packages.install') return { job:{ id:'install-job', kind:'install', stage:'queued', status:'queued', createdAt:1, updatedAt:1 } };
     if (method === 'plugins.packages.rollback') return { job:{ id:'job', kind:'rollback', stage:'queued', status:'queued', createdAt:1, updatedAt:1 } };
     return {};
@@ -36,8 +37,8 @@ it('reviews a previous Cloud version from the configured instance before install
   expect(button.attributes('aria-description')).toContain('require a new review');
   await button.trigger('click');
   await flushPromises();
-  expect(calls.filter((call) => call.method === 'plugins.packages.inspect')).toEqual([
-    { method:'plugins.packages.inspect', params:{ spec:{ kind:'registry', id:'acme.plugin', version:'1.0.0' } } },
+  expect(calls.filter((call) => call.method === RPC.pluginsPackagesInspect)).toEqual([
+    { method:RPC.pluginsPackagesInspect, params:{ spec:{ kind:'registry', id:'acme.plugin', version:'1.0.0' } } },
   ]);
   expect(calls.some((call) => ['plugins.packages.install', 'plugins.packages.rollback'].includes(call.method))).toBe(false);
   expect(store.review.open).toBe(true);

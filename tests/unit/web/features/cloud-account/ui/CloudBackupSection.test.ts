@@ -6,6 +6,7 @@ import { activateLocale } from '@/shared/i18n/i18n.ts';
 import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import CloudBackupSection from '../../../../../../src/web/features/cloud-account/ui/CloudBackupSection.vue';
+import { RPC } from '../../../../../shared/index.ts';
 
 const t = (key: string): string => testMessage('en', key);
 afterEach(async () => { await activateLocale('en'); });
@@ -47,8 +48,8 @@ async function pickFile(wrapper: VueWrapper, content: string, name: string): Pro
 
 it('shows the cloud tab first with a suggested name, the local tab tools and the plan quota', async () => {
   const { wrapper } = mountSection((method) => {
-    if (method === 'cloud.backup.list') return { items: [] };
-    if (method === 'cloud.plan.get') return plan(1);
+    if (method === RPC.cloudBackupList) return { items: [] };
+    if (method === RPC.cloudPlanGet) return plan(1);
     throw new Error(`unexpected ${method}`);
   });
   await flushPromises();
@@ -69,8 +70,8 @@ it('exports the current data as a JSON file', async () => {
   const createObjectURL = vi.fn(() => 'blob:backup');
   vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL: vi.fn() });
   const { wrapper } = mountSection((method) => {
-    if (method === 'cloud.backup.list') return { items: [] };
-    if (method === 'cloud.plan.get') return plan(0);
+    if (method === RPC.cloudBackupList) return { items: [] };
+    if (method === RPC.cloudPlanGet) return plan(0);
     if (method === 'cloud.backup.create') return manifest;
     throw new Error(`unexpected ${method}`);
   });
@@ -86,8 +87,8 @@ it('exports the current data as a JSON file', async () => {
 
 it('lists stored backups and saves a named one from the account data', async () => {
   const { wrapper, calls } = mountSection((method) => {
-    if (method === 'cloud.backup.list') return { items: [stored] };
-    if (method === 'cloud.plan.get') return plan(1);
+    if (method === RPC.cloudBackupList) return { items: [stored] };
+    if (method === RPC.cloudPlanGet) return plan(1);
     if (method === 'cloud.backup.createNamed') return { ...stored, id: 'b2', name: 'Nightly' };
     throw new Error(`unexpected ${method}`);
   });
@@ -106,8 +107,8 @@ it('lists stored backups and saves a named one from the account data', async () 
 
 it('uploads a picked backup file to the account with its contents', async () => {
   const { wrapper, calls } = mountSection((method) => {
-    if (method === 'cloud.backup.list') return { items: [] };
-    if (method === 'cloud.plan.get') return plan(0);
+    if (method === RPC.cloudBackupList) return { items: [] };
+    if (method === RPC.cloudPlanGet) return plan(0);
     if (method === 'cloud.backup.preview') return { mode: 'replace', dryRun: true, applied: false, legacySync: 0, workspaceSync: 4, library: 1, mediaLibrary: 0, assets: 2 };
     if (method === 'cloud.backup.createNamed') return { ...stored, name: 'laptop' };
     throw new Error(`unexpected ${method}`);
@@ -130,8 +131,8 @@ it('uploads a picked backup file to the account with its contents', async () => 
 
 it('rejects a file that is not a backup', async () => {
   const { wrapper, calls } = mountSection((method) => {
-    if (method === 'cloud.backup.list') return { items: [] };
-    if (method === 'cloud.plan.get') return plan(0);
+    if (method === RPC.cloudBackupList) return { items: [] };
+    if (method === RPC.cloudPlanGet) return plan(0);
     throw new Error(`unexpected ${method}`);
   });
   await flushPromises();
@@ -144,8 +145,8 @@ it('rejects a file that is not a backup', async () => {
 
 it('blocks creating a backup once the plan limit is reached', async () => {
   const { wrapper } = mountSection((method) => {
-    if (method === 'cloud.backup.list') return { items: [stored] };
-    if (method === 'cloud.plan.get') return plan(3);
+    if (method === RPC.cloudBackupList) return { items: [stored] };
+    if (method === RPC.cloudPlanGet) return plan(3);
     throw new Error(`unexpected ${method}`);
   });
   await flushPromises();

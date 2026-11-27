@@ -6,6 +6,7 @@ import { activateLocale } from '@/shared/i18n/i18n.ts';
 import BaseSchemaForm from '@/shared/ui/schema-form/BaseSchemaForm.vue';
 import BaseFileDrop from '@/shared/ui/file-drop/BaseFileDrop.vue';
 import ProfileImportDialog from '../../../../../../src/web/features/manage-rule-profiles/ui/ProfileImportDialog.vue';
+import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key); afterEach(() => activateLocale('en'));
@@ -33,7 +34,7 @@ test('profile import is one manual source: no tab bar, a staged profile with cle
   expect(wrapper.get('.base-button--primary').attributes('disabled')).toBeDefined();
   drop.vm.$emit('content', '{"nope":true}', 'bad.json'); await flushPromises();
   expect(wrapper.get('[role="alert"]').text()).toBe(t('automations.import.notProfile'));
-  const profile = { profileVersion: 1, id: 'p1', name: 'Starter', description: '', params: {}, templates: [{ template: { templateVersion: 1, id: 't1', title: 'T', actions: [{ name: 'Log', typeId: 'core.log', config: {} }], event: { name: 'Chat', trigger: 'tiktok.chat' } }, params: {} }] };
+  const profile = { profileVersion: 1, id: 'p1', name: 'Starter', description: '', params: {}, templates: [{ template: { templateVersion: 1, id: 't1', title: 'T', actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: {} }], event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat } }, params: {} }] };
   drop.vm.$emit('content', JSON.stringify(profile), 'starter.tikprofile.json'); await flushPromises();
   expect(wrapper.get('.base-import-dialog__staged').text()).toContain('Profile “Starter” · 1 rules');
   expect(wrapper.get('.base-import-dialog__staged').text()).toContain('starter.tikprofile.json');

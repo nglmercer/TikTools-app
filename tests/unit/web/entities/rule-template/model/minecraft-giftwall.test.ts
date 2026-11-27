@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 
 import presetJson from '../../../../../fixtures/profiles/minecraft-giftwall.tikprofile.json';
 import { instantiateProfile, parseRuleProfile } from '../../../../../../src/web/entities/rule-template/model/rule-profiles-state.ts';
+import { EVENT_KIND } from '../../../../../shared/index.ts';
 
 test('minecraft gift-wall preset parses on the desktop path', () => {
   const parsed = parseRuleProfile(presetJson);
@@ -10,7 +11,7 @@ test('minecraft gift-wall preset parses on the desktop path', () => {
   expect(parsed.profile.id).toBe('minecraft-giftwall');
   expect(parsed.profile.templates).toHaveLength(16);
   const triggers = new Set(parsed.profile.templates.map((entry) => entry.template.event.trigger));
-  expect(triggers.has('tiktok.gift')).toBe(true);
+  expect(triggers.has(EVENT_KIND.tiktokGift)).toBe(true);
   expect(triggers.has('tiktok.follow')).toBe(true);
   expect(triggers.has('tiktok.share')).toBe(true);
 });

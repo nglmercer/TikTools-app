@@ -4,6 +4,7 @@ import type { HostMessage } from '../../../../../../src/shared/messages.ts';
 import type { ControlClient, PushHandler, TopicHandler } from '@/shared/api/control-client.ts';
 import { useAutomation } from '../../../../../../src/web/entities/automation/model/automation-state.ts';
 import { libraryDefinitionDigest } from '@/entities/rule-template/model/library-contracts.ts';
+import { EVENT_KIND, RPC, TOPIC } from '../../../../../shared/index.ts';
 
 function fakeControl(): {
   client: ControlClient;
@@ -82,10 +83,10 @@ describe('useAutomation live updates', () => {
     const { client, topics } = fakeControl();
     const automation = useAutomation(client);
     expect(automation.lastHotkeyEvent.value).toBeNull();
-    emit(topics.get('plugin.event'), {
+    emit(topics.get(TOPIC.pluginEvent), {
       pluginId: 'hotkeys',
-      eventType: 'hotkey.pressed',
-      event: { type: 'hotkey.pressed', data: { key: 'k', modifiers: 'ctrl', backend: 'rdev' } },
+      eventType: EVENT_KIND.hotkeyPressed,
+      event: { type: EVENT_KIND.hotkeyPressed, data: { key: 'k', modifiers: 'ctrl', backend: 'rdev' } },
     });
     expect(automation.lastHotkeyEvent.value).toMatchObject({
       key: 'k',
@@ -93,7 +94,7 @@ describe('useAutomation live updates', () => {
       backend: 'rdev',
     });
     // Other plugin events do not touch the hotkey record.
-    emit(topics.get('plugin.event'), {
+    emit(topics.get(TOPIC.pluginEvent), {
       pluginId: 'other',
       eventType: 'other.thing',
       event: { type: 'other.thing', data: {} },
@@ -133,7 +134,7 @@ describe('useAutomation fire event', () => {
     id: 'evt-1',
     name: 'Galaxy gate',
     enabled: true,
-    trigger: 'tiktok.gift',
+    trigger: EVENT_KIND.tiktokGift,
     filters: [],
     cooldownMs: 0,
     cooldownScope: 'user' as const,
@@ -143,7 +144,7 @@ describe('useAutomation fire event', () => {
 
   test('fires the trigger and surfaces the outcome as a test-panel entry', async () => {
     const { client, calls } = fired({
-      trigger: 'tiktok.gift',
+      trigger: EVENT_KIND.tiktokGift,
       eventSource: 'live',
       pinned: [],
       matched: 2,
@@ -156,7 +157,7 @@ describe('useAutomation fire event', () => {
     automation.handleFireEvent(event);
     await flush();
     expect(calls).toEqual([
-      { method: 'automation.fire', params: { trigger: 'tiktok.gift', record: event } },
+      { method: 'automation.fire', params: { trigger: EVENT_KIND.tiktokGift, record: event } },
     ]);
     expect(automation.behaviorError.value).toBe('');
     expect(automation.behaviorTestRuns.value).toHaveLength(1);
@@ -170,7 +171,7 @@ describe('useAutomation fire event', () => {
 
   test('zero-match fire surfaces as an error entry without touching the error bar', async () => {
     const { client } = fired({
-      trigger: 'tiktok.gift',
+      trigger: EVENT_KIND.tiktokGift,
       eventSource: 'sample',
       pinned: [],
       matched: 0,
@@ -209,7 +210,7 @@ describe('useAutomation hotkey access request', () => {
     client.call = ((method: string) => {
       calls.push(method);
       if (method === 'system.requestInputAccess') return Promise.resolve(result);
-      if (method === 'automation.runs') return Promise.resolve({ runs: [] });
+      if (method === RPC.automationRuns) return Promise.resolve({ runs: [] });
       if (method === 'automation.library.snapshot') {
         const definitions = { actions: [], events: [], plugins: [], actionTypes: [], translations: {} };
         return Promise.resolve({ hostId: 'host-a', hostInstanceId: 'instance-a', revision: '0', definitionDigest: libraryDefinitionDigest(definitions, []),
@@ -245,7 +246,7 @@ describe('useAutomation hotkey access request', () => {
     await flush();
     expect(automation.hotkeyAccessPending.value).toBe(false);
     expect(automation.behaviorError.value).toBe('dismissed');
-    expect(calls).not.toContain('automation.snapshot');
+    expect(calls).not.toContain(RPC.automationSnapshot);
   });
 
   test('double clicks issue a single request', async () => {

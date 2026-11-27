@@ -9,6 +9,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { nativeDefinitionHost } from '@/entities/automation/testing/native-definition-fixture.ts';
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import CloudLibrary from '../../../../../../src/web/features/cloud-library/ui/CloudLibrary.vue';
+import { ACCOUNT_STATE, ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
 
 const firstId = '00000000-0000-4000-8000-000000000001';
 const nextId = '00000000-0000-4000-8000-000000000002';
@@ -61,14 +62,14 @@ describe('CloudLibrary', () => {
     });
     const stores = createStoreHarness(client);
     const account = stores.use(() => useAccountStore());
-    account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'alice', persistence: 'memory-only' };
+    account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
     const wrapper = mountWithPlugins(CloudLibrary, { global: { plugins: stores.plugins } });
     await flushPromises();
     await wrapper.findAll('select')[0]!.setValue('mine');
     expect(wrapper.text()).toContain('Loading Cloud documents');
     account.working = true;
-    account.status = { origin: 'https://cloud.example', state: 'signed-out', persistence: 'memory-only' };
-    account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'alice', persistence: 'memory-only' };
+    account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedOut, persistence: ACCOUNT_STATE.memoryOnly };
+    account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
     account.working = false;
     resolvePrivate({ items: [summary(firstId, 'Private old session')], nextCursor: null });
     await flushPromises();
@@ -89,7 +90,7 @@ describe('CloudLibrary', () => {
     });
     const stores = createStoreHarness(client);
     const account = stores.use(() => useAccountStore());
-    account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'alice', persistence: 'memory-only' };
+    account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
     const wrapper = mountWithPlugins(CloudLibrary, { global: { plugins: stores.plugins } });
     await flushPromises();
     await wrapper.findAll('select')[0]!.setValue('mine');
@@ -123,7 +124,7 @@ describe('CloudLibrary', () => {
     client.onGap = (handler) => { gap = () => handler(1); return () => { gap = () => {}; }; };
     const stores = createStoreHarness(client);
     const account = stores.use(() => useAccountStore());
-    account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'alice', persistence: 'memory-only' };
+    account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
     const wrapper = mountWithPlugins(CloudLibrary, { global: { plugins: stores.plugins } });
     await flushPromises();
     await wrapper.findAll('select')[0]!.setValue('mine'); await flushPromises();
@@ -166,14 +167,14 @@ describe('CloudLibrary', () => {
 
   describe('import', () => {
     const template = { templateVersion: 1, id: 'portable-template', title: 'Safe example', description: '', icon: 'gift',
-      actions: [{ name: 'act', typeId: 'core.log', config: {} }], event: { name: 'evt', trigger: 'tiktok.chat' } };
+      actions: [{ name: 'act', typeId: ACTION_TYPE.coreLog, config: {} }], event: { name: 'evt', trigger: EVENT_KIND.tiktokChat } };
     async function ownerLibrary(hold?: { snapshot?: Promise<unknown> }) {
       const native = nativeDefinitionHost((method, params, options) => {
-        if (method === 'automation.snapshot') { options?.onMetadata?.({ resourceVersions: [] }); return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} }; }
-        if (method === 'app.state.get') return { state: {} };
+        if (method === RPC.automationSnapshot) { options?.onMetadata?.({ resourceVersions: [] }); return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} }; }
+        if (method === RPC.appStateGet) return { state: {} };
         if (method === 'cloudLibrary.list') return { items: [summary()], nextCursor: null };
         if (method === 'cloudLibrary.read') return { meta: summary(), document: template };
-        if (method === 'automation.create') {
+        if (method === RPC.automationCreate) {
           options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }] });
           return params?.record;
         }
@@ -186,7 +187,7 @@ describe('CloudLibrary', () => {
       });
       const stores = createStoreHarness(client);
       const account = stores.use(() => useAccountStore());
-      account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'alice', persistence: 'memory-only' };
+      account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
       const wrapper = mountWithPlugins(CloudLibrary, { global: { plugins: stores.plugins } });
       await flushPromises();
       await button(wrapper, 'First document').trigger('click');
@@ -204,7 +205,7 @@ describe('CloudLibrary', () => {
       await f.journal.confirm(); await flushPromises();
       expect(f.wrapper.text()).toContain(t('cloudLibrary.staged'));
       expect(button(f.wrapper, t('cloudLibrary.import')).attributes('disabled')).toBeUndefined();
-      expect(f.calls.filter((call) => call.method === 'automation.library.submit')).toHaveLength(1);
+      expect(f.calls.filter((call) => call.method === RPC.automationLibrarySubmit)).toHaveLength(1);
       f.wrapper.unmount();
     });
 
@@ -214,7 +215,7 @@ describe('CloudLibrary', () => {
       f.journal.dismiss(); await flushPromises();
       expect(button(f.wrapper, t('cloudLibrary.import')).attributes('disabled')).toBeUndefined();
       expect(f.wrapper.find('[role="alert"]').exists()).toBe(false);
-      expect(f.calls.some((call) => call.method === 'automation.library.submit')).toBe(false);
+      expect(f.calls.some((call) => call.method === RPC.automationLibrarySubmit)).toBe(false);
       f.wrapper.unmount();
     });
 
@@ -224,11 +225,11 @@ describe('CloudLibrary', () => {
       const f = await ownerLibrary({ snapshot: held });
       await button(f.wrapper, t('cloudLibrary.import')).trigger('click'); await flushPromises();
       f.account.working = true;
-      f.account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'bob', persistence: 'memory-only' };
+      f.account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'bob', persistence: ACCOUNT_STATE.memoryOnly };
       f.account.working = false;
       release(); await flushPromises();
       expect(f.journal.draft.value).toBeNull();
-      expect(f.calls.some((call) => call.method === 'automation.library.submit')).toBe(false);
+      expect(f.calls.some((call) => call.method === RPC.automationLibrarySubmit)).toBe(false);
       f.wrapper.unmount();
     });
   });

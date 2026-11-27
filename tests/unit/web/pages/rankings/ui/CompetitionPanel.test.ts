@@ -5,6 +5,7 @@ import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import type { RankingDefinition } from '@/entities/ranking/types.ts';
 import CompetitionPanel from '../../../../../../src/web/pages/rankings/ui/CompetitionPanel.vue';
+import { EVENT_KIND, RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -12,8 +13,8 @@ const ranking: RankingDefinition = { schemaVersion: 1, id: 'vote', creatorId: 'c
 const poll = { schemaVersion: 1, id: 'poll', name: t('competitionsPanel.types.poll.name'), kind: 'poll', rankingId: 'vote', options: [], selectionMode: 'highest_score', tiePolicy: 'stable', durationMs: null, voteLimit: 1, allowSwitch: false, minimumParticipants: 1 };
 async function setup() {
   const { client, calls } = createFakeControlClient((method) => {
-    if (method === 'automation.list') return { actions: [{ id: 'tnt', name: 'TNT', enabled: true }] };
-    if (method === 'competitions.list') return { competitions: [poll] };
+    if (method === RPC.automationList) return { actions: [{ id: 'tnt', name: 'TNT', enabled: true }] };
+    if (method === RPC.competitionsList) return { competitions: [poll] };
     if (method === 'competitions.state') return { lifecycle: 'draft', generation: 0, deadlineMs: null, remainingMs: null };
     if (method === 'competitions.results') return { results: [] };
     return { ok: true };
@@ -30,12 +31,12 @@ async function openForm(wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], i
 describe('competition controls', () => {
   it('offers mixed like and share rankings but excludes unsupported sources', async () => {
     const { client } = createFakeControlClient((method) => {
-      if (method === 'automation.list') return { actions: [] };
-      if (method === 'competitions.list') return { competitions: [] };
+      if (method === RPC.automationList) return { actions: [] };
+      if (method === RPC.competitionsList) return { competitions: [] };
       return { ok: true };
     });
     const mixed: RankingDefinition = { ...ranking, id: 'mixed', sources: [...ranking.sources,
-      { source: 'tiktok.like', metric: 'like.count', weight: 2, enabled: true },
+      { source: EVENT_KIND.tiktokLike, metric: 'like.count', weight: 2, enabled: true },
       { source: 'tiktok.share', metric: 'share.count', weight: 3, enabled: true }] };
     const gift: RankingDefinition = { ...mixed, id: 'unsupported', sources: [...mixed.sources,
       { source: 'tiktok.follow', metric: 'event.count', weight: 1, enabled: true }] };
@@ -96,8 +97,8 @@ describe('competition controls', () => {
   it('edits a draft without losing additional commands or action inputs', async () => {
     const draft = { ...poll, options: [{ id: 'a', label: 'A', commands: ['!a', '!alpha'], giftIds: [], imageUrl: null, onWin: { actionId: 'tnt', inputs: { amount: 20 } } }, { id: 'b', label: 'B', commands: ['!b'], giftIds: [], imageUrl: null, onWin: null }] };
     const { client, calls } = createFakeControlClient((method) => {
-      if (method === 'automation.list') return { actions: [{ id: 'tnt', name: 'TNT', enabled: true }] };
-      if (method === 'competitions.list') return { competitions: [draft] };
+      if (method === RPC.automationList) return { actions: [{ id: 'tnt', name: 'TNT', enabled: true }] };
+      if (method === RPC.competitionsList) return { competitions: [draft] };
       if (method === 'competitions.state') return { lifecycle: 'draft', generation: 0, deadlineMs: null, remainingMs: null };
       if (method === 'competitions.results') return { results: [] };
       return { ok: true };
@@ -129,8 +130,8 @@ describe('competition controls', () => {
   });
   it('selects a tied leader with the current competition generation', async () => {
     const { client, calls } = createFakeControlClient((method) => {
-      if (method === 'automation.list') return { actions: [] };
-      if (method === 'competitions.list') return { competitions: [{ ...poll, tiePolicy: 'manual' }] };
+      if (method === RPC.automationList) return { actions: [] };
+      if (method === RPC.competitionsList) return { competitions: [{ ...poll, tiePolicy: 'manual' }] };
       if (method === 'competitions.state') return { lifecycle: 'finalizing', generation: 3, deadlineMs: null, remainingMs: null };
       if (method === 'competitions.results') return { results: [] };
       if (method === 'competitions.action') return { action: null };
@@ -147,8 +148,8 @@ describe('competition controls', () => {
   });
   it('records a manual outcome for an uncertain action without rerunning it', async () => {
     const { client, calls } = createFakeControlClient((method) => {
-      if (method === 'automation.list') return { actions: [] };
-      if (method === 'competitions.list') return { competitions: [poll] };
+      if (method === RPC.automationList) return { actions: [] };
+      if (method === RPC.competitionsList) return { competitions: [poll] };
       if (method === 'competitions.state') return { lifecycle: 'finished', generation: 1, deadlineMs: null, remainingMs: null };
       if (method === 'competitions.results') return { results: [] };
       if (method === 'competitions.action') return { action: { generation: 1, actionId: 'tnt', status: 'uncertain', reason: 'execution_failed' } };

@@ -1,4 +1,5 @@
 import { callbacks, createControl, chatEvent, describe, expect, it, createLiveFeedState, likeEvent } from '../../../../../../src/web/entities/live-event/model/testing/live-feed-fixture.ts';
+import { RPC, TOPIC } from '../../../../../shared/index.ts';
 
 describe('live feed rendering', () => {
   it('renders every event immediately, capped at 100 per category', () => {
@@ -16,7 +17,7 @@ describe('live feed rendering', () => {
   it('keeps recent events of every category when one kind floods', () => {
     const harness = createControl();
     const live = createLiveFeedState(harness.control, callbacks('system'));
-    harness.emit('live.ui-event', chatEvent('chat', 'alice', 0) as never);
+    harness.emit(TOPIC.liveUiEvent, chatEvent('chat', 'alice', 0) as never);
     for (let i = 0; i < 200; i += 1) {
       harness.emit('live.ui-event', { event: { kind: 'like', author: 'fan', text: 'like', msgId: `like-${i}` } } as never);
     }
@@ -28,7 +29,7 @@ describe('live feed rendering', () => {
   it('room switches reset category retention counts with the cleared feed', () => {
     const harness = createControl();
     Object.assign(harness.control, {
-      call: async (method: string) => method === 'rankings.list' ? { rankings: [] } : null,
+      call: async (method: string) => method === RPC.rankingsList ? { rankings: [] } : null,
     });
     const history = {
       load: () => ({ scope: JSON.stringify(['creator', 'room-one']), savedAt: Date.now(), events: [] }),
@@ -36,14 +37,14 @@ describe('live feed rendering', () => {
       clear: () => {},
     };
     const live = createLiveFeedState(harness.control, { ...callbacks('system'), history });
-    harness.emit('live.connected', { uniqueId: 'creator', roomId: 'room-one' } as never);
+    harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: 'room-one' } as never);
     for (let i = 0; i < 100; i += 1) {
       harness.emit('live.ui-event', likeEvent('fan', 1, i + 1, `one-${i}`, 'room-one') as never);
     }
     expect(live.events.value.filter((event) => event.kind === 'like')).toHaveLength(100);
 
-    harness.emit('live.connected', { uniqueId: 'creator', roomId: 'room-two' } as never);
-    harness.emit('live.ui-event', likeEvent('fan', 1, 101, 'two-1', 'room-two') as never);
+    harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: 'room-two' } as never);
+    harness.emit(TOPIC.liveUiEvent, likeEvent('fan', 1, 101, 'two-1', 'room-two') as never);
     expect(live.events.value).toHaveLength(1);
     expect(live.events.value[0]?.roomId).toBe('room-two');
     live.dispose();
@@ -78,11 +79,11 @@ describe('live feed rendering', () => {
   it('dispose unsubscribes topics and ignores later events', () => {
     const harness = createControl();
     const live = createLiveFeedState(harness.control, callbacks('system'));
-    harness.emit('live.ui-event', chatEvent('dispose', 'user-0', 0) as never);
+    harness.emit(TOPIC.liveUiEvent, chatEvent('dispose', 'user-0', 0) as never);
     live.dispose();
-    harness.emit('live.ui-event', chatEvent('dispose', 'user-1', 1) as never);
+    harness.emit(TOPIC.liveUiEvent, chatEvent('dispose', 'user-1', 1) as never);
     expect(live.events.value).toHaveLength(1);
-    expect(harness.unsubscribed).toContain('live.ui-event');
+    expect(harness.unsubscribed).toContain(TOPIC.liveUiEvent);
     expect(harness.unsubscribed).toContain('room.stats');
   });
 
@@ -92,8 +93,8 @@ describe('live feed rendering', () => {
     const payload = {
       event: { kind: 'chat' as const, author: 'alice', text: 'hello', msgId: 'replay-1' },
     };
-    harness.emit('live.ui-event', payload as never);
-    harness.emit('live.ui-event', payload as never);
+    harness.emit(TOPIC.liveUiEvent, payload as never);
+    harness.emit(TOPIC.liveUiEvent, payload as never);
     expect(live.events.value).toHaveLength(1);
     live.dispose();
   });
@@ -101,7 +102,7 @@ describe('live feed rendering', () => {
   it('does not expose skipped-update or coalescing diagnostics', () => {
     const harness = createControl();
     const live = createLiveFeedState(harness.control, callbacks('system'));
-    harness.emit('live.ui-event', chatEvent('plain', 'alice', 1) as never);
+    harness.emit(TOPIC.liveUiEvent, chatEvent('plain', 'alice', 1) as never);
     expect(live.diagnostics()).not.toHaveProperty('dropped');
     expect(live.diagnostics()).not.toHaveProperty('presentationCoalesced');
     expect(live).not.toHaveProperty('droppedUiEvents');
@@ -112,7 +113,7 @@ describe('live feed rendering', () => {
     const harness = createControl();
     const live = createLiveFeedState(harness.control, callbacks('System'));
     controlStats(harness, { feedSuspended: 0, feedBusDropped: 0, feedForwarded: 0 });
-    harness.emit('live.ui-event', { ...chatEvent('sequence', 'alice', 1), sequence: 1 } as never);
+    harness.emit(TOPIC.liveUiEvent, { ...chatEvent('sequence', 'alice', 1), sequence: 1 } as never);
     controlStats(harness, { feedSuspended: 5, feedBusDropped: 3, feedForwarded: 4 });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(live.diagnostics()).not.toHaveProperty('dropped');

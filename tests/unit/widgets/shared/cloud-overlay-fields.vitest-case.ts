@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { liveFieldsFrom } from '../../../../src/widgets/shared/cloud-overlay-fields.ts';
+import { EVENT_KIND, TOPIC } from '../../../shared/index.ts';
 
 const gift = (overrides: Record<string, unknown> = {}) => ({
-  topic: 'live.event',
+  topic: TOPIC.liveEvent,
   data: {
-    eventType: 'tiktok.gift',
+    eventType: EVENT_KIND.tiktokGift,
     event: {
       id: 'e1',
-      type: 'tiktok.gift',
+      type: EVENT_KIND.tiktokGift,
       timestamp: 1,
       user: { uniqueId: 'ana', nickname: 'Ana', secUid: 'sec-ana' },
       data: { giftId: 'g1', giftName: 'Rose', repeatCount: 3, comboCount: 2, diamondCount: 1, groupId: 'grp', repeatEnd: true, streakable: false, method: 'gift', msgId: 'm1', isHistory: false, ...overrides },

@@ -3,6 +3,7 @@ import { createDemoPlayback, type PlaybackState } from '../../../src/web/demo/pl
 import { demoTourScenarios, demoTourUrl } from '../../../src/web/demo/tours.ts';
 import { demoParam } from '../../../src/web/demo/contract.ts';
 import { createDemoFixture } from './support/host.ts';
+import { RPC } from '../../shared/index.ts';
 
 /** Playback controls wired to a connection demo fixture. */
 function fixture() {
@@ -17,7 +18,7 @@ describe('demo playback controls', () => {
     const f = fixture();
     try {
       await f.playback.play();
-      expect(f.host.wasSuccessful('live.connect')).toBe(true);
+      expect(f.host.wasSuccessful(RPC.liveConnect)).toBe(true);
       expect(f.states.at(-1)).toEqual({ paused: false, busy: false, events: 1, status: 'playing' });
       await f.playback.play();
       f.playback.tick();

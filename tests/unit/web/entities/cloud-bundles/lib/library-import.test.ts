@@ -6,11 +6,12 @@ import { libraryJournal } from '@/entities/rule-template/model/library-journal.t
 import { ControlCallError, type ControlClient } from '@/shared/api/control-client.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import { importLibraryDocument, readLibraryDocument, type LibraryImportEnvironment } from '../../../../../../src/web/entities/cloud-bundles/lib/library-import.ts';
+import { ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
 
 const id = '00000000-0000-4000-8000-000000000001';
 const sha256 = 'a'.repeat(64);
 const template = { templateVersion: 1, id: 'cloud-template', title: 'Cloud template', description: '', icon: 'gift',
-  actions: [{ name: 'act', typeId: 'core.log', config: { message: 'hi' } }], event: { name: 'evt', trigger: 'tiktok.chat' } };
+  actions: [{ name: 'act', typeId: ACTION_TYPE.coreLog, config: { message: 'hi' } }], event: { name: 'evt', trigger: EVENT_KIND.tiktokChat } };
 const profile = { profileVersion: 1, id: 'cloud-profile', name: 'Cloud profile', description: 'two', params: {},
   templates: [{ template, params: {} }] };
 const record = (document: unknown, revision = '3') => ({ meta: { id, kind: 'template', slug: 'x', revision, title: 'T', sha256, status: 'published' }, document });
@@ -23,9 +24,9 @@ function deferred<T>() {
 function fixture(read: (params: Record<string, unknown> | undefined) => unknown) {
   const source: BehaviorSnapshot = { actions: [], events: [], plugins: [], actionTypes: [], translations: {} };
   const native = nativeDefinitionHost((method, params, options) => {
-    if (method === 'automation.snapshot') { options?.onMetadata?.({ resourceVersions: [] }); return structuredClone(source); }
-    if (method === 'app.state.get') return { state: {} };
-    if (method === 'automation.create') {
+    if (method === RPC.automationSnapshot) { options?.onMetadata?.({ resourceVersions: [] }); return structuredClone(source); }
+    if (method === RPC.appStateGet) return { state: {} };
+    if (method === RPC.automationCreate) {
       options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }] });
       return params?.record;
     }
@@ -41,7 +42,7 @@ function fixture(read: (params: Record<string, unknown> | undefined) => unknown)
   };
   return { ...fake, native, state, environment, journal: libraryJournal(fake.client) };
 }
-const submits = (f: ReturnType<typeof fixture>) => f.calls.filter((call) => call.method === 'automation.library.submit');
+const submits = (f: ReturnType<typeof fixture>) => f.calls.filter((call) => call.method === RPC.automationLibrarySubmit);
 
 describe('Cloud library import coordinator', () => {
   it('imports a template without visiting Automations, with real provenance, and settles only on confirmation', async () => {

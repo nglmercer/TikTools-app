@@ -12,13 +12,14 @@ import {
   ruleParamDefaults,
   substituteRuleParams,
 } from '../../../../../../src/web/entities/rule-template/lib/rule-templates.ts';
+import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
 
 const MINIMAL = {
   templateVersion: 1,
   id: 'gift-log',
   title: 'Gift log',
-  actions: [{ name: 'Log', typeId: 'core.log', config: { message: 'hi' } }],
-  event: { name: 'Gift', trigger: 'tiktok.gift' },
+  actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: { message: 'hi' } }],
+  event: { name: 'Gift', trigger: EVENT_KIND.tiktokGift },
 };
 
 test('host templates parse, stay available on installed types, and round-trip', () => {
@@ -30,12 +31,12 @@ test('host templates parse, stay available on installed types, and round-trip', 
   ) as unknown[];
   const templates = snapshotRuleTemplates({ hostTemplates: documents });
   expect(templates.length).toBeGreaterThanOrEqual(4);
-  const available = new Set(['core.fetch', 'core.points', 'core.points.subtract', 'audio.play', 'core.log']);
+  const available = new Set([ACTION_TYPE.coreFetch, 'core.points', 'core.points.subtract', 'audio.play', ACTION_TYPE.coreLog]);
   for (const template of templates) {
     const requirements = missingRuleTemplateRequirements(
       template,
       available,
-      ['tiktok.gift', 'tiktok.chat'],
+      [EVENT_KIND.tiktokGift, EVENT_KIND.tiktokChat],
     );
     expect(requirements).toEqual({ missingTypeIds: [], unknownTrigger: false });
     const reparsed = parseRuleTemplate(JSON.parse(exportRuleTemplate(template)));
@@ -48,8 +49,8 @@ test('snapshot templates dedupe by id and drop unparseable entries', () => {
     templateVersion: 1,
     id,
     title: { default: id },
-    actions: [{ name: 'Log', typeId: 'core.log', config: {} }],
-    event: { name: id, trigger: 'tiktok.chat' },
+    actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: {} }],
+    event: { name: id, trigger: EVENT_KIND.tiktokChat },
   });
   const templates = snapshotRuleTemplates({
     hostTemplates: [minimal('host-one')],
@@ -65,11 +66,11 @@ test('minimal template normalizes defaults', () => {
   expect(parsed.template).toMatchObject({
     id: 'gift-log',
     icon: 'plugin',
-    actions: [{ name: 'Log', typeId: 'core.log', enabled: true, config: { message: 'hi' } }],
+    actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, enabled: true, config: { message: 'hi' } }],
     event: {
       name: 'Gift',
       enabled: true,
-      trigger: 'tiktok.gift',
+      trigger: EVENT_KIND.tiktokGift,
       filters: [],
       cooldownMs: 0,
       cooldownScope: 'global',
@@ -86,7 +87,7 @@ test('malformed templates yield display-safe errors, never throw', () => {
   expect(parseRuleTemplate({ ...MINIMAL, event: { name: 'x' } }).ok).toBe(false);
   const badFilter = parseRuleTemplate({
     ...MINIMAL,
-    event: { name: 'x', trigger: 'tiktok.gift', filters: [{ path: 'p', operator: 'nope', value: '' }] },
+    event: { name: 'x', trigger: EVENT_KIND.tiktokGift, filters: [{ path: 'p', operator: 'nope', value: '' }] },
   });
   expect(badFilter.ok).toBe(false);
 });
@@ -137,8 +138,8 @@ test('missing requirements name unavailable types and unknown triggers', () => {
   const parsed = parseRuleTemplate(MINIMAL);
   expect(parsed.ok).toBe(true);
   if (!parsed.ok) return;
-  expect(missingRuleTemplateRequirements(parsed.template, new Set(), ['tiktok.chat'])).toEqual({
-    missingTypeIds: ['core.log'],
+  expect(missingRuleTemplateRequirements(parsed.template, new Set(), [EVENT_KIND.tiktokChat])).toEqual({
+    missingTypeIds: [ACTION_TYPE.coreLog],
     unknownTrigger: true,
   });
 });

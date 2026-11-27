@@ -8,6 +8,7 @@ import type { UpdateStatus } from '../../../../../../src/web/features/app-update
 import { useAppUpdaterStore } from '../../../../../../src/web/features/app-updater/model/updater-store.ts';
 import AppUpdater from '../../../../../../src/web/features/app-updater/ui/AppUpdater.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
+import { RPC } from '../../../../../shared/index.ts';
 
 function status(overrides: Partial<UpdateStatus> = {}): UpdateStatus {
   return { currentVersion: '4.0.0', availableVersion: null, channel: 'stable', state: 'idle', installationType: 'unknown',
@@ -29,8 +30,8 @@ describe('AppUpdater', () => {
 
   it('shows the installed version and manual fallback, and saves the channel', async () => {
     const { client, calls } = createFakeControlClient((method) => {
-      if (method === 'app.state.get') return { state: { 'app.update.preferences': JSON.stringify({ automaticChecks: false }) } };
-      if (method === 'app.update.status') return status();
+      if (method === RPC.appStateGet) return { state: { 'app.update.preferences': JSON.stringify({ automaticChecks: false }) } };
+      if (method === RPC.appUpdateStatus) return status();
       return {};
     });
     const harness = createStoreHarness(client);
@@ -43,14 +44,14 @@ describe('AppUpdater', () => {
     wrapper.findComponent(BaseComboBox).vm.$emit('update:modelValue', 'beta');
     await flushPromises();
     await flushPromises();
-    expect(calls.some((call) => call.method === 'app.state.set' && String(call.params?.value).includes('"channel":"beta"'))).toBe(true);
+    expect(calls.some((call) => call.method === RPC.appStateSet && String(call.params?.value).includes('"channel":"beta"'))).toBe(true);
   });
 
   it('merges an early check event without overwriting saved preferences', async () => {
     let resolvePreferences: ((value: { state: Record<string, string> }) => void) | undefined;
     const { client, calls } = createFakeControlClient((method) => {
-      if (method === 'app.state.get') return new Promise<{ state: Record<string, string> }>((resolve) => { resolvePreferences = resolve; });
-      if (method === 'app.update.status') return status({ lastChecked: 150 });
+      if (method === RPC.appStateGet) return new Promise<{ state: Record<string, string> }>((resolve) => { resolvePreferences = resolve; });
+      if (method === RPC.appUpdateStatus) return status({ lastChecked: 150 });
       return {};
     });
     let emit: ((state: UpdateStatus) => void) | undefined;
@@ -63,20 +64,20 @@ describe('AppUpdater', () => {
     const initializing = store.initialize();
     emit?.(status({ lastChecked: 200 }));
     await flushPromises();
-    expect(calls.some((call) => call.method === 'app.state.set')).toBe(false);
+    expect(calls.some((call) => call.method === RPC.appStateSet)).toBe(false);
     resolvePreferences?.({ state: { 'app.update.preferences': '{"channel":"beta","automaticChecks":false,"notifications":false,"lastChecked":100}' } });
     await initializing;
     await flushPromises();
     expect(store.preferences).toMatchObject({ channel: 'beta', automaticChecks: false, notifications: false, lastChecked: 200 });
-    const write = calls.find((call) => call.method === 'app.state.set');
+    const write = calls.find((call) => call.method === RPC.appStateSet);
     expect(JSON.parse(String(write?.params?.value))).toMatchObject({ channel: 'beta', automaticChecks: false, notifications: false, lastChecked: 200 });
   });
 
   it('keeps a newer event received while status is loading', async () => {
     let resolveStatus: ((value: UpdateStatus) => void) | undefined;
     const { client } = createFakeControlClient((method) => {
-      if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
-      if (method === 'app.update.status') return new Promise<UpdateStatus>((resolve) => { resolveStatus = resolve; });
+      if (method === RPC.appStateGet) return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
+      if (method === RPC.appUpdateStatus) return new Promise<UpdateStatus>((resolve) => { resolveStatus = resolve; });
       return {};
     });
     let emit: ((state: UpdateStatus) => void) | undefined;
@@ -97,8 +98,8 @@ describe('AppUpdater', () => {
 
   it('renders unknown download length without inventing a percentage', async () => {
     const { client } = createFakeControlClient((method) => {
-      if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
-      if (method === 'app.update.status') return status({ state: 'downloading', downloadedBytes: 12 });
+      if (method === RPC.appStateGet) return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
+      if (method === RPC.appUpdateStatus) return status({ state: 'downloading', downloadedBytes: 12 });
       return {};
     });
     const harness = createStoreHarness(client);
@@ -110,8 +111,8 @@ describe('AppUpdater', () => {
 
   it('renders progress delivered by the update event stream', async () => {
     const { client } = createFakeControlClient((method) => {
-      if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
-      if (method === 'app.update.status') return status();
+      if (method === RPC.appStateGet) return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
+      if (method === RPC.appUpdateStatus) return status();
       return {};
     });
     let emit: ((state: UpdateStatus) => void) | undefined;
@@ -130,8 +131,8 @@ describe('AppUpdater', () => {
 
   it('hides a ready update when the selected channel changes', async () => {
     const { client } = createFakeControlClient((method) => {
-      if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false,"channel":"beta"}' } };
-      if (method === 'app.update.status') return status({ channel: 'beta', state: 'readyToInstall', installSupported: true });
+      if (method === RPC.appStateGet) return { state: { 'app.update.preferences': '{"automaticChecks":false,"channel":"beta"}' } };
+      if (method === RPC.appUpdateStatus) return status({ channel: 'beta', state: 'readyToInstall', installSupported: true });
       return {};
     });
     const harness = createStoreHarness(client);
@@ -146,8 +147,8 @@ describe('AppUpdater', () => {
 
   it('offers a retry after a download failure', async () => {
     const { client, calls } = createFakeControlClient((method) => {
-      if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
-      if (method === 'app.update.status') return status({ state: 'failed', installSupported: true, error: { code: 'download_failed', message: 'Download failed' } });
+      if (method === RPC.appStateGet) return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
+      if (method === RPC.appUpdateStatus) return status({ state: 'failed', installSupported: true, error: { code: 'download_failed', message: 'Download failed' } });
       return {};
     });
     const harness = createStoreHarness(client);
@@ -161,8 +162,8 @@ describe('AppUpdater', () => {
 
   it('requests native confirmation without passing an installer path', async () => {
     const { client } = createFakeControlClient((method) => {
-      if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
-      if (method === 'app.update.status') return status({ state: 'readyToInstall', installSupported: true });
+      if (method === RPC.appStateGet) return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
+      if (method === RPC.appUpdateStatus) return status({ state: 'readyToInstall', installSupported: true });
       return {};
     });
     const harness = createStoreHarness(client);
@@ -183,8 +184,8 @@ describe('AppUpdater', () => {
 
   it('shows the persisted up-to-date outcome while the session state is idle', async () => {
     const { client } = createFakeControlClient((method) => {
-      if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false,"lastChecked":1700000000,"upToDateChannel":"stable"}' } };
-      if (method === 'app.update.status') return status();
+      if (method === RPC.appStateGet) return { state: { 'app.update.preferences': '{"automaticChecks":false,"lastChecked":1700000000,"upToDateChannel":"stable"}' } };
+      if (method === RPC.appUpdateStatus) return status();
       return {};
     });
     const harness = createStoreHarness(client);
@@ -195,8 +196,8 @@ describe('AppUpdater', () => {
 
   it('hides the persisted outcome after the channel changes and when an update appears', async () => {
     const { client } = createFakeControlClient((method) => {
-      if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false,"lastChecked":1700000000,"upToDateChannel":"stable"}' } };
-      if (method === 'app.update.status') return status();
+      if (method === RPC.appStateGet) return { state: { 'app.update.preferences': '{"automaticChecks":false,"lastChecked":1700000000,"upToDateChannel":"stable"}' } };
+      if (method === RPC.appUpdateStatus) return status();
       return {};
     });
     let emit: ((state: UpdateStatus) => void) | undefined;
@@ -220,8 +221,8 @@ describe('AppUpdater', () => {
 
   it('persists the up-to-date outcome when a check completes', async () => {
     const { client, calls } = createFakeControlClient((method) => {
-      if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
-      if (method === 'app.update.status') return status();
+      if (method === RPC.appStateGet) return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
+      if (method === RPC.appUpdateStatus) return status();
       return {};
     });
     let emit: ((state: UpdateStatus) => void) | undefined;
@@ -233,7 +234,7 @@ describe('AppUpdater', () => {
     await harness.use(useAppUpdaterStore).initialize();
     emit?.(status({ state: 'upToDate', lastChecked: 1700000200 }));
     await flushPromises();
-    const write = calls.filter((call) => call.method === 'app.state.set').pop();
+    const write = calls.filter((call) => call.method === RPC.appStateSet).pop();
     expect(JSON.parse(String(write?.params?.value))).toMatchObject({ upToDateChannel: 'stable', lastChecked: 1700000200 });
   });
 });

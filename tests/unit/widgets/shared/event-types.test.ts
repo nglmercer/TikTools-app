@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { eventIdentity, type AutomationEventLike } from '../../../../src/widgets/shared/event-types.ts';
+import { EVENT_KIND } from '../../../shared/index.ts';
 
 function event(overrides: Partial<AutomationEventLike> & { msgId?: string } = {}): AutomationEventLike {
   const { msgId, ...rest } = overrides;
@@ -40,7 +41,7 @@ describe('eventIdentity', () => {
   });
 
   test('the same id on different event types stays distinct', () => {
-    expect(eventIdentity(event({ msgId: '42', type: 'tiktok.chat' }))).not.toBe(eventIdentity(event({ msgId: '42', type: 'tiktok.emote_chat' })));
+    expect(eventIdentity(event({ msgId: '42', type: EVENT_KIND.tiktokChat }))).not.toBe(eventIdentity(event({ msgId: '42', type: 'tiktok.emote_chat' })));
   });
 
   test('falls back to the envelope id when there is no usable upstream id', () => {

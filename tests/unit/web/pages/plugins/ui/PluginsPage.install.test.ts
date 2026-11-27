@@ -1,11 +1,12 @@
 import { describe, flushPromises, expect, it, t, mountPage, buttonByText, buttonByLabel, openTab, selectPlugin, detailsTitle } from '../../../../../../src/web/pages/plugins/ui/plugins-page-fixture.ts';
+import { PLUGIN_ID, RPC } from '../../../../../shared/index.ts';
 
 describe('PluginsPage install', () => {
   it('reviews a package file and requires sideload consent before installing', async () => {
     const { wrapper, calls } = await mountPage();
     await buttonByLabel(wrapper, t('plugins.install.package')).trigger('click');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'plugins.packages.inspect')?.params).toEqual({
+    expect(calls.find((call) => call.method === RPC.pluginsPackagesInspect)?.params).toEqual({
       spec: { kind: 'file', path: 'C:/x.plugin' },
     });
     expect(wrapper.text()).toContain('Install X Demo');
@@ -23,15 +24,15 @@ describe('PluginsPage install', () => {
 
   it('reviews registry plugins from the browse tab', async () => {
     const { wrapper, calls } = await mountPage();
-    await openTab(wrapper, t('plugins.catalog.browse'));
+    await openTab(wrapper, t(RPC.pluginsCatalogBrowse));
     await selectPlugin(wrapper, 'Acme TTS');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'registry.package')?.params).toEqual({ id: 'acme.tts', registry: 'official' });
+    expect(calls.find((call) => call.method === 'registry.package')?.params).toEqual({ id: PLUGIN_ID.acmeTts, registry: 'official' });
     expect(wrapper.text()).toContain('Reads chat aloud.');
     await buttonByText(wrapper, t('packages.remote.install')).trigger('click');
     await flushPromises();
-    expect(calls.filter((call) => call.method === 'plugins.packages.inspect').at(-1)?.params).toEqual({
-      spec: { kind: 'registry', id: 'acme.tts', version: '1.2.0', registry: 'official' },
+    expect(calls.filter((call) => call.method === RPC.pluginsPackagesInspect).at(-1)?.params).toEqual({
+      spec: { kind: 'registry', id: PLUGIN_ID.acmeTts, version: '1.2.0', registry: 'official' },
     });
   });
 
@@ -43,20 +44,20 @@ describe('PluginsPage install', () => {
       // The previous round's saved selection would reopen its details instead of the tabs.
       localStorage.clear();
       const { wrapper, calls } = await mountPage(undefined, undefined, liveStatuses);
-      await openTab(wrapper, t('plugins.catalog.browse'));
+      await openTab(wrapper, t(RPC.pluginsCatalogBrowse));
       await selectPlugin(wrapper, 'Acme TTS');
       await flushPromises();
       expect(wrapper.text()).toContain(expected);
       expect(buttonByText(wrapper, t('packages.remote.install')).attributes('disabled')).toBeDefined();
       await buttonByText(wrapper, t('packages.remote.install')).trigger('click');
-      expect(calls.some((call) => call.method === 'plugins.packages.inspect')).toBe(false);
+      expect(calls.some((call) => call.method === RPC.pluginsPackagesInspect)).toBe(false);
       wrapper.unmount();
     }
   });
 
   it('explains that the marketplace is unpublished when no registry is available', async () => {
     const { wrapper, calls } = await mountPage(undefined, []);
-    await openTab(wrapper, t('plugins.catalog.browse'));
+    await openTab(wrapper, t(RPC.pluginsCatalogBrowse));
     expect(wrapper.text()).toContain(t('plugins.catalog.marketplaceUnavailable'));
     expect(wrapper.find('input[type="search"]').exists()).toBe(false);
     expect(calls.map((call) => call.method)).toContain('registry.list');

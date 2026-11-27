@@ -7,6 +7,7 @@ import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import PluginServersPanel from '../../../../../../src/web/widgets/plugin-servers/ui/PluginServersPanel.vue';
+import { RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -39,8 +40,8 @@ const editorStub = { name: 'PluginConnectionEditor', props: ['pluginId'], templa
 
 function mountPanel(selected: string | null = null, announced: string[] = []) {
   const { client } = createFakeControlClient((method) => {
-    if (method === 'rpc.discover') return { methods: announced.map((name) => ({ name })) };
-    if (method === 'integrations.connections') return { items: [] };
+    if (method === RPC.rpcDiscover) return { methods: announced.map((name) => ({ name })) };
+    if (method === RPC.integrationsConnections) return { items: [] };
     return {};
   });
   const stores = createStoreHarness(client);
@@ -100,7 +101,7 @@ describe('PluginServersPanel', () => {
     const without = await mountAnnounced([]);
     expect(without.find('button[aria-label="Webhooks"]').exists()).toBe(false);
 
-    const wrapper = await mountAnnounced(['integrations.connections']);
+    const wrapper = await mountAnnounced([RPC.integrationsConnections]);
     expect(wrapper.get('button[aria-label="Servers"]').attributes('aria-pressed')).toBe('true');
     await wrapper.get('button[aria-label="Webhooks"]').trigger('click');
     await flushPromises();

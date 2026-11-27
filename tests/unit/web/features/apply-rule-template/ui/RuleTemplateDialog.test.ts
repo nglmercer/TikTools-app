@@ -10,16 +10,17 @@ import { parseRuleTemplate } from '@/entities/rule-template/lib/rule-templates.t
 import BaseSchemaForm from '@/shared/ui/schema-form/BaseSchemaForm.vue';
 import type { RuleTemplateTab } from '../../../../../../src/web/features/apply-rule-template/model/template-tab.ts';
 import RuleTemplateDialog from '../../../../../../src/web/features/apply-rule-template/ui/RuleTemplateDialog.vue';
+import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key); afterEach(() => activateLocale('en'));
 test('oversized expansion reports an error while retaining the configured template and parameters, then allows a bounded correction', async () => {
   await activateLocale('en');
   const parsed = parseRuleTemplate({ templateVersion: 1, id: 'bounded-template', title: 'Bounded template', params: { type: 'object', properties: { value: { type: 'string', title: 'Value', default: 'small' } } },
-    actions: [{ name: 'Log', typeId: 'core.log', config: { message: '{{ params.value }}'.repeat(500) } }], event: { name: 'Chat', trigger: 'tiktok.chat' } });
+    actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: { message: '{{ params.value }}'.repeat(500) } }], event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat } });
   if (!parsed.ok) throw new Error(parsed.errors.join('; '));
   const wrapper = mountWithPlugins(RuleTemplateDialog, { props: { open: true, customTemplates: [{ ...parsed.template, custom: true }],
-    snapshot: { actions: [], events: [], plugins: [], translations: {}, actionTypes: [{ id: 'core.log', title: { default: 'Log' }, source: { kind: 'builtin' }, requiredCapabilities: [] } as unknown as ActionTypeDefinition] } }, attachTo: document.body });
+    snapshot: { actions: [], events: [], plugins: [], translations: {}, actionTypes: [{ id: ACTION_TYPE.coreLog, title: { default: 'Log' }, source: { kind: 'builtin' }, requiredCapabilities: [] } as unknown as ActionTypeDefinition] } }, attachTo: document.body });
   await wrapper.findAll('.rule-templates__card').find((card) => card.text().includes('Bounded template'))!.trigger('click');
   const value = 'x'.repeat(256 * 1024); const form = wrapper.getComponent(BaseSchemaForm);
   form.vm.$emit('update:modelValue', { value }); await flushPromises();
@@ -31,10 +32,10 @@ test('oversized expansion reports an error while retaining the configured templa
   expect(wrapper.emitted('apply')).toHaveLength(1);
 });
 
-const snapshot = { actions: [], events: [], plugins: [], translations: {}, actionTypes: [{ id: 'core.log', title: { default: 'Log' }, source: { kind: 'builtin' }, requiredCapabilities: [] } as unknown as ActionTypeDefinition] };
+const snapshot = { actions: [], events: [], plugins: [], translations: {}, actionTypes: [{ id: ACTION_TYPE.coreLog, title: { default: 'Log' }, source: { kind: 'builtin' }, requiredCapabilities: [] } as unknown as ActionTypeDefinition] };
 
 const localTemplate = () => {
-  const parsed = parseRuleTemplate({ templateVersion: 1, id: 'local-one', title: 'Local one', actions: [{ name: 'Log', typeId: 'core.log', config: { message: 'hi' } }], event: { name: 'Chat', trigger: 'tiktok.chat' } });
+  const parsed = parseRuleTemplate({ templateVersion: 1, id: 'local-one', title: 'Local one', actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: { message: 'hi' } }], event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat } });
   if (!parsed.ok) throw new Error(parsed.errors.join('; '));
   return { ...parsed.template, custom: true };
 };
@@ -54,7 +55,7 @@ function mountTemplates(props: { tab?: RuleTemplateTab } = {}) {
 }
 
 const templateJson = (id: string, title: string) => ({
-  templateVersion: 1, id, title, actions: [{ name: 'Log', typeId: 'core.log', config: { message: 'hi' } }], event: { name: 'Chat', trigger: 'tiktok.chat' },
+  templateVersion: 1, id, title, actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: { message: 'hi' } }], event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat },
 });
 
 test('the templates modal has Templates, Cloud and Import tabs and starts on the local templates', async () => {

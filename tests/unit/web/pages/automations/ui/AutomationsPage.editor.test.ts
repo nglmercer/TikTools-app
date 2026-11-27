@@ -1,5 +1,6 @@
 import { t, mountPage, buttonByText, buttonByLabel, goBack, documentButton, selectRow, it, expect, vi, nextTick, flushPromises, afterEach, beforeEach, resetResolutionPreference } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
 import { i18n } from '@/shared/i18n/i18n.ts';
+import { ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
 const itn = (key: string, params?: Record<string, string>) => i18n.global.t(key, params ?? {});
 
 beforeEach(() => { localStorage.clear(); resetResolutionPreference('manual'); });
@@ -46,12 +47,12 @@ it('offers the sync panel for the events and for the actions, but not on the var
   it('toggles a record from the table', async () => {
     const { wrapper, calls, requests } = await mountPage();
     await wrapper.findAll('.automation-library tbody tr')[1]!.get('input[type="checkbox"]').setValue(false);
-    expect(calls.some((call) => call.method === 'automation.disable')).toBe(false);
+    expect(calls.some((call) => call.method === RPC.automationDisable)).toBe(false);
     expect(document.body.textContent).toContain('e2 · version 1');
     documentButton(t('automations.conflict.confirmToggle')).click();
     await flushPromises();
-    expect(calls.find((call) => call.method === 'automation.definition.submit')?.params).toMatchObject({ operation: 'disable', id: 'e2', kind: 'event', expectedRevision: '1' });
-    expect(requests.find((call) => call.method === 'automation.disable')?.meta).toEqual({ expectedRevision: '1' });
+    expect(calls.find((call) => call.method === RPC.automationDefinitionSubmit)?.params).toMatchObject({ operation: 'disable', id: 'e2', kind: 'event', expectedRevision: '1' });
+    expect(requests.find((call) => call.method === RPC.automationDisable)?.meta).toEqual({ expectedRevision: '1' });
   });
 
   it('creates and saves a new event', async () => {
@@ -60,9 +61,9 @@ it('offers the sync panel for the events and for the actions, but not on the var
     await wrapper.get('.event-editor input[type="text"]').setValue('Followers');
     await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'automation.definition.submit')?.params).toMatchObject({ operation: 'create',
+    expect(calls.find((call) => call.method === RPC.automationDefinitionSubmit)?.params).toMatchObject({ operation: 'create',
       kind: 'event',
-      record: { name: 'Followers', trigger: 'tiktok.gift' },
+      record: { name: 'Followers', trigger: EVENT_KIND.tiktokGift },
     });
   });
 
@@ -76,9 +77,9 @@ it('offers the sync panel for the events and for the actions, but not on the var
     expect(wrapper.find('.action-editor').exists()).toBe(true);
     await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'automation.definition.submit')?.params).toMatchObject({ operation: 'create',
+    expect(calls.find((call) => call.method === RPC.automationDefinitionSubmit)?.params).toMatchObject({ operation: 'create',
       kind: 'action',
-      record: { typeId: 'core.log', name: 'Write to log' },
+      record: { typeId: ACTION_TYPE.coreLog, name: 'Write to log' },
     });
   });
 
@@ -101,7 +102,7 @@ it('offers the sync panel for the events and for the actions, but not on the var
     await nextTick();
     item('automations.library.duplicate').click();
     await flushPromises();
-    const created = calls.find((call) => call.method === 'automation.definition.submit' && call.params?.operation === 'create');
+    const created = calls.find((call) => call.method === RPC.automationDefinitionSubmit && call.params?.operation === 'create');
     const copy = created?.params?.record as { id?: string; name?: string } | undefined;
     expect(copy).toMatchObject({ name: itn('automations.library.duplicateName', { name: 'Big gifts' }) });
     expect(copy?.id).not.toBe('e1');
@@ -113,7 +114,7 @@ it('offers the sync panel for the events and for the actions, but not on the var
     expect(document.body.textContent).toContain(itn('automations.library.deleteTitle', { name: 'Chat hello' }));
     documentButton(t('automations.library.delete')).click();
     await flushPromises();
-    expect(calls.some((call) => call.method === 'automation.definition.submit' && call.params?.operation === 'delete' && call.params?.id === 'e2')).toBe(true);
+    expect(calls.some((call) => call.method === RPC.automationDefinitionSubmit && call.params?.operation === 'delete' && call.params?.id === 'e2')).toBe(true);
   });
 
   it('asks before leaving unsaved changes', async () => {
@@ -135,7 +136,7 @@ it('offers the sync panel for the events and for the actions, but not on the var
     await nextTick();
     documentButton(t('automations.editor.deleteConfirm')).click();
     await flushPromises();
-    expect(calls.find((call) => call.method === 'automation.definition.submit')?.params).toMatchObject({ operation: 'delete', id: 'e2', kind: 'event', expectedRevision: '1' });
+    expect(calls.find((call) => call.method === RPC.automationDefinitionSubmit)?.params).toMatchObject({ operation: 'delete', id: 'e2', kind: 'event', expectedRevision: '1' });
   });
 
   it('applies a built-in rule template', async () => {
@@ -149,13 +150,13 @@ it('offers the sync panel for the events and for the actions, but not on the var
     await nextTick();
     documentButton(t('automations.templates.create')).click();
     await flushPromises();
-    expect(calls.some((call) => call.method === 'automation.library.submit')).toBe(false);
+    expect(calls.some((call) => call.method === RPC.automationLibrarySubmit)).toBe(false);
     // The confirm action is an icon button: it is found by its aria-label.
     Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.getAttribute('aria-label') === t('libraryRecovery.confirm'))!.click(); await flushPromises();
-    const created = calls.filter((call) => call.method === 'automation.library.submit');
+    const created = calls.filter((call) => call.method === RPC.automationLibrarySubmit);
     expect(created).toHaveLength(1);
     expect(created[0]?.params?.mutation).toMatchObject({ operation: 'apply-template', profileId: 'default', entry: { event: { name: expect.any(String) }, actions: [{ name: expect.any(String) }] } });
-    expect(calls.some((call) => call.method === 'automation.create')).toBe(false);
+    expect(calls.some((call) => call.method === RPC.automationCreate)).toBe(false);
   });
 
   it('explains the grouped run menu on hover', async () => {

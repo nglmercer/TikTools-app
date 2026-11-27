@@ -6,6 +6,7 @@ import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import OverlaysPage from '../../../../../../src/web/pages/overlays/ui/OverlaysPage.vue';
+import { RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -16,9 +17,9 @@ beforeEach(() => {
 
 async function mountPage(announce: string[] = []) {
   const { client, calls } = createFakeControlClient((method) => {
-    if (method === 'rpc.discover') return { methods: announce.map((name) => ({ name })) };
+    if (method === RPC.rpcDiscover) return { methods: announce.map((name) => ({ name })) };
     if (method === 'widgets.status') return { state: 'ready', port: 19999, error: null };
-    if (method === 'app.state.get') return { state: { 'widgets.design.follow': '{"radius":24}' } };
+    if (method === RPC.appStateGet) return { state: { 'widgets.design.follow': '{"radius":24}' } };
     if (method === 'widgets.copyObsUrl') return { ok: true };
     return { ok: true };
   });
@@ -58,12 +59,12 @@ describe('OverlaysPage', () => {
   it('offers the Cloud area only when the host announces overlays or packages', async () => {
     const { wrapper } = await mountPage();
     expect(wrapper.find('button[aria-label="Cloud"]').exists()).toBe(false);
-    const packages = await mountPage(['bundles.packages.preflight']);
+    const packages = await mountPage([RPC.bundlesPackagesPreflight]);
     expect(packages.wrapper.find('button[aria-label="Cloud"]').exists()).toBe(true);
   });
 
   it('opens the overlay library in a modal and returns to the retained design', async () => {
-    const { wrapper } = await mountPage(['bundles.overlays.create', 'bundles.packages.preflight']);
+    const { wrapper } = await mountPage(['bundles.overlays.create', RPC.bundlesPackagesPreflight]);
     const source = (wrapper.get('#overlay-source-url').element as HTMLInputElement).value;
     await wrapper.get('button[aria-label="Cloud"]').trigger('click');
     expect(wrapper.get('dialog.overlay-library').attributes('open')).toBeDefined();
@@ -75,7 +76,7 @@ describe('OverlaysPage', () => {
   });
 
   it('shows only the Cloud feature the host announced', async () => {
-    const { wrapper } = await mountPage(['bundles.packages.preflight']);
+    const { wrapper } = await mountPage([RPC.bundlesPackagesPreflight]);
     await wrapper.get('button[aria-label="Cloud"]').trigger('click');
     expect(wrapper.find('.cloud-overlays').exists()).toBe(false);
     await buttonByText(wrapper, t('overlayLibrary.images')).trigger('click');
@@ -121,7 +122,7 @@ describe('OverlaysPage', () => {
     expect(buttonByText(wrapper, t('overlays.editor.save')).attributes('disabled')).toBeUndefined();
     await buttonByText(wrapper, t('overlays.editor.save')).trigger('click');
     await flushPromises();
-    const saved = calls.find((call) => call.method === 'app.state.set');
+    const saved = calls.find((call) => call.method === RPC.appStateSet);
     expect(saved?.params).toMatchObject({ key: 'widgets.design.follow' });
     expect(JSON.parse(String(saved?.params?.value))).toMatchObject({ radius: 24 });
     expect(wrapper.text()).toContain(t('overlays.editor.saved'));

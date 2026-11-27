@@ -9,11 +9,12 @@ import type { PluginAutocompleteContribution } from '../../../../src/automation/
 import { fieldsForTrigger, findField, operatorsFor, operatorsForPath } from '../../../../src/automation/behavior/fields.ts';
 import { matchesFilter } from '../../../../src/automation/behavior/testing/filter-matcher.ts';
 import { sampleEventForType } from '../../../../src/automation/event-registry.ts';
+import { EVENT_KIND } from '../../../shared/index.ts';
 
 describe('condition fields', () => {
   test('every field a trigger offers resolves against that trigger sample event', () => {
-    const sample = sampleEventForType('tiktok.gift');
-    const paths = fieldsForTrigger('tiktok.gift').map((field) => field.path);
+    const sample = sampleEventForType(EVENT_KIND.tiktokGift);
+    const paths = fieldsForTrigger(EVENT_KIND.tiktokGift).map((field) => field.path);
 
     expect(paths).toContain('event.data.giftName');
     expect(paths).toContain('event.user.uniqueId');
@@ -32,17 +33,17 @@ describe('condition fields', () => {
   });
 
   test('a gift field asks for the gift picker and a viewer field for the viewer picker', () => {
-    expect(findField('tiktok.gift', 'event.data.giftName')?.kind).toBe('gift');
-    expect(findField('tiktok.gift', 'event.user.uniqueId')?.kind).toBe('user');
-    expect(findField('tiktok.gift', 'event.data.repeatEnd')?.kind).toBe('boolean');
+    expect(findField(EVENT_KIND.tiktokGift, 'event.data.giftName')?.kind).toBe('gift');
+    expect(findField(EVENT_KIND.tiktokGift, 'event.user.uniqueId')?.kind).toBe('user');
+    expect(findField(EVENT_KIND.tiktokGift, 'event.data.repeatEnd')?.kind).toBe('boolean');
   });
 
   test('a hand-written path is unknown, which is what makes the editor fall back to free text', () => {
-    expect(findField('tiktok.gift', 'event.data.whatever')).toBeUndefined();
+    expect(findField(EVENT_KIND.tiktokGift, 'event.data.whatever')).toBeUndefined();
   });
 
   test('every trigger offers at least one field', () => {
-    for (const trigger of ['tiktok.gift', 'tiktok.chat', 'tiktok.like', 'points.awarded', 'tiktok.follow'] as const) {
+    for (const trigger of [EVENT_KIND.tiktokGift, EVENT_KIND.tiktokChat, EVENT_KIND.tiktokLike, 'points.awarded', 'tiktok.follow'] as const) {
       expect(fieldsForTrigger(trigger).length).toBeGreaterThan(0);
     }
   });
@@ -50,16 +51,16 @@ describe('condition fields', () => {
 
 describe('operatorsForPath', () => {
   test('registry paths keep their kind operators', () => {
-    expect(findField('tiktok.chat', 'event.data.comment')?.kind).toBe('text');
-    expect(operatorsForPath('tiktok.chat', 'event.data.comment')).toEqual([
+    expect(findField(EVENT_KIND.tiktokChat, 'event.data.comment')?.kind).toBe('text');
+    expect(operatorsForPath(EVENT_KIND.tiktokChat, 'event.data.comment')).toEqual([
       'eq',
       'neq',
       'in',
       'contains',
       'starts-with',
     ]);
-    expect(findField('tiktok.gift', 'event.data.repeatEnd')?.kind).toBe('boolean');
-    expect(operatorsForPath('tiktok.gift', 'event.data.repeatEnd')).toEqual([
+    expect(findField(EVENT_KIND.tiktokGift, 'event.data.repeatEnd')?.kind).toBe('boolean');
+    expect(operatorsForPath(EVENT_KIND.tiktokGift, 'event.data.repeatEnd')).toEqual([
       'is-true',
       'is-false',
     ]);
@@ -70,8 +71,8 @@ describe('operatorsForPath', () => {
     // registry; the advanced custom path still needs `is-true` so the
     // moderation `blocked` verdict stays filterable and editable.
     const path = 'event.intel.providers.textintel.comment.moderation.blocked';
-    expect(findField('tiktok.chat', path)).toBeUndefined();
-    expect(operatorsForPath('tiktok.chat', path)).toEqual([
+    expect(findField(EVENT_KIND.tiktokChat, path)).toBeUndefined();
+    expect(operatorsForPath(EVENT_KIND.tiktokChat, path)).toEqual([
       'eq',
       'neq',
       'in',
@@ -104,7 +105,7 @@ describe('plugin availability gating', () => {
   test('condition fields hide textintel enrichment while it is disabled', () => {
     seedTextintel();
     syncAutocompletePluginStates([{ id: 'textintel', installed: true, enabled: false }]);
-    const paths = fieldsForTrigger('tiktok.chat').map((field) => field.path);
+    const paths = fieldsForTrigger(EVENT_KIND.tiktokChat).map((field) => field.path);
     expect(paths.some((path) => path.startsWith('event.intel.comment.'))).toBe(false);
     expect(paths.some((path) => path.startsWith('event.intel.user.'))).toBe(false);
     // Core data fields and the host-stamped processing status survive.
@@ -114,10 +115,10 @@ describe('plugin availability gating', () => {
 
   test('condition fields offer textintel enrichment while it is available', () => {
     seedTextintel();
-    const paths = fieldsForTrigger('tiktok.chat').map((field) => field.path);
+    const paths = fieldsForTrigger(EVENT_KIND.tiktokChat).map((field) => field.path);
     expect(paths).toContain('event.intel.comment.tts.text');
     syncAutocompletePluginStates([{ id: 'textintel', installed: true, enabled: true }]);
-    expect(fieldsForTrigger('tiktok.chat').map((field) => field.path))
+    expect(fieldsForTrigger(EVENT_KIND.tiktokChat).map((field) => field.path))
       .toContain('event.intel.comment.tts.text');
   });
 });

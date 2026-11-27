@@ -7,6 +7,7 @@ import { startDynamicTour, startTour } from '../../../../../../src/web/features/
 import { tourRegistry } from '../../../../../../src/web/features/guided-help/model/registry.ts';
 import { tutorialCard, tutorialCategories, tutorialEntries, tutorialSteps } from '../../../../../../src/web/features/guided-help/model/tutorial-catalog.ts';
 import TutorialCatalogDialog from '../../../../../../src/web/features/guided-help/ui/TutorialCatalogDialog.vue';
+import { ACTION_TYPE, PLUGIN_ID } from '../../../../../shared/index.ts';
 
 vi.mock('../../../../../../src/web/features/guided-help/model/coordinator.ts', () => ({ startTour: vi.fn(), startDynamicTour: vi.fn() }));
 
@@ -203,7 +204,7 @@ it('shows action example requirements and blocks starting when the workspace lac
       open: true,
       initialTour: 'automationActionTts',
       automationSnapshot: {
-        actions: [{ typeId: 'core.log' }],
+        actions: [{ typeId: ACTION_TYPE.coreLog }],
         actionTypes: [{ id: 'demo.tts', tag: 'tts', title: { default: 'Speak', i18key: '' }, source: { kind: 'plugin', pluginId: 'demo.audio' } }],
         plugins: [{ installed: true, enabled: true, descriptor: { id: 'demo.audio' } }],
       },
@@ -303,18 +304,18 @@ it('lists a plugin-contributed action guide and starts it as a dynamic tour', as
       automationSnapshot: {
         actions: [],
         actionTypes: [{
-          id: 'sonicboom.server.speak',
+          id: PLUGIN_ID.sonicboomServerSpeak,
           tag: 'tts',
           title: { default: 'Speak with SonicBoom', i18key: '' },
-          source: { kind: 'plugin', pluginId: 'sonicboom.server' },
+          source: { kind: 'plugin', pluginId: PLUGIN_ID.sonicboomServer },
           fields: [textField],
         }],
-        plugins: [{ installed: true, enabled: true, descriptor: { id: 'sonicboom.server' } }],
+        plugins: [{ installed: true, enabled: true, descriptor: { id: PLUGIN_ID.sonicboomServer } }],
         pluginGuides: [{
           id: 'sonicboom.server/speak-action',
           kind: 'automation-action',
-          pluginId: 'sonicboom.server',
-          actionType: 'sonicboom.server.speak',
+          pluginId: PLUGIN_ID.sonicboomServer,
+          actionType: PLUGIN_ID.sonicboomServerSpeak,
           mode: 'both',
           title: { default: 'Create a SonicBoom voice action', i18key: '' },
           description: { default: 'Configure the spoken message.', i18key: '' },
@@ -345,7 +346,7 @@ it('lists a plugin-contributed action guide and starts it as a dynamic tour', as
     expect.objectContaining({
       definition: expect.objectContaining({
         id: 'sonicboom.server/speak-action',
-        requirements: expect.objectContaining({ automationActionType: { typeId: 'sonicboom.server.speak' } }),
+        requirements: expect.objectContaining({ automationActionType: { typeId: PLUGIN_ID.sonicboomServerSpeak } }),
       }),
     }),
     expect.objectContaining({ locale: 'en' }),

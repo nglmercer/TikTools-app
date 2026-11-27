@@ -5,6 +5,7 @@ import { activateLocale } from '@/shared/i18n/i18n.ts';
 import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import CloudConnections from '../../../../../../src/web/features/cloud-integrations/ui/CloudConnections.vue';
+import { RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -16,7 +17,7 @@ const active = { id, provider: 'webhook', label: 'Alerts', status: 'active', cre
 
 function mount(rows: unknown[] = [active]) {
   const { client, calls } = createFakeControlClient((method) => {
-    if (method === 'integrations.connections') return { items: rows };
+    if (method === RPC.integrationsConnections) return { items: rows };
     if (method === 'integrations.connect') return { connectionId: id, provider: 'webhook', label: 'New', secret, deliveryPath: `/api/v3/integrations/webhook/${id}/deliveries` };
     if (method === 'integrations.disconnect') return { id, status: 'revoked' };
     throw new Error(`unexpected ${method}`);

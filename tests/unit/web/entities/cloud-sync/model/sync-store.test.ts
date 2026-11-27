@@ -3,6 +3,7 @@ import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
 import { createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import type { SyncNowResult, SyncStatus } from '../../../../../../src/web/entities/cloud-sync/api/sync-types.ts';
 import { AUTO_SYNC_DEBOUNCE_MS, AUTO_SYNC_INTERVAL_MS, useSyncStore } from '../../../../../../src/web/entities/cloud-sync/model/sync-store.ts';
+import { RPC } from '../../../../../shared/index.ts';
 
 function idle(overrides: Partial<SyncStatus> = {}): SyncStatus {
   return {
@@ -39,13 +40,13 @@ function harness(handler: (method: string, params: RpcParams | undefined) => unk
 describe('sync store', () => {
   it('refreshes nonsecret status without touching tokens', async () => {
     const { store, calls } = harness((method) => {
-      if (method === 'sync.status') return idle({ pending: 2 });
+      if (method === RPC.syncStatus) return idle({ pending: 2 });
       throw new Error(`unexpected ${method}`);
     });
     await store.refresh();
     expect(store.status?.pending).toBe(2);
     expect(store.error).toBeNull();
-    expect(calls.map((call) => call.method)).toEqual(['sync.status']);
+    expect(calls.map((call) => call.method)).toEqual([RPC.syncStatus]);
   });
 
   it('toggles the opt-in flag', async () => {
@@ -63,13 +64,13 @@ describe('sync store', () => {
       if (method === 'sync.now') {
         return { pushed: 1, pulled: 2, applied: 2, skipped: 0, conflicts: [] };
       }
-      if (method === 'sync.status') return idle({ lastSyncedAt: 1700000000 });
+      if (method === RPC.syncStatus) return idle({ lastSyncedAt: 1700000000 });
       throw new Error(`unexpected ${method}`);
     });
     const outcome = await store.syncNow();
     expect(outcome?.applied).toBe(2);
     expect(store.status?.lastSyncedAt).toBe(1700000000);
-    expect(calls.map((call) => call.method)).toEqual(['sync.now', 'sync.status']);
+    expect(calls.map((call) => call.method)).toEqual(['sync.now', RPC.syncStatus]);
   });
 
   it('resolves a conflict and surfaces failures', async () => {
@@ -121,7 +122,7 @@ describe('sync store', () => {
     expect(calls.map((call) => call.method)).toEqual(['sync.disable']);
     finish(idle({ enabled: false, conflicts: ['stale'] }));
     await disabling;
-    expect(calls.map((call) => call.method)).toEqual(['sync.disable', 'sync.status']);
+    expect(calls.map((call) => call.method)).toEqual(['sync.disable', RPC.syncStatus]);
     expect(store.status?.enabled).toBe(true);
     expect(store.status?.conflicts).toEqual([]);
     expect(store.status?.pending).toBe(7);
@@ -153,7 +154,7 @@ describe('automatic sync', () => {
 
   function autoHarness(status: SyncStatus = idle()) {
     return harness((method) => {
-      if (method === 'sync.status') return status;
+      if (method === RPC.syncStatus) return status;
       if (method === 'sync.now') return result();
       throw new Error(`unexpected ${method}`);
     });
@@ -184,7 +185,7 @@ describe('automatic sync', () => {
   it('does not start a second run while a sync is working', async () => {
     let release!: (value: SyncNowResult) => void;
     const { store, calls } = harness((method) => {
-      if (method === 'sync.status') return idle();
+      if (method === RPC.syncStatus) return idle();
       if (method === 'sync.now') return new Promise<SyncNowResult>((resolve) => { release = resolve; });
       throw new Error(`unexpected ${method}`);
     });

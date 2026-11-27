@@ -5,6 +5,7 @@ import { ControlCallError } from '@/shared/api/control-client.ts';
 import { controlClientKey } from '@/shared/api/use-control-client.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import { STARTING_RETRIES, STARTING_RETRY_MS, useOverlaysStore } from '../../../../../../src/web/entities/overlay/model/overlays-store.ts';
+import { RPC } from '../../../../../shared/index.ts';
 
 function setup(handler: (method: string) => unknown) {
   const { client, calls } = createFakeControlClient((method) => handler(method));
@@ -65,7 +66,7 @@ describe('overlays store', () => {
   it('loads designs and only updates them after a successful save', async () => {
     let fail = false;
     const { store, calls } = setup((method) => {
-      if (method === 'app.state.get') return { state: { 'widgets.design.follow': '{"radius":24}', 'widgets.design.chat': 'broken' } };
+      if (method === RPC.appStateGet) return { state: { 'widgets.design.follow': '{"radius":24}', 'widgets.design.chat': 'broken' } };
       if (fail) throw new Error('storage unavailable');
       return { ok: true };
     });
@@ -74,7 +75,7 @@ describe('overlays store', () => {
     expect(store.designs.chat).toEqual({});
     await store.saveDesign('follow', { accent: '#112233', radius: 99 });
     expect(calls.at(-1)).toEqual({
-      method: 'app.state.set',
+      method: RPC.appStateSet,
       params: { key: 'widgets.design.follow', value: '{"accent":"#112233","radius":48}' },
     });
     fail = true;

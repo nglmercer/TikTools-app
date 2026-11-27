@@ -5,11 +5,12 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import type { AutomationEdit, AutomationReview } from '../../../../../../src/web/features/edit-automation-record/model/automation-editor.ts';
 import AutomationEditorReview from '../../../../../../src/web/features/edit-automation-record/ui/AutomationEditorReview.vue';
 import { testMessage } from '@/shared/i18n/test-message.ts';
+import { EVENT_KIND } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
 
-const base = { schemaVersion: 2, id: 'same', name: 'Starting event', enabled: true, trigger: 'tiktok.gift' };
+const base = { schemaVersion: 2, id: 'same', name: 'Starting event', enabled: true, trigger: EVENT_KIND.tiktokGift };
 const candidate = { ...base, name: 'My retained draft' };
 const current = { ...base, name: 'Host changed name' };
 const edit = { revision: '1', base, candidate } as unknown as AutomationEdit;

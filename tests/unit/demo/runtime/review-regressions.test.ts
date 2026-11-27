@@ -3,6 +3,7 @@ import type { BehaviorSnapshot, LiveAction } from '../../../../src/automation/be
 import { callWithMeta } from '@/shared/api/control-client.ts';
 import { createDemoTransport, demoMethod, objectParams } from '../../../../src/web/demo/runtime/transport.ts';
 import { createDemoFixture } from '../support/host.ts';
+import { ACTION_TYPE, RPC } from '../../../shared/index.ts';
 
 const MiB = 1024 * 1024;
 const cleanup: Array<() => void> = [];
@@ -57,34 +58,34 @@ describe('review regressions: demo runtime contract and isolation', () => {
   it('counts committed points adjustments, never failed attempts, as task success', async () => {
     const { host, client } = hostHarness();
     const before = structuredClone(host.state.leaderboard);
-    expect(host.wasSuccessful('points.adjust')).toBe(false);
-    await expect(client.call('points.adjust', { uniqueId: 'missing-fictional-viewer', delta: 5 }))
+    expect(host.wasSuccessful(RPC.pointsAdjust)).toBe(false);
+    await expect(client.call(RPC.pointsAdjust, { uniqueId: 'missing-fictional-viewer', delta: 5 }))
       .rejects.toMatchObject({ code: 'not_found' });
     expect(host.state.leaderboard).toEqual(before);
-    expect(host.wasSuccessful('points.adjust')).toBe(false);
+    expect(host.wasSuccessful(RPC.pointsAdjust)).toBe(false);
 
     const viewer = before[0]!;
-    await client.call('points.adjust', { uniqueId: viewer.uniqueId, delta: 5 });
+    await client.call(RPC.pointsAdjust, { uniqueId: viewer.uniqueId, delta: 5 });
     expect(host.state.leaderboard[0]!.points).toBe(Number(viewer.points) + 5);
-    expect(host.wasSuccessful('points.adjust')).toBe(true);
+    expect(host.wasSuccessful(RPC.pointsAdjust)).toBe(true);
 
-    await expect(client.call('points.adjust', { uniqueId: 'still-missing', delta: 5 }))
+    await expect(client.call(RPC.pointsAdjust, { uniqueId: 'still-missing', delta: 5 }))
       .rejects.toMatchObject({ code: 'not_found' });
-    expect(host.wasSuccessful('points.adjust')).toBe(true);
+    expect(host.wasSuccessful(RPC.pointsAdjust)).toBe(true);
   });
 
   it('records accepted automation writes through the same success API as ordinary host methods', async () => {
     const { host, client } = hostHarness();
     const record: LiveAction = {
       schemaVersion: 2, id: 'review-regression-log', name: 'Reviewed demo log',
-      typeId: 'core.log', enabled: false, config: { message: 'Fictional example' },
+      typeId: ACTION_TYPE.coreLog, enabled: false, config: { message: 'Fictional example' },
     };
-    expect(host.wasSuccessful('automation.create')).toBe(false);
-    await expect(client.call('automation.create', { kind: 'action', record: { id: record.id, name: record.name } }))
+    expect(host.wasSuccessful(RPC.automationCreate)).toBe(false);
+    await expect(client.call(RPC.automationCreate, { kind: 'action', record: { id: record.id, name: record.name } }))
       .rejects.toMatchObject({ code: 'invalid_params' });
-    expect(host.wasSuccessful('automation.create')).toBe(false);
-    await client.call('automation.create', { kind: 'action', record }, { meta: { expectedRevision: '0' } });
-    expect(host.wasSuccessful('automation.create')).toBe(true);
+    expect(host.wasSuccessful(RPC.automationCreate)).toBe(false);
+    await client.call(RPC.automationCreate, { kind: 'action', record }, { meta: { expectedRevision: '0' } });
+    expect(host.wasSuccessful(RPC.automationCreate)).toBe(true);
     expect(await client.call('automation.get', { kind: 'action', id: record.id })).toEqual(record);
   });
 
@@ -164,16 +165,16 @@ describe('review regressions: demo runtime contract and isolation', () => {
 
   it('rejects an update identity mismatch without changing the original record, references or revisions', async () => {
     const { host, client } = hostHarness();
-    const before = await callWithMeta<BehaviorSnapshot>(client, 'automation.snapshot', {});
+    const before = await callWithMeta<BehaviorSnapshot>(client, RPC.automationSnapshot, {});
     const original = before.result.actions[0]!;
     const version = before.meta!.resourceVersions.find((item) => item.scope === 'action' && item.id === original.id)!;
     const candidate = { ...original, id: 'unexpected-renamed-identity', name: 'Must not be committed' };
-    await expect(client.call('automation.update', { kind: 'action', id: original.id, record: candidate }, {
+    await expect(client.call(RPC.automationUpdate, { kind: 'action', id: original.id, record: candidate }, {
       meta: { expectedRevision: version.revision },
     })).rejects.toMatchObject({ code: 'invalid_params' });
-    expect(host.wasSuccessful('automation.update')).toBe(false);
+    expect(host.wasSuccessful(RPC.automationUpdate)).toBe(false);
 
-    const after = await callWithMeta<BehaviorSnapshot>(client, 'automation.snapshot', {});
+    const after = await callWithMeta<BehaviorSnapshot>(client, RPC.automationSnapshot, {});
     expect(after.result).toEqual(before.result);
     expect(after.meta?.resourceVersions).toEqual(before.meta!.resourceVersions);
     const retained = await callWithMeta<LiveAction>(client, 'automation.get', { kind: 'action', id: original.id });
@@ -182,11 +183,11 @@ describe('review regressions: demo runtime contract and isolation', () => {
 
     // The rejected attempt did not consume the original CAS revision.
     const valid = { ...original, name: 'Accepted update' };
-    const saved = await callWithMeta<LiveAction>(client, 'automation.update', { kind: 'action', id: original.id, record: valid }, {
+    const saved = await callWithMeta<LiveAction>(client, RPC.automationUpdate, { kind: 'action', id: original.id, record: valid }, {
       meta: { expectedRevision: version.revision },
     });
     expect(saved.result).toEqual(valid);
     expect(saved.meta?.resourceVersions).toEqual([{ ...version, revision: String(BigInt(version.revision) + 1n) }]);
-    expect(host.wasSuccessful('automation.update')).toBe(true);
+    expect(host.wasSuccessful(RPC.automationUpdate)).toBe(true);
   });
 });

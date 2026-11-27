@@ -1,12 +1,13 @@
 import { expect, it } from 'vitest';
 import { mergePluginGuides, pluginGuideCatalogItems, pluginGuideTour } from '../../../../../../src/web/features/guided-help/model/plugin-guides.ts';
+import { ACTION_TYPE, PLUGIN_ID } from '../../../../../shared/index.ts';
 
 const type = {
-  id: 'sonicboom.server.speak',
+  id: PLUGIN_ID.sonicboomServerSpeak,
   tag: 'tts',
   title: { default: 'Speak with SonicBoom', i18key: '' },
   description: { default: 'Speak', i18key: '' },
-  source: { kind: 'plugin' as const, pluginId: 'sonicboom.server' },
+  source: { kind: 'plugin' as const, pluginId: PLUGIN_ID.sonicboomServer },
   requiredCapabilities: ['http.request'],
   fields: [
     { key: 'text', label: { default: 'Text', i18key: '' }, kind: 'text' as const, value: '' },
@@ -18,7 +19,7 @@ const snapshot = {
   actions: [],
   events: [],
   actionTypes: [type],
-  plugins: [{ installed: true, enabled: true, descriptor: { id: 'sonicboom.server' } }],
+  plugins: [{ installed: true, enabled: true, descriptor: { id: PLUGIN_ID.sonicboomServer } }],
   translations: {},
 };
 
@@ -31,8 +32,8 @@ function guide(steps: unknown[] = [{
   return {
     id: 'sonicboom.server/speak-action',
     kind: 'automation-action',
-    pluginId: 'sonicboom.server',
-    actionType: 'sonicboom.server.speak',
+    pluginId: PLUGIN_ID.sonicboomServer,
+    actionType: PLUGIN_ID.sonicboomServerSpeak,
     mode: 'both',
     title: { default: 'Create a voice action', i18key: '' },
     description: { default: 'Configure speech', i18key: '' },
@@ -44,7 +45,7 @@ it('parses host-stamped plugin guides and converts field targets to semantic tou
   const [merged] = mergePluginGuides({ ...snapshot, pluginGuides: [guide()] });
   expect(merged?.id).toBe('sonicboom.server/speak-action');
   const dynamic = pluginGuideTour(merged!);
-  expect(dynamic.definition.requirements?.automationActionType).toEqual({ typeId: 'sonicboom.server.speak' });
+  expect(dynamic.definition.requirements?.automationActionType).toEqual({ typeId: PLUGIN_ID.sonicboomServerSpeak });
   expect(dynamic.definition.requirements?.automationActionExample).toBeUndefined();
   expect(dynamic.definition.steps[0]).toEqual(expect.objectContaining({
     target: 'action-field:text',
@@ -67,8 +68,8 @@ it('rejects field steps that do not exist in the action schema', () => {
 it('rejects guides that are not namespaced or do not own their action type', () => {
   const foreignType = {
     ...snapshot,
-    actionTypes: [{ ...type, id: 'core.fetch', source: { kind: 'builtin' as const } }],
-    pluginGuides: [{ ...guide(), actionType: 'core.fetch' }],
+    actionTypes: [{ ...type, id: ACTION_TYPE.coreFetch, source: { kind: 'builtin' as const } }],
+    pluginGuides: [{ ...guide(), actionType: ACTION_TYPE.coreFetch }],
   };
   expect(mergePluginGuides(foreignType)).toEqual([]);
   const unnamespaced = { ...snapshot, pluginGuides: [{ ...guide(), id: 'other.plugin/speak-action' }] };
@@ -80,7 +81,7 @@ it('catalog items require an active type but not an existing action for creation
   expect(item?.requirementsMet).toBe(true);
   const inactive = pluginGuideCatalogItems({
     ...snapshot,
-    plugins: [{ installed: true, enabled: false, descriptor: { id: 'sonicboom.server' } }],
+    plugins: [{ installed: true, enabled: false, descriptor: { id: PLUGIN_ID.sonicboomServer } }],
     pluginGuides: [guide()],
   });
   expect(inactive[0]?.requirementsMet).toBe(false);

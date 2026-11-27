@@ -5,13 +5,14 @@ import { expect, test } from 'vitest';
 
 import type { JsonValue } from '../../../src/shared/json.ts';
 import { collectOptionSources, normalizeNode, normalizePage, normalizeUiDescriptor } from '../../../src/plugin-ui/normalize.ts';
+import { PLUGIN_ID } from '../../shared/index.ts';
 
 const text = { default: 'Hello', i18key: '' };
 
 test('normalizes a nested declarative page', () => {
   const page = normalizePage({
     id: 'tts',
-    pluginId: 'sonicboom.server',
+    pluginId: PLUGIN_ID.sonicboomServer,
     title: text,
     icon: 'voice',
     body: {
@@ -96,7 +97,7 @@ test('rejects unknown node types, bad bindings, and over-deep trees', () => {
 
 test('normalizes declarative and webview ui descriptors (Rust parity)', () => {
   const declarative = normalizeUiDescriptor({
-    pluginId: 'sonicboom.server',
+    pluginId: PLUGIN_ID.sonicboomServer,
     apiVersion: 1,
     mode: 'declarative',
     pages: [
@@ -115,7 +116,7 @@ test('normalizes declarative and webview ui descriptors (Rust parity)', () => {
   expect(declarative?.pages[0]?.body?.type).toBe('stack');
 
   const webview = normalizeUiDescriptor({
-    pluginId: 'sonicboom.server',
+    pluginId: PLUGIN_ID.sonicboomServer,
     apiVersion: 1,
     mode: 'webview',
     entry: 'ui/dist/index.html',
@@ -127,7 +128,7 @@ test('normalizes declarative and webview ui descriptors (Rust parity)', () => {
 
 test('rejects ui descriptor mismatches, bad versions, and unsafe entries', () => {
   const base = {
-    pluginId: 'sonicboom.server',
+    pluginId: PLUGIN_ID.sonicboomServer,
     apiVersion: 1,
     mode: 'declarative',
     pages: [
@@ -143,7 +144,7 @@ test('rejects ui descriptor mismatches, bad versions, and unsafe entries', () =>
   // Webview page carrying a body.
   expect(
     normalizeUiDescriptor({
-      pluginId: 'sonicboom.server',
+      pluginId: PLUGIN_ID.sonicboomServer,
       apiVersion: 1,
       mode: 'webview',
       entry: 'ui/dist/index.html',
@@ -153,7 +154,7 @@ test('rejects ui descriptor mismatches, bad versions, and unsafe entries', () =>
   // Webview manifest without an entry.
   expect(
     normalizeUiDescriptor({
-      pluginId: 'sonicboom.server',
+      pluginId: PLUGIN_ID.sonicboomServer,
       apiVersion: 1,
       mode: 'webview',
       pages: [{ id: 'tts', title: text }],
@@ -188,7 +189,7 @@ test('rejects ui descriptor mismatches, bad versions, and unsafe entries', () =>
   ]) {
     expect(
       normalizeUiDescriptor({
-        pluginId: 'sonicboom.server',
+        pluginId: PLUGIN_ID.sonicboomServer,
         apiVersion: 1,
         mode: 'webview',
         entry,

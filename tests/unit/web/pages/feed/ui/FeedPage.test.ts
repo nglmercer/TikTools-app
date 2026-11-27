@@ -12,6 +12,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { rankingSnapshot } from '../../../entities/ranking/model/feed-rankings.test.ts';
 import { tourRegistry } from '@/features/guided-help/model/registry.ts';
 import FeedPage from '../../../../../../src/web/pages/feed/ui/FeedPage.vue';
+import { RPC, TOPIC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -59,7 +60,7 @@ async function mountFeed(call?: ControlClient['call'], view: 'stage' | 'list' = 
     await wrapper.get('[data-test="feed-view-toggle"]').trigger('click');
   }
   const push = async (event: UiEvent) => {
-    emit('live.ui-event', { event });
+    emit(TOPIC.liveUiEvent, { event });
     await new Promise((resolve) => setTimeout(resolve, 120));
     await flushPromises();
   };
@@ -122,7 +123,7 @@ describe('FeedPage', () => {
 
   it('switches spectator rankings to core like totals and opens the viewer', async () => {
     const { wrapper, emit } = await mountFeed();
-    emit('live.connected', { uniqueId: 'luna', roomId: 'room-42' });
+    emit(TOPIC.liveConnected, { uniqueId: 'luna', roomId: 'room-42' });
     emit('live.likes-ranking', {
       creatorId: 'luna',
       roomId: 'room-42',
@@ -147,16 +148,16 @@ describe('FeedPage', () => {
   it('ranks General by gift diamonds and Likes from the host ranking engine', async () => {
     const definitions = new Map<string, { id: string; creatorId: string; roomId: string }>();
     const call = (async (method: string, params: Record<string, unknown> = {}) => {
-      if (method === 'rankings.list') return { rankings: [...definitions.values()] };
-      if (method === 'rankings.create') { definitions.set(String(params['id']), params as never); return { ok: true }; }
-      if (method === 'rankings.snapshot') {
+      if (method === RPC.rankingsList) return { rankings: [...definitions.values()] };
+      if (method === RPC.rankingsCreate) { definitions.set(String(params['id']), params as never); return { ok: true }; }
+      if (method === RPC.rankingsSnapshot) {
         const id = String(params['id']);
         return rankingSnapshot(id, 'luna', 'room-42', id === 'feed-top-gifters' ? [900, 30] : [5000]);
       }
       return {};
     }) as ControlClient['call'];
     const { wrapper, emit } = await mountFeed(call);
-    emit('live.connected', { uniqueId: 'luna', roomId: 'room-42' });
+    emit(TOPIC.liveConnected, { uniqueId: 'luna', roomId: 'room-42' });
     // The legacy projection is ignored once the ranking is provisioned.
     emit('live.likes-ranking', { creatorId: 'luna', roomId: 'room-42', leaders: [{ rank: 1, score: 7, uniqueId: 'old', nickname: 'Old', userId: '1' }] });
     await flushPromises();

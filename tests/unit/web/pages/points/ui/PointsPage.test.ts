@@ -10,6 +10,7 @@ import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testin
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import type { ConnectionStatus } from '@/types.ts';
 import PointsPage from '../../../../../../src/web/pages/points/ui/PointsPage.vue';
+import { RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -37,7 +38,7 @@ async function mountPage(status: ConnectionStatus = 'idle') {
   const { client, calls } = createFakeControlClient((method, params) => {
     if (method === 'points.config.get') return defaultPointsConfig;
     if (method === 'points.config.set') return { ...defaultPointsConfig, ...params };
-    if (method === 'points.leaderboard') return { viewers: [viewer('luna', 420), viewer('mango', 150)] };
+    if (method === RPC.pointsLeaderboard) return { viewers: [viewer('luna', 420), viewer('mango', 150)] };
     return {};
   });
   const stores = createStoreHarness(client);
@@ -115,7 +116,7 @@ describe('PointsPage', () => {
     expect(document.querySelector('dialog h2')?.textContent).toContain('@mango');
     documentButton(t('points.adjust.confirmDeduct')).click();
     await flushPromises();
-    expect(calls.at(-1)).toEqual({ method: 'points.adjust', params: { uniqueId: 'mango', delta: -50 } });
+    expect(calls.at(-1)).toEqual({ method: RPC.pointsAdjust, params: { uniqueId: 'mango', delta: -50 } });
   });
 
   it('confirms before resetting every viewer', async () => {

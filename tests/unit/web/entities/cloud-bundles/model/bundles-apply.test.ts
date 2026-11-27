@@ -6,21 +6,22 @@ import { libraryJournal } from '@/entities/rule-template/model/library-journal.t
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { createJournal, parseJournal, serializeJournal, setEntry } from '../../../../../../src/web/entities/cloud-bundles/model/apply-journal.ts';
 import { JOURNAL_KEY, useBundlesStore } from '../../../../../../src/web/entities/cloud-bundles/model/bundles-store.ts';
+import { ACCOUNT_STATE, ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
 
 const id = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
 
 function host(preflight: unknown, stored: Record<string, string> = {}) {
   const writes: Array<{ key: string; value: string }> = [];
   const { client, calls } = createFakeControlClient((method, params) => {
-    if (method === 'rpc.discover') return { methods: [{ name: 'bundles.packages.preflight' }] };
-    if (method === 'bundles.packages.preflight') return preflight;
-    if (method === 'app.state.set') {
+    if (method === RPC.rpcDiscover) return { methods: [{ name: RPC.bundlesPackagesPreflight }] };
+    if (method === RPC.bundlesPackagesPreflight) return preflight;
+    if (method === RPC.appStateSet) {
       const write = params as { key: string; value: string };
       writes.push(write);
       stored[write.key] = write.value;
       return { state: {} };
     }
-    if (method === 'app.state.get') return { state: stored };
+    if (method === RPC.appStateGet) return { state: stored };
     throw new Error(`unexpected ${method}`);
   });
   return { stores: createStoreHarness(client), calls, writes, stored };
@@ -76,18 +77,18 @@ describe('package apply', () => {
 describe('package apply with Cloud templates and profiles', () => {
   const documentId = '00000000-0000-4000-8000-000000000001';
   const template = { templateVersion: 1, id: 'bundle-template', title: 'Bundle template', description: '', icon: 'gift',
-    actions: [{ name: 'act', typeId: 'core.log', config: {} }], event: { name: 'evt', trigger: 'tiktok.chat' } };
+    actions: [{ name: 'act', typeId: ACTION_TYPE.coreLog, config: {} }], event: { name: 'evt', trigger: EVENT_KIND.tiktokChat } };
 
   async function ownerHost() {
     const items = [{ kind: 'template', id: documentId, version: null, revision: 4, required: true, status: 'ready', permissions: 'none' }];
     const native = nativeDefinitionHost((method, params, options) => {
-      if (method === 'rpc.discover') return { methods: [{ name: 'bundles.packages.preflight' }] };
-      if (method === 'bundles.packages.preflight') return report(items, true);
-      if (method === 'automation.snapshot') { options?.onMetadata?.({ resourceVersions: [] }); return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} }; }
-      if (method === 'app.state.get') return { state: {} };
-      if (method === 'app.state.set') return { state: {} };
+      if (method === RPC.rpcDiscover) return { methods: [{ name: RPC.bundlesPackagesPreflight }] };
+      if (method === RPC.bundlesPackagesPreflight) return report(items, true);
+      if (method === RPC.automationSnapshot) { options?.onMetadata?.({ resourceVersions: [] }); return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} }; }
+      if (method === RPC.appStateGet) return { state: {} };
+      if (method === RPC.appStateSet) return { state: {} };
       if (method === 'cloudLibrary.read') return { meta: { id: documentId, revision: '4', sha256: 'a'.repeat(64) }, document: template };
-      if (method === 'automation.create') {
+      if (method === RPC.automationCreate) {
         options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }] });
         return params?.record;
       }
@@ -97,7 +98,7 @@ describe('package apply with Cloud templates and profiles', () => {
     const stores = createStoreHarness(client);
     await stores.use(() => useCapabilityStore()).refresh('host-a');
     const account = stores.use(() => useAccountStore());
-    account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'alice', persistence: 'memory-only' };
+    account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
     const bundles = stores.use(() => useBundlesStore());
     await bundles.checkPackage(documentId);
     return { bundles, calls, journal: libraryJournal(client) };
@@ -110,13 +111,13 @@ describe('package apply with Cloud templates and profiles', () => {
     expect(confirmed.bundles.journal?.entries[0]?.status).toBe('running');
     await confirmed.journal.confirm(); await applying;
     expect(confirmed.bundles.journal?.entries[0]?.status).toBe('done');
-    expect(confirmed.calls.filter((call) => call.method === 'automation.library.submit')).toHaveLength(1);
+    expect(confirmed.calls.filter((call) => call.method === RPC.automationLibrarySubmit)).toHaveLength(1);
 
     const discarded = await ownerHost();
     const second = discarded.bundles.applyPackage();
     await vi.waitFor(() => expect(discarded.journal.draft.value).not.toBeNull());
     discarded.journal.dismiss(); await second;
     expect(discarded.bundles.journal?.entries[0]).toMatchObject({ status: 'skipped', message: 'the template import was discarded' });
-    expect(discarded.calls.some((call) => call.method === 'automation.library.submit')).toBe(false);
+    expect(discarded.calls.some((call) => call.method === RPC.automationLibrarySubmit)).toBe(false);
   });
 });

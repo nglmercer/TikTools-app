@@ -7,6 +7,7 @@ import { tourRegistry } from '../../../../../../src/web/features/guided-help/mod
 import { tutorialEntries, tutorialTags } from '../../../../../../src/web/features/guided-help/model/tutorial-catalog.ts';
 import { tourCategory } from '../../../../../../src/web/features/guided-help/model/tutorial-taxonomy.ts';
 import { automationActionExampleAvailable } from '../../../../../../src/web/features/guided-help/model/tour-requirements.ts';
+import { ACCOUNT_STATE, ACTION_TYPE } from '../../../../../shared/index.ts';
 
 /** Account-only tours: they need a signed-in workspace, so they are never offered by the demo. */
 const ACCOUNT_TOUR_IDS = ['backup', 'backupRestore', 'cloudOverlays'] as const;
@@ -51,13 +52,13 @@ describe('guide contract', () => {
 
   it('declares account prerequisites in the canonical registry', () => {
     for (const id of ACCOUNT_TOUR_IDS) {
-      expect(tourRegistry[id].availability?.account).toBe('signed-in');
+      expect(tourRegistry[id].availability?.account).toBe(ACCOUNT_STATE.signedIn);
     }
   });
 
 
   it('declares action requirements for type-specific tours', () => {
-    expect(tourRegistry.automationActionHttp.requirements?.automationActionType).toEqual({ typeId: 'core.fetch' });
+    expect(tourRegistry.automationActionHttp.requirements?.automationActionType).toEqual({ typeId: ACTION_TYPE.coreFetch });
     expect(tourRegistry.automationActionMedia.requirements?.automationActionType).toEqual({ typeId: 'audio.play' });
     expect(tourRegistry.automationActionHttp.steps.find((step) => step.id === 'settings')?.prepareActions).toEqual(['automation.openOrCreateActionType:core.fetch']);
     expect(tourRegistry.automationActionMedia.steps.find((step) => step.id === 'settings')?.prepareActions).toEqual(['automation.openOrCreateActionType:audio.play']);
@@ -80,14 +81,14 @@ describe('guide contract', () => {
   });
 
   it('requires both an active action type and an existing matching record', () => {
-    const fetchType = { id: 'core.fetch', tag: 'fetch', title: { default: 'Call a URL', i18key: '' }, source: { kind: 'builtin' as const } };
+    const fetchType = { id: ACTION_TYPE.coreFetch, tag: 'fetch', title: { default: 'Call a URL', i18key: '' }, source: { kind: 'builtin' as const } };
     const ttsType = { id: 'demo.tts', tag: 'tts', title: { default: 'Speak', i18key: '' }, source: { kind: 'plugin' as const, pluginId: 'demo.audio' } };
     const plugin = { installed: true, enabled: true, descriptor: { id: 'demo.audio' } };
-    expect(automationActionExampleAvailable({ typeId: 'core.fetch' }, {
-      actions: [{ typeId: 'core.fetch' }], actionTypes: [fetchType], plugins: [],
+    expect(automationActionExampleAvailable({ typeId: ACTION_TYPE.coreFetch }, {
+      actions: [{ typeId: ACTION_TYPE.coreFetch }], actionTypes: [fetchType], plugins: [],
     })).toBe(true);
-    expect(automationActionExampleAvailable({ typeId: 'core.fetch' }, {
-      actions: [{ typeId: 'core.log' }], actionTypes: [fetchType], plugins: [],
+    expect(automationActionExampleAvailable({ typeId: ACTION_TYPE.coreFetch }, {
+      actions: [{ typeId: ACTION_TYPE.coreLog }], actionTypes: [fetchType], plugins: [],
     })).toBe(false);
     expect(automationActionExampleAvailable({ tag: 'tts' }, {
       actions: [{ typeId: 'demo.tts' }], actionTypes: [ttsType], plugins: [plugin],

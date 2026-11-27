@@ -9,6 +9,7 @@ import {
 } from '../../../../src/automation/behavior/condition-templates.ts';
 import { matchesFilter } from '../../../../src/automation/behavior/testing/filter-matcher.ts';
 import { moderationConditionTemplates, registerModerationTemplates } from '../../../../src/automation/behavior/moderation-templates.ts';
+import { EVENT_KIND } from '../../../shared/index.ts';
 
 afterEach(() => {
   clearConditionTemplates();
@@ -18,13 +19,13 @@ describe('moderation condition templates', () => {
   test('low/medium/high target chat with descending thresholds', () => {
     registerModerationTemplates();
     registerModerationTemplates();
-    const found = conditionTemplatesFor('tiktok.chat');
+    const found = conditionTemplatesFor(EVENT_KIND.tiktokChat);
     expect(found.map((template) => template.id)).toEqual([
       'moderation-low',
       'moderation-medium',
       'moderation-high',
     ]);
-    expect(conditionTemplatesFor('tiktok.gift')).toEqual([]);
+    expect(conditionTemplatesFor(EVENT_KIND.tiktokGift)).toEqual([]);
     expect(found.map((template) => template.params?.[0]?.default)).toEqual(['0.9', '0.7', '0.5']);
     for (const template of found) {
       // Every row references a declared param or a literal: the config
@@ -44,7 +45,7 @@ describe('moderation condition templates', () => {
 
   test('applied templates match through the real filter engine', () => {
     const event = {
-      type: 'tiktok.chat',
+      type: EVENT_KIND.tiktokChat,
       data: {},
       intel: { comment: { composition: { repetitionScore: 0.8 }, spam: { detected: false } } },
     } as unknown as AutomationEvent;

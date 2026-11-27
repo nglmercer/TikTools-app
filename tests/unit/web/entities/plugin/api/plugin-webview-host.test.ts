@@ -11,6 +11,7 @@ import {
   type BrokerOkResponse,
   type BrokerResponse,
 } from '../../../../../../src/web/entities/plugin/api/plugin-webview-host.ts';
+import { PLUGIN_ID, RPC, TOPIC } from '../../../../../shared/index.ts';
 
 function ok(entry: BrokerResponse | BrokerEvent): BrokerOkResponse {
   const response = entry as BrokerOkResponse;
@@ -23,7 +24,7 @@ function fakeBackend(): BrokerBackend & { calls: string[] } {
   return {
     calls,
     async getSettings() {
-      calls.push('settings.get');
+      calls.push(RPC.settingsGet);
       return { voice: 'M1' };
     },
     async setSettings(values) {
@@ -65,7 +66,7 @@ function harness(pluginId = 'owner.plugin') {
 
 test('routes known methods to the backend with correlated ids', async () => {
   const { posted, send, backend } = harness();
-  await send('1', 'settings.get');
+  await send('1', RPC.settingsGet);
   await send('2', 'settings.set', { values: { voice: 'F1' } });
   await send('3', 'actions.execute', { action: 'owner.plugin.speak', config: { text: 'hi' } });
   await send('4', 'options.get', { source: 's', refresh: true });
@@ -76,25 +77,25 @@ test('routes known methods to the backend with correlated ids', async () => {
   expect(ok(posted[0] as BrokerResponse).result).toEqual({ voice: 'M1' });
   expect(ok(posted[4] as BrokerResponse).result).toBe('en');
   expect(ok(posted[5] as BrokerResponse).result).toBe('dark');
-  expect(backend.calls).toContain('settings.get');
+  expect(backend.calls).toContain(RPC.settingsGet);
   expect(backend.calls).toContain('actions.execute:owner.plugin.speak');
 });
 
 test('drops foreign sources, versions, and malformed envelopes', async () => {
   const { host, posted, frameWindow } = harness();
   // Wrong source window: silent drop, no backend contact.
-  await host.handleFrameMessage({ apiVersion: 1, id: 'x', method: 'settings.get', params: {} }, {} as WindowProxy);
+  await host.handleFrameMessage({ apiVersion: 1, id: 'x', method: RPC.settingsGet, params: {} }, {} as WindowProxy);
   // Wrong version: silent drop.
-  await host.handleFrameMessage({ apiVersion: 999, id: 'y', method: 'settings.get', params: {} }, frameWindow);
+  await host.handleFrameMessage({ apiVersion: 999, id: 'y', method: RPC.settingsGet, params: {} }, frameWindow);
   // Missing id: silent drop (nothing to correlate).
-  await host.handleFrameMessage({ apiVersion: 1, method: 'settings.get', params: {} }, frameWindow);
+  await host.handleFrameMessage({ apiVersion: 1, method: RPC.settingsGet, params: {} }, frameWindow);
   // Non-object: silent drop.
-  await host.handleFrameMessage('settings.get', frameWindow);
+  await host.handleFrameMessage(RPC.settingsGet, frameWindow);
   expect(posted).toHaveLength(0);
   // Unknown method and bad params: correlated errors.
   await host.handleFrameMessage({ apiVersion: 1, id: 'a', method: 'plugins.uninstall', params: {} }, frameWindow);
   await host.handleFrameMessage({ apiVersion: 1, id: 'b', method: 'settings.set', params: { values: 'nope' } }, frameWindow);
-  await host.handleFrameMessage({ apiVersion: 1, id: 'c', method: 'settings.get', params: [] }, frameWindow);
+  await host.handleFrameMessage({ apiVersion: 1, id: 'c', method: RPC.settingsGet, params: [] }, frameWindow);
   expect(posted).toHaveLength(3);
   expect(posted.map((entry) => (entry as BrokerResponse).id)).toEqual(['a', 'b', 'c']);
   expect(posted.every((entry) => (entry as BrokerResponse).ok === false)).toBe(true);
@@ -134,30 +135,30 @@ test('subscriptions gate event pushes by topic', async () => {
     },
   });
   // Unsubscribed pushes never reach the frame.
-  host.pushEvent('plugin.event', {});
+  host.pushEvent(TOPIC.pluginEvent, {});
   expect(posted).toHaveLength(0);
   await host.handleFrameMessage(
-    { apiVersion: 1, id: '1', method: 'events.subscribe', params: { topics: ['plugin.event'] } },
+    { apiVersion: 1, id: '1', method: 'events.subscribe', params: { topics: [TOPIC.pluginEvent] } },
     frameWindow,
   );
-  expect(subscribed).toEqual(['plugin.event']);
-  host.pushEvent('plugin.event', { hello: true });
+  expect(subscribed).toEqual([TOPIC.pluginEvent]);
+  host.pushEvent(TOPIC.pluginEvent, { hello: true });
   host.pushEvent('plugin.status', {});
   expect(posted).toHaveLength(2);
-  expect(posted[1]).toEqual({ apiVersion: 1, event: 'plugin.event', data: { hello: true } });
+  expect(posted[1]).toEqual({ apiVersion: 1, event: TOPIC.pluginEvent, data: { hello: true } });
   // Non-plugin topics are rejected without subscribing.
   await host.handleFrameMessage(
-    { apiVersion: 1, id: '2', method: 'events.subscribe', params: { topics: ['live.event'] } },
+    { apiVersion: 1, id: '2', method: 'events.subscribe', params: { topics: [TOPIC.liveEvent] } },
     frameWindow,
   );
   expect((posted[2] as BrokerResponse).ok).toBe(false);
-  expect(subscribed).toEqual(['plugin.event']);
+  expect(subscribed).toEqual([TOPIC.pluginEvent]);
   await host.handleFrameMessage(
-    { apiVersion: 1, id: '3', method: 'events.unsubscribe', params: { topics: ['plugin.event'] } },
+    { apiVersion: 1, id: '3', method: 'events.unsubscribe', params: { topics: [TOPIC.pluginEvent] } },
     frameWindow,
   );
   expect(subscribed).toEqual([]);
-  host.pushEvent('plugin.event', {});
+  host.pushEvent(TOPIC.pluginEvent, {});
   expect(posted).toHaveLength(4);
   host.dispose();
 });
@@ -168,22 +169,22 @@ test('frame URLs stay on the plugin scheme with a test override', () => {
   try {
     // Plain browser without the desktop shell: no servable URL.
     scope['window'] = {};
-    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', 'tts')).toBe(null);
     // Desktop shell: custom scheme, entry file only, page in the hash.
     scope['window'] = { ipc: { postMessage: () => undefined } };
-    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', 'tts')).toBe(
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', 'tts')).toBe(
       'tiktools-plugin://app/sonicboom.server/index.html#page=tts',
     );
     // Test override wins over the desktop default.
     (scope['window'] as Record<string, unknown>)['__TIKTOOLS_PLUGIN_UI_BASE__'] =
       '/__plugin-fixture/';
-    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', 'tts')).toBe(
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', 'tts')).toBe(
       '/__plugin-fixture/sonicboom.server/index.html#page=tts',
     );
     // Entries that escape the ui document shape never produce a URL.
-    expect(pluginUiUrl('sonicboom.server', 'ui/dist/app.js', 'tts')).toBe(null);
-    expect(pluginUiUrl('sonicboom.server', 'ui\\dist\\index.html', 'tts')).toBe(null);
-    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', '  ')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/app.js', 'tts')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui\\dist\\index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', '  ')).toBe(null);
   } finally {
     if (previous === undefined) delete scope['window'];
     else scope['window'] = previous;
@@ -196,7 +197,7 @@ test('Windows WebView2 uses the rewritten plugin asset host', () => {
   const userAgent = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (Windows NT 10.0) Edg/140.0');
   try {
     scope['window'] = { ipc: { postMessage: () => undefined } };
-    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', 'tts')).toBe(
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', 'tts')).toBe(
       'http://tiktools-plugin.app/sonicboom.server/index.html#page=tts',
     );
   } finally {
@@ -212,7 +213,7 @@ test('frame URLs reject identifier and path injection', () => {
   scope['window'] = { ipc: { postMessage: () => undefined } };
   try {
     const ok = 'tiktools-plugin://app/sonicboom.server/index.html#page=tts';
-    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', 'tts')).toBe(ok);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', 'tts')).toBe(ok);
     // Plugin ids cannot inject paths: the id travels as a URL segment.
     expect(pluginUiUrl('', 'ui/dist/index.html', 'tts')).toBe(null);
     expect(pluginUiUrl('../evil', 'ui/dist/index.html', 'tts')).toBe(null);
@@ -224,24 +225,24 @@ test('frame URLs reject identifier and path injection', () => {
     expect(pluginUiUrl('has space', 'ui/dist/index.html', 'tts')).toBe(null);
     expect(pluginUiUrl('x'.repeat(129), 'ui/dist/index.html', 'tts')).toBe(null);
     // Entries stay HTML basenames under relative directories.
-    expect(pluginUiUrl('sonicboom.server', '../index.html', 'tts')).toBe(null);
-    expect(pluginUiUrl('sonicboom.server', '..', 'tts')).toBe(null);
-    expect(pluginUiUrl('sonicboom.server', 'ui/../index.html', 'tts')).toBe(null);
-    expect(pluginUiUrl('sonicboom.server', '/ui/dist/index.html', 'tts')).toBe(null);
-    expect(pluginUiUrl('sonicboom.server', 'ui//index.html', 'tts')).toBe(null);
-    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html/', 'tts')).toBe(null);
-    expect(pluginUiUrl('sonicboom.server', 'ui/dist/.html', 'tts')).toBe(null);
-    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.HTML', 'tts')).toBe(null);
-    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html\0.html', 'tts')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, '../index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, '..', 'tts')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/../index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, '/ui/dist/index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui//index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html/', 'tts')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/.html', 'tts')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.HTML', 'tts')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html\0.html', 'tts')).toBe(null);
     // Only the basename travels: directory segments never reach the URL,
     // so an encoded segment there cannot inject a server path.
-    expect(pluginUiUrl('sonicboom.server', '%2e%2e/index.html', 'tts')).toBe(ok);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, '%2e%2e/index.html', 'tts')).toBe(ok);
     // Page ids ride the fragment but still follow the identifier rule.
-    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', '')).toBe(null);
-    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', '../tts')).toBe(null);
-    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', 'tts/evil')).toBe(null);
-    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', 'tts evil')).toBe(null);
-    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', 'x'.repeat(129))).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', '')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', '../tts')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', 'tts/evil')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', 'tts evil')).toBe(null);
+    expect(pluginUiUrl(PLUGIN_ID.sonicboomServer, 'ui/dist/index.html', 'x'.repeat(129))).toBe(null);
     // Dots, dashes, and underscores stay valid on both ids.
     expect(pluginUiUrl('plugin-a_b.c', 'ui/dist/index.html', 'page-1_x.y')).toBe(
       'tiktools-plugin://app/plugin-a_b.c/index.html#page=page-1_x.y',
@@ -256,12 +257,12 @@ test('dispose during a pending backend call prevents responses to the old frame'
   const { host, backend, send, posted } = harness();
   let complete!: (value: Record<string, unknown>) => void;
   backend.getSettings = () => new Promise((resolve) => { complete = resolve; });
-  const pending = send('pending', 'settings.get');
+  const pending = send('pending', RPC.settingsGet);
   host.dispose();
   host.dispose();
   complete({ voice: 'M1' });
   await pending;
-  await send('stale', 'events.subscribe', { topics: ['plugin.event'] });
+  await send('stale', 'events.subscribe', { topics: [TOPIC.pluginEvent] });
   expect(posted).toHaveLength(0);
 });
 
@@ -274,8 +275,8 @@ test('iframe admission stays bounded after deadlines and disposal clears timers'
     pluginId: 'owner.plugin', backend: { ...fakeBackend(), getSettings: () => stalled },
     postToFrame: (entry) => posted.push(entry), requestTimeoutMs: 5,
   });
-  const requests = Array.from({ length: 128 }, (_, id) => host.handleFrameMessage({ apiVersion: 1, id: String(id), method: 'settings.get' }, frame));
-  await host.handleFrameMessage({ apiVersion: 1, id: 'overflow', method: 'settings.get' }, frame);
+  const requests = Array.from({ length: 128 }, (_, id) => host.handleFrameMessage({ apiVersion: 1, id: String(id), method: RPC.settingsGet }, frame));
+  await host.handleFrameMessage({ apiVersion: 1, id: 'overflow', method: RPC.settingsGet }, frame);
   expect(host.diagnostics().pending).toBe(128);
   expect((posted[0] as BrokerResponse).id).toBe('overflow');
   await new Promise((resolve) => setTimeout(resolve, 20));
@@ -311,7 +312,7 @@ test('50 iframe owner disposals cancel client waits without detaching the shared
       pluginId: 'owner.plugin', backend: controlBackend('owner.plugin', control, () => 'en', () => 'dark'),
       postToFrame: (value) => posted.push(value),
     });
-    const pending = host.handleFrameMessage({ apiVersion: 1, id: 'settings', method: 'settings.get' }, frame);
+    const pending = host.handleFrameMessage({ apiVersion: 1, id: 'settings', method: RPC.settingsGet }, frame);
     expect(control.diagnostics?.().pending).toBe(1);
     host.dispose(); await pending;
     expect(control.diagnostics?.().pending).toBe(0);

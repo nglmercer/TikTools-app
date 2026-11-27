@@ -10,18 +10,19 @@ import { libraryPreview } from '../../../../../../src/web/entities/rule-template
 import { useRuleProfiles } from '../../../../../../src/web/entities/rule-template/model/rule-profiles-state.ts';
 import { useRuleTemplates } from '../../../../../../src/web/entities/rule-template/model/rule-templates-state.ts';
 import { applyRuleTemplate, parseRuleTemplate } from '../../../../../../src/web/entities/rule-template/lib/rule-templates.ts';
+import { ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
 
-const action = (id = 'old-action'): LiveAction => ({ schemaVersion: 2, id, name: id, enabled: false, typeId: 'core.log', config: { message: 'private-source' } });
-const event = (id = 'old-event', actionIds = ['old-action']): LiveEvent => ({ schemaVersion: 1, id, name: id, enabled: false, trigger: 'tiktok.chat', filters: [], actionIds, cooldownMs: 0, cooldownScope: 'global', runMode: 'all' });
+const action = (id = 'old-action'): LiveAction => ({ schemaVersion: 2, id, name: id, enabled: false, typeId: ACTION_TYPE.coreLog, config: { message: 'private-source' } });
+const event = (id = 'old-event', actionIds = ['old-action']): LiveEvent => ({ schemaVersion: 1, id, name: id, enabled: false, trigger: EVENT_KIND.tiktokChat, filters: [], actionIds, cooldownMs: 0, cooldownScope: 'global', runMode: 'all' });
 function fixture() {
   const source: BehaviorSnapshot = { actions: [action()], events: [event()], plugins: [], actionTypes: [], translations: {} };
   const revisions = new Map([['action:old-action', '1'], ['event:old-event', '1']]); const writes: string[] = [];
   const native = nativeDefinitionHost((method, params, options) => {
-    if (method === 'automation.snapshot') {
+    if (method === RPC.automationSnapshot) {
       options?.onMetadata?.({ resourceVersions: [...source.actions.map((r) => ({ kind: 'automation', scope: 'action', id: r.id, revision: revisions.get(`action:${r.id}`)! })), ...source.events.map((r) => ({ kind: 'automation', scope: 'event', id: r.id, revision: revisions.get(`event:${r.id}`)! }))] });
       return structuredClone(source);
     }
-    if (method === 'app.state.get') return { state: {} };
+    if (method === RPC.appStateGet) return { state: {} };
     writes.push(method);
     if (method === 'automation.set_enablement') {
       const changes = params?.updates as Array<{ kind: 'action' | 'event'; id: string; enabled: boolean }>;
@@ -34,12 +35,12 @@ function fixture() {
     const kind = params?.kind as 'action' | 'event'; const record = params?.record as LiveAction | LiveEvent | undefined;
     const id = (record?.id ?? params?.id) as string; const key = `${kind}:${id}`;
     const list = (kind === 'action' ? source.actions : source.events) as Array<LiveAction | LiveEvent>; const index = list.findIndex((row) => row.id === id);
-    if (method === 'automation.create' && index >= 0) throw new ControlCallError('revision_conflict', 'Already created');
-    if (method === 'automation.delete') { if (index >= 0) list.splice(index, 1); }
+    if (method === RPC.automationCreate && index >= 0) throw new ControlCallError('revision_conflict', 'Already created');
+    if (method === RPC.automationDelete) { if (index >= 0) list.splice(index, 1); }
     else if (record) { if (index < 0) list.push(structuredClone(record)); else list[index] = structuredClone(record); }
     const revision = String(BigInt(revisions.get(key) ?? '0') + 1n); revisions.set(key, revision);
     options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: kind, id, revision }] });
-    return method === 'automation.delete' ? { id, deleted: index >= 0 } : structuredClone(record);
+    return method === RPC.automationDelete ? { id, deleted: index >= 0 } : structuredClone(record);
   });
   native.library.setCatalog({ packs: [{ id: 'a', name: 'Profile A', description: '', eventIds: ['old-event'], actionIds: ['old-action'] }, { id: 'b', name: 'Profile B', description: '', eventIds: [], actionIds: [] }], activeId: 'a', templates: [] });
   const fake = createFakeControlClient(native.handle); const journal = libraryJournal(fake.client);
@@ -51,7 +52,7 @@ async function apply(f: ReturnType<typeof fixture>, mutation: LibraryMutation) {
 
 test('manual template application reviews and preserves enabled values through confirmation', async () => {
   const parsed = parseRuleTemplate({ templateVersion: 1, id: 'manual-enabled', title: 'Manual',
-    actions: [{ name: 'Log', typeId: 'core.log', config: { message: 'hello' } }], event: { name: 'Chat', trigger: 'tiktok.chat' } });
+    actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: { message: 'hello' } }], event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat } });
   if (!parsed.ok) throw new Error(parsed.errors.join(', '));
   const entry = applyRuleTemplate(parsed.template, {});
   expect(entry.actions[0]!.enabled).toBe(true);
@@ -100,12 +101,12 @@ describe('atomic Owner library transition gateway', () => {
     expect(f.source.actions.some((row) => row.id === 'old-action')).toBe(true);
     expect(f.journal.snapshot.value?.catalog.packs.find((pack) => pack.id === 'a')?.actionIds).toEqual(['act-import']);
     await apply(f, { operation: 'assign-record', kind: 'action', id: 'old-action', profileId: 'c' });
-    const template = { templateVersion: 1 as const, id: 'custom-template', title: { default: 'Saved template' }, description: { default: '' }, icon: 'plugin', actions: [{ name: 'Log', enabled: false, typeId: 'core.log', config: {} }], event: { name: 'Chat', enabled: false, trigger: 'tiktok.chat' as const, filters: [], cooldownMs: 0, cooldownScope: 'global' as const, runMode: 'all' as const } };
+    const template = { templateVersion: 1 as const, id: 'custom-template', title: { default: 'Saved template' }, description: { default: '' }, icon: 'plugin', actions: [{ name: 'Log', enabled: false, typeId: ACTION_TYPE.coreLog, config: {} }], event: { name: 'Chat', enabled: false, trigger: EVENT_KIND.tiktokChat, filters: [], cooldownMs: 0, cooldownScope: 'global' as const, runMode: 'all' as const } };
     await apply(f, { operation: 'import-templates', templates: [template] });
     await apply(f, { operation: 'delete-template', id: template.id });
     await apply(f, { operation: 'delete-profile', id: 'b' });
-    expect(f.calls.filter((call) => call.method === 'automation.library.submit')).toHaveLength(8);
-    expect(f.calls.some((call) => call.method === 'app.state.set' || /^automation\.(create|delete|set_enablement)$/.test(call.method))).toBe(false);
+    expect(f.calls.filter((call) => call.method === RPC.automationLibrarySubmit)).toHaveLength(8);
+    expect(f.calls.some((call) => call.method === RPC.appStateSet || /^automation\.(create|delete|set_enablement)$/.test(call.method))).toBe(false);
     expect(f.journal.state.value?.recent).toHaveLength(8); expect(f.journal.snapshot.value?.revision).toBe('8');
   });
 
@@ -123,7 +124,7 @@ describe('atomic Owner library transition gateway', () => {
       expect(f.journal.draft.value?.context).toBeDefined(); expect(f.journal.comparison.value?.definitions.events.some((row) => row.id === 'evt-original')).toBe(true);
       const reloaded = libraryJournal(createFakeControlClient(f.native.handle).client); await reloaded.refresh();
       expect(reloaded.snapshot.value).toBeNull(); expect(reloaded.state.value?.recent[0]?.intent.commandId).toBe(f.journal.state.value?.recent[0]?.intent.commandId);
-      expect(f.calls.filter((call) => call.method === 'automation.library.submit')).toHaveLength(1);
+      expect(f.calls.filter((call) => call.method === RPC.automationLibrarySubmit)).toHaveLength(1);
       expect(storing).not.toHaveBeenCalled(); expect(JSON.stringify(reloaded.state.value)).not.toContain('private-source');
       f.journal.dismiss(); expect(await pending).toMatchObject({ code: 'unconfirmed' });
     } finally { storing.mockRestore(); }
@@ -145,7 +146,7 @@ describe('atomic Owner library transition gateway', () => {
     const hold = new Promise<void>((resolve) => { release = resolve; }); const ready = new Promise<void>((resolve) => { committed = resolve; });
     const transport = createFakeControlClient(async (method, params, options) => {
       const result = await f.native.handle(method, params, options);
-      if (method === 'automation.library.submit') { committed(); await hold; }
+      if (method === RPC.automationLibrarySubmit) { committed(); await hold; }
       return result;
     });
     const journal = libraryJournal(transport.client); const context = await journal.refreshSnapshot();
@@ -155,7 +156,7 @@ describe('atomic Owner library transition gateway', () => {
     expect(f.source.events.find((row) => row.id === 'evt-frozen')?.name).toBe('evt-frozen');
     expect(journal.draft.value?.mutation).toMatchObject({ entry: { event: { id: 'evt-frozen', name: 'Newer name while saving' } } });
     expect(journal.draft.value).toMatchObject({ submitted: true, busy: false, reviewRequired: true });
-    await journal.confirm(); expect(transport.calls.filter((call) => call.method === 'automation.library.submit')).toHaveLength(1);
+    await journal.confirm(); expect(transport.calls.filter((call) => call.method === RPC.automationLibrarySubmit)).toHaveLength(1);
     journal.dismiss();
   });
 
@@ -167,14 +168,14 @@ describe('atomic Owner library transition gateway', () => {
     expect(f.calls).toHaveLength(0);
     const unknown = createFakeControlClient(() => { throw new ControlCallError('method_not_found', 'Unavailable'); });
     await expect(libraryJournal(unknown.client).submit({ operation: 'switch-profile', id: 'a' }, context)).rejects.toMatchObject({ code: 'method_not_found' });
-    expect(unknown.calls.some((call) => call.method === 'automation.set_enablement' || call.method === 'app.state.set')).toBe(false);
+    expect(unknown.calls.some((call) => call.method === 'automation.set_enablement' || call.method === RPC.appStateSet)).toBe(false);
   });
 
   test('definition writes cannot proceed through a pending library intent on the same original client', async () => {
     const f = fixture(); await apply(f, { operation: 'create-profile', id: 'c', name: 'C', description: '' });
     const stored = f.native.library.state(); f.native.library.setState({ ...stored, pending: { ...stored.recent[0]!.intent, commandId: `owner-library-${'f'.repeat(32)}` } });
     await expect(definitionJournal(f.client).submit({ operation: 'update', kind: 'action', id: 'old-action', expectedRevision: '1', record: action() }, { hostId: 'host-a', hostInstanceId: 'instance-a' })).rejects.toMatchObject({ code: 'command_pending' });
-    expect(f.calls.some((call) => call.method === 'automation.definition.submit')).toBe(false);
+    expect(f.calls.some((call) => call.method === RPC.automationDefinitionSubmit)).toBe(false);
   });
 });
 
@@ -183,7 +184,7 @@ test('library metadata is closed, precise and bound to the fresh original receip
   expect(() => parseLibrarySnapshot({ ...context, source: {} })).toThrow();
   expect(() => parseLibrarySnapshot({ ...context, revision: 9007199254740992 })).toThrow();
   const mutation = { operation: 'create-profile' as const, id: 'c', name: 'C', description: '' };
-  const raw = await f.native.library.handle('automation.library.submit', { mutation, expectedRevision: context.revision, definitionDigest: context.definitionDigest, hostId: context.hostId, hostInstanceId: context.hostInstanceId }) as { state: unknown; acknowledgement: { resourceVersions: ResourceVersion[] } };
+  const raw = await f.native.library.handle(RPC.automationLibrarySubmit, { mutation, expectedRevision: context.revision, definitionDigest: context.definitionDigest, hostId: context.hostId, hostInstanceId: context.hostInstanceId }) as { state: unknown; acknowledgement: { resourceVersions: ResourceVersion[] } };
   expect(parseLibrarySubmission(raw, mutation, context).acknowledgement).not.toBeNull();
   expect(() => parseLibraryState({ ...f.native.library.state(), source: 'private' })).toThrow();
   expect(() => parseLibrarySubmission(raw, { ...mutation, id: 'other' }, context)).toThrow();
@@ -201,7 +202,7 @@ test('profile deletion review includes external events whose action references c
 test('same-target membership acknowledgements bind kind and profile and reject altered final versions', async () => {
   const f = fixture(); const context = await f.journal.refreshSnapshot();
   const mutation = { operation: 'assign-record' as const, kind: 'action' as const, id: 'old-action', profileId: 'b' };
-  const raw = await f.native.library.handle('automation.library.submit', { mutation, expectedRevision: context.revision, definitionDigest: context.definitionDigest, hostId: context.hostId, hostInstanceId: context.hostInstanceId }) as { state: unknown; acknowledgement: { resourceVersions: ResourceVersion[] } };
+  const raw = await f.native.library.handle(RPC.automationLibrarySubmit, { mutation, expectedRevision: context.revision, definitionDigest: context.definitionDigest, hostId: context.hostId, hostInstanceId: context.hostInstanceId }) as { state: unknown; acknowledgement: { resourceVersions: ResourceVersion[] } };
   expect(parseLibrarySubmission(raw, mutation, context).acknowledgement).not.toBeNull();
   expect(() => parseLibrarySubmission(raw, { ...mutation, kind: 'event' }, context)).toThrow();
   expect(() => parseLibrarySubmission(raw, { ...mutation, profileId: 'a' }, context)).toThrow();

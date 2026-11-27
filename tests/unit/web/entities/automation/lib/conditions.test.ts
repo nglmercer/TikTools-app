@@ -12,13 +12,14 @@ import {
   withOperator,
   withValues,
 } from '../../../../../../src/web/entities/automation/lib/conditions.ts';
+import { EVENT_KIND } from '../../../../../shared/index.ts';
 
 const filter = (patch: Partial<EventFilter>): EventFilter => ({ path: 'event.data.comment', operator: 'eq', value: '', ...patch });
 
 describe('conditions', () => {
   it('lists localized trigger fields', () => {
-    const english = conditionFields('tiktok.gift', 'en');
-    const spanish = conditionFields('tiktok.gift', 'es');
+    const english = conditionFields(EVENT_KIND.tiktokGift, 'en');
+    const spanish = conditionFields(EVENT_KIND.tiktokGift, 'es');
     const gift = english.find((field) => field.path === 'event.data.giftName');
     expect(gift?.kind).toBe('gift');
     expect(spanish.find((field) => field.path === 'event.data.giftName')?.label).toBeTruthy();
@@ -26,15 +27,15 @@ describe('conditions', () => {
   });
 
   it('starts new filters on the first field with a valid operator', () => {
-    const created = newFilter('tiktok.gift');
-    expect(created.path).toBe(conditionFields('tiktok.gift', 'en')[0]?.path);
+    const created = newFilter(EVENT_KIND.tiktokGift);
+    expect(created.path).toBe(conditionFields(EVENT_KIND.tiktokGift, 'en')[0]?.path);
     expect(created.value).toBe('');
   });
 
   it('keeps compatible operators when the field changes', () => {
-    const next = withField('tiktok.gift', filter({ path: 'event.data.giftName', operator: 'in', values: ['Rose'] }), 'event.user.uniqueId');
+    const next = withField(EVENT_KIND.tiktokGift, filter({ path: 'event.data.giftName', operator: 'in', values: ['Rose'] }), 'event.user.uniqueId');
     expect(next).toMatchObject({ path: 'event.user.uniqueId', operator: 'in', values: ['Rose'] });
-    expect(withField('tiktok.gift', filter({ value: 'x' }), null)).toEqual({ path: '', operator: 'eq', value: '', values: undefined });
+    expect(withField(EVENT_KIND.tiktokGift, filter({ value: 'x' }), null)).toEqual({ path: '', operator: 'eq', value: '', values: undefined });
   });
 
   it('moves values between single and list operators', () => {

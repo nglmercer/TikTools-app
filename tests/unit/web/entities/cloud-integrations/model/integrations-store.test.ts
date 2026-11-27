@@ -4,6 +4,7 @@ import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testin
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { isValidLabel, useIntegrationsStore } from '../../../../../../src/web/entities/cloud-integrations/model/integrations-store.ts';
+import { ACCOUNT_STATE, RPC } from '../../../../../shared/index.ts';
 
 const id = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
 const secret = 'b'.repeat(64);
@@ -11,8 +12,8 @@ const row = { id, provider: 'webhook', label: 'Alerts', status: 'active', create
 
 function host(announced: string[], rows: unknown[] = []) {
   const { client, calls } = createFakeControlClient((method) => {
-    if (method === 'rpc.discover') return { methods: announced.map((name) => ({ name })) };
-    if (method === 'integrations.connections') return { items: rows };
+    if (method === RPC.rpcDiscover) return { methods: announced.map((name) => ({ name })) };
+    if (method === RPC.integrationsConnections) return { items: rows };
     if (method === 'integrations.connect') return { connectionId: id, provider: 'webhook', label: 'Alerts', secret, deliveryPath: `/api/v3/integrations/webhook/${id}/deliveries` };
     if (method === 'integrations.disconnect') return { id, status: 'revoked' };
     if (method === 'integrations.events') return { items: [], truncated: false };
@@ -31,14 +32,14 @@ describe('cloud integrations store', () => {
   });
 
   it('does not call integrations when the host did not announce them', async () => {
-    const { stores, calls } = host(['rpc.discover']);
+    const { stores, calls } = host([RPC.rpcDiscover]);
     await stores.use(() => useCapabilityStore()).refresh('host-a');
     await stores.use(() => useIntegrationsStore()).refresh();
-    expect(calls.map((call) => call.method)).toEqual(['rpc.discover']);
+    expect(calls.map((call) => call.method)).toEqual([RPC.rpcDiscover]);
   });
 
   it('holds the secret in memory until it is dismissed', async () => {
-    const { stores } = host(['integrations.connections', 'integrations.connect']);
+    const { stores } = host([RPC.integrationsConnections, 'integrations.connect']);
     await stores.use(() => useCapabilityStore()).refresh('host-a');
     const integrations = stores.use(() => useIntegrationsStore());
     expect(await integrations.connect('Alerts')).toBe(true);
@@ -48,7 +49,7 @@ describe('cloud integrations store', () => {
   });
 
   it('clears the secret and any open events when the panel resets', async () => {
-    const { stores } = host(['integrations.connections', 'integrations.connect', 'integrations.events']);
+    const { stores } = host([RPC.integrationsConnections, 'integrations.connect', 'integrations.events']);
     await stores.use(() => useCapabilityStore()).refresh('host-a');
     const integrations = stores.use(() => useIntegrationsStore());
     await integrations.connect('Alerts');
@@ -60,12 +61,12 @@ describe('cloud integrations store', () => {
   });
 
   it('revokes and refreshes the list', async () => {
-    const { stores, calls } = host(['integrations.connections', 'integrations.disconnect'], [row]);
+    const { stores, calls } = host([RPC.integrationsConnections, 'integrations.disconnect'], [row]);
     await stores.use(() => useCapabilityStore()).refresh('host-a');
     const integrations = stores.use(() => useIntegrationsStore());
     await integrations.refresh();
     expect(await integrations.remove(id)).toBe(true);
-    expect(calls.map((call) => call.method)).toEqual(['rpc.discover', 'integrations.connections', 'integrations.disconnect', 'integrations.connections']);
+    expect(calls.map((call) => call.method)).toEqual([RPC.rpcDiscover, RPC.integrationsConnections, 'integrations.disconnect', RPC.integrationsConnections]);
   });
 
   describe('late replies', () => {
@@ -78,9 +79,9 @@ describe('cloud integrations store', () => {
     function held(extra: (method: string) => unknown = () => undefined) {
       const connect = deferred<unknown>();
       const { client, calls } = createFakeControlClient((method) => {
-        if (method === 'rpc.discover') return { methods: ['integrations.connections', 'integrations.connect', 'integrations.disconnect', 'integrations.events'].map((name) => ({ name })) };
+        if (method === RPC.rpcDiscover) return { methods: [RPC.integrationsConnections, 'integrations.connect', 'integrations.disconnect', 'integrations.events'].map((name) => ({ name })) };
         if (method === 'integrations.connect') return connect.promise;
-        if (method === 'integrations.connections') return { items: [row] };
+        if (method === RPC.integrationsConnections) return { items: [row] };
         return extra(method) ?? { items: [], truncated: false };
       });
       const stores = createStoreHarness(client);
@@ -108,11 +109,11 @@ describe('cloud integrations store', () => {
       const { stores, connect } = held();
       await stores.use(() => useCapabilityStore()).refresh('host-a');
       const account = stores.use(() => useAccountStore());
-      account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'alice', persistence: 'memory-only' };
+      account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
       const integrations = stores.use(() => useIntegrationsStore());
       const created = integrations.connect('Alerts');
-      account.status = { origin: 'https://cloud.example', state: 'signed-out', persistence: 'memory-only' };
-      account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'alice', persistence: 'memory-only' };
+      account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedOut, persistence: ACCOUNT_STATE.memoryOnly };
+      account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
       connect.resolve(issuedSecret);
       expect(await created).toBe(false);
       expect(integrations.issued).toBeNull();
@@ -123,19 +124,19 @@ describe('cloud integrations store', () => {
       const list = deferred<unknown>();
       let lists = 0;
       const { client } = createFakeControlClient((method) => {
-        if (method === 'rpc.discover') return { methods: [{ name: 'integrations.connections' }] };
+        if (method === RPC.rpcDiscover) return { methods: [{ name: RPC.integrationsConnections }] };
         // The first list is Alice's and stays pending; the one for the new account answers.
         return (lists += 1) === 1 ? list.promise : { items: [] };
       });
       const stores = createStoreHarness(client);
       await stores.use(() => useCapabilityStore()).refresh('host-a');
       const account = stores.use(() => useAccountStore());
-      account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'alice', persistence: 'memory-only' };
+      account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
       const integrations = stores.use(() => useIntegrationsStore());
       integrations.connections = [row];
       const loading = integrations.refresh();
       expect(integrations.loading).toBe(true);
-      account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'bob', persistence: 'memory-only' };
+      account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'bob', persistence: ACCOUNT_STATE.memoryOnly };
       expect(integrations.connections).toEqual([]);
       await flushPromises();
       expect(integrations.loading).toBe(false);
@@ -151,7 +152,7 @@ describe('cloud integrations store', () => {
     it('ends the context on the host notice and on an event gap', async () => {
       let notice = () => {}; let gap = () => {};
       let listeners = 0;
-      const { client } = createFakeControlClient((method) => (method === 'rpc.discover' ? { methods: [{ name: 'integrations.connections' }] } : { items: [] }));
+      const { client } = createFakeControlClient((method) => (method === RPC.rpcDiscover ? { methods: [{ name: RPC.integrationsConnections }] } : { items: [] }));
       client.onTopic = (topic, handler) => { if (topic === 'cloud.context.invalidated') { notice = () => handler({} as never); listeners += 1; } return () => { listeners -= 1; }; };
       client.onGap = (handler) => { gap = () => handler(1); listeners += 1; return () => { listeners -= 1; }; };
       const stores = createStoreHarness(client);
