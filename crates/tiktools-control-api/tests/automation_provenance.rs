@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use tiktools_control_api::{RemoteSession, RequestContext, RpcResponse};
 use tiktools_core::{
     collaboration::{
-        hash_secret, Capability, ClientKind, Collect, Grant, GrantSet, InviteCreate, Redeem,
+        Capability, Grant, GrantSet,
         ResourceKind,
     },
     control::AutomationKind,
@@ -26,38 +26,7 @@ impl Fixture {
         self.core.collaboration().unwrap().instance_id().into()
     }
     fn pair(&self, grant: Grant) -> Controller {
-        let service = self.core.collaboration().unwrap();
-        let mut configuration = service.configuration().unwrap();
-        configuration.enabled = true;
-        configuration.advertised_origin = Some("http://127.0.0.1:8788".into());
-        service.configure(configuration).unwrap();
-        let invite = service.create_invitation(InviteCreate { grant }).unwrap();
-        let exchange = "a".repeat(64);
-        let request = service
-            .redeem(
-                Redeem {
-                    invite_id: invite.invite_id,
-                    secret: invite.secret,
-                    client_label: "Draft author".into(),
-                    client_kind: ClientKind::Agent,
-                    exchange_secret_hash: hash_secret(&exchange),
-                },
-                "fixture",
-            )
-            .unwrap();
-        service.decide_request(&request.request_id, true).unwrap();
-        let credentials = service
-            .collect(
-                Collect {
-                    request_id: request.request_id,
-                    exchange_secret: exchange,
-                },
-                "fixture",
-            )
-            .unwrap();
-        let auth = service
-            .authenticate_live(&credentials.access_token, false, false)
-            .unwrap();
+        let auth = self.pair_authorization(grant, "Draft author", 'a');
         let identity = auth.snapshot().unwrap();
         Controller {
             context: RequestContext::Remote(RemoteSession::from_authorization(auth).unwrap()),

@@ -1,11 +1,8 @@
 #![cfg(feature = "persistence")]
 //! Manifest previews are owner reads, not grants, approvals or executions.
 use serde_json::{json, Value};
-use tiktools_control_api::{RemoteSession, RequestContext, RpcResponse};
-use tiktools_core::{
-    collaboration::{hash_secret, ClientKind, Collect, InviteCreate, Redeem},
-    control::AutomationKind,
-};
+use tiktools_control_api::{RequestContext, RpcResponse};
+use tiktools_core::control::AutomationKind;
 
 mod support;
 use support::Fixture;
@@ -22,40 +19,7 @@ impl Fixture {
         self.api.execute_value_with_context(context, &request).await
     }
     fn remote(&self) -> RequestContext {
-        let service = self.core.collaboration().unwrap();
-        let mut config = service.configuration().unwrap();
-        config.enabled = true;
-        config.advertised_origin = Some("http://127.0.0.1:8788".into());
-        service.configure(config).unwrap();
-        let grant = support::broad_grant();
-        let invite = service.create_invitation(InviteCreate { grant }).unwrap();
-        let exchange = "c".repeat(64);
-        let request = service
-            .redeem(
-                Redeem {
-                    invite_id: invite.invite_id,
-                    secret: invite.secret,
-                    client_label: "Manifest caller".into(),
-                    client_kind: ClientKind::Agent,
-                    exchange_secret_hash: hash_secret(&exchange),
-                },
-                "fixture",
-            )
-            .unwrap();
-        service.decide_request(&request.request_id, true).unwrap();
-        let credentials = service
-            .collect(
-                Collect {
-                    request_id: request.request_id,
-                    exchange_secret: exchange,
-                },
-                "fixture",
-            )
-            .unwrap();
-        let auth = service
-            .authenticate_live(&credentials.access_token, false, false)
-            .unwrap();
-        RequestContext::Remote(RemoteSession::from_authorization(auth).unwrap())
+        self.pair_with(support::broad_grant(), "Manifest caller", 'c')
     }
     async fn close(self) {
         self.core.shutdown().await;

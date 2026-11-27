@@ -214,39 +214,7 @@ async fn wrong_host_or_bulk_preconditions_reject_before_writes_and_remote_execut
 
 impl Fixture {
     fn pair(&self, grant: tiktools_core::collaboration::Grant) -> (RequestContext, String) {
-        use tiktools_core::collaboration::*;
-        let service = self.core.collaboration().unwrap();
-        let mut config = service.configuration().unwrap();
-        config.enabled = true;
-        config.advertised_origin = Some("http://127.0.0.1:8788".into());
-        service.configure(config).unwrap();
-        let invite = service.create_invitation(InviteCreate { grant }).unwrap();
-        let exchange = "a".repeat(64);
-        let request = service
-            .redeem(
-                Redeem {
-                    invite_id: invite.invite_id,
-                    secret: invite.secret,
-                    client_label: "Automation moderator".into(),
-                    client_kind: ClientKind::Agent,
-                    exchange_secret_hash: hash_secret(&exchange),
-                },
-                "fixture",
-            )
-            .unwrap();
-        service.decide_request(&request.request_id, true).unwrap();
-        let credentials = service
-            .collect(
-                Collect {
-                    request_id: request.request_id,
-                    exchange_secret: exchange,
-                },
-                "fixture",
-            )
-            .unwrap();
-        let auth = service
-            .authenticate_live(&credentials.access_token, false, false)
-            .unwrap();
+        let auth = self.pair_authorization(grant, "Automation moderator", 'a');
         let principal = auth.snapshot().unwrap().principal_id;
         (
             RequestContext::Remote(RemoteSession::from_authorization(auth).unwrap()),

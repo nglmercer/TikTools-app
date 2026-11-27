@@ -6,7 +6,9 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use tiktools_control_api::{ControlApi, RemoteSession, RequestContext, RpcResponse};
 use tiktools_core::{
-    collaboration::{hash_secret, Capability, ClientKind, Collect, Grant, InviteCreate, Redeem},
+    collaboration::{
+        hash_secret, Authorization, Capability, ClientKind, Collect, Grant, InviteCreate, Redeem,
+    },
     paths::AppPaths,
     AppCore, HostEmitter, NoopMediaHost,
 };
@@ -67,9 +69,14 @@ impl Fixture {
         }
     }
     /// Enables collaboration, redeems an invitation carrying `grant` and
-    /// returns the authenticated remote context. `exchange` is the fill
+    /// returns its live authorization. `exchange` is the fill
     /// character of the 64-character exchange secret.
-    pub fn pair_with(&self, grant: Grant, client_label: &str, exchange: char) -> RequestContext {
+    pub fn pair_authorization(
+        &self,
+        grant: Grant,
+        client_label: &str,
+        exchange: char,
+    ) -> Authorization {
         let service = self.core.collaboration().unwrap();
         let mut configuration = service.configuration().unwrap();
         configuration.enabled = true;
@@ -99,9 +106,13 @@ impl Fixture {
                 "fixture",
             )
             .unwrap();
-        let auth = service
+        service
             .authenticate_live(&credentials.access_token, false, false)
-            .unwrap();
+            .unwrap()
+    }
+    /// [`Self::pair_authorization`] as a remote request context.
+    pub fn pair_with(&self, grant: Grant, client_label: &str, exchange: char) -> RequestContext {
+        let auth = self.pair_authorization(grant, client_label, exchange);
         RequestContext::Remote(RemoteSession::from_authorization(auth).unwrap())
     }
     pub async fn call_as(
