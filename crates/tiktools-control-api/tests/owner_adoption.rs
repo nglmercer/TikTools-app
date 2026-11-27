@@ -55,13 +55,13 @@ impl Fixture {
         self.pair_with(grant, "Owner review draft author", 'a')
     }
     async fn owner(&self, method: &str, params: Value, meta: Value) -> RpcResponse {
-        self.call(&RequestContext::LocalOwner, method, params, meta)
+        self.call_as(&RequestContext::LocalOwner, method, params, meta)
             .await
     }
     async fn drafts(&self, author: &RequestContext) {
         let instance = self.core.collaboration().unwrap().instance_id().to_owned();
         for kind in ["action", "event"] {
-            let created = self.call(author, "automation.create", json!({"kind":kind,"record":draft(kind)}),
+            let created = self.call_as(author, "automation.create", json!({"kind":kind,"record":draft(kind)}),
                 json!({"commandId":format!("author-{kind}"),"hostInstanceId":instance,"expectedRevision":"0"})).await;
             assert!(created.is_ok(), "{created:?}");
             assert_eq!(
@@ -249,7 +249,7 @@ async fn broad_remote_grants_never_expose_or_control_any_owner_adoption_journal_
             json!({"commandId":"remote-owner-forgery","hostInstanceId":state["hostInstanceId"],"expectedRevision":"1"}),
         ] {
             failure(
-                f.call(&author, method, params.clone(), meta).await,
+                f.call_as(&author, method, params.clone(), meta).await,
                 "forbidden",
             );
         }

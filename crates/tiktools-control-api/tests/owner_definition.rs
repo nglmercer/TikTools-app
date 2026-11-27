@@ -60,7 +60,7 @@ impl Fixture {
         self.pair_with(grant, "Owner definition API fixture", 'f')
     }
     async fn owner(&self, method: &str, params: Value) -> RpcResponse {
-        self.call(&RequestContext::LocalOwner, method, params, Value::Null)
+        self.call_as(&RequestContext::LocalOwner, method, params, Value::Null)
             .await
     }
     fn params(
@@ -312,7 +312,7 @@ async fn definition_routes_deny_all_remote_capabilities_at_ingress_and_egress() 
             json!({"commandId":"forged-owner-id","hostInstanceId":"forged-instance","expectedRevision":"0"}),
         ] {
             failure(
-                f.call(&remote, method, params.clone(), meta).await,
+                f.call_as(&remote, method, params.clone(), meta).await,
                 "forbidden",
             );
         }
@@ -356,7 +356,7 @@ async fn native_definition_params_reject_forged_identity_proof_and_mismatched_so
             json!({"expectedRevision":"0"}),
         ] {
             assert!(!f
-                .call(&RequestContext::LocalOwner, method, params.clone(), meta)
+                .call_as(&RequestContext::LocalOwner, method, params.clone(), meta)
                 .await
                 .is_ok());
         }

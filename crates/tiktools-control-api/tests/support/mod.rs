@@ -98,7 +98,7 @@ impl Fixture {
             .unwrap();
         RequestContext::Remote(RemoteSession::from_authorization(auth).unwrap())
     }
-    pub async fn call(
+    pub async fn call_as(
         &self,
         context: &RequestContext,
         method: &str,

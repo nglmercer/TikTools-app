@@ -2,26 +2,17 @@
 //! Real host authorization and business storage, with no TikTok connection or
 //! external plugin execution. JSON claims cannot become execution authority.
 use serde_json::{json, Value};
-use std::sync::Arc;
-use tiktools_control_api::{ControlApi, RemoteSession, RequestContext, RpcResponse};
+use tiktools_control_api::{RemoteSession, RequestContext, RpcResponse};
 use tiktools_core::{
     collaboration::{
         hash_secret, Capability, ClientKind, Collect, Grant, GrantSet, InviteCreate, Redeem,
         ResourceKind,
     },
     control::AutomationKind,
-    paths::AppPaths,
-    AppCore, HostEmitter, NoopMediaHost,
 };
-struct Emitter;
-impl HostEmitter for Emitter {
-    fn emit(&self, _: tiktools_core::ipc::messages::HostMessage) {}
-}
-struct Fixture {
-    core: Arc<AppCore>,
-    api: ControlApi,
-    root: std::path::PathBuf,
-}
+mod support;
+use support::Fixture;
+
 struct Controller {
     context: RequestContext,
     principal: String,
@@ -29,42 +20,7 @@ struct Controller {
 }
 impl Fixture {
     fn new() -> Self {
-        let root = std::env::temp_dir().join(format!(
-            "tt-api-provenance-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let paths = AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("absent"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.clone(),
-        };
-        paths.ensure_directories().unwrap();
-        for path in [
-            paths.points_database(),
-            paths.automation_database(),
-            paths.analytics_database(),
-        ] {
-            std::fs::File::create(path).unwrap();
-        }
-        let core = Arc::new(AppCore::with_paths(
-            Arc::new(Emitter),
-            Arc::new(NoopMediaHost),
-            paths,
-        ));
-        Self {
-            api: ControlApi::new(core.clone()),
-            core,
-            root,
-        }
+        Self::with_prefix("tt-api-provenance")
     }
     fn instance(&self) -> String {
         self.core.collaboration().unwrap().instance_id().into()

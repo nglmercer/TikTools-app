@@ -1,62 +1,18 @@
 #![cfg(feature = "persistence")]
 //! Manifest previews are owner reads, not grants, approvals or executions.
 use serde_json::{json, Value};
-use std::{path::PathBuf, sync::Arc};
-use tiktools_control_api::{ControlApi, RemoteSession, RequestContext, RpcResponse};
+use tiktools_control_api::{RemoteSession, RequestContext, RpcResponse};
 use tiktools_core::{
     collaboration::{hash_secret, Capability, ClientKind, Collect, Grant, InviteCreate, Redeem},
     control::AutomationKind,
-    paths::AppPaths,
-    AppCore, HostEmitter, NoopMediaHost,
 };
 
-struct Emitter;
-impl HostEmitter for Emitter {
-    fn emit(&self, _: tiktools_core::ipc::messages::HostMessage) {}
-}
-struct Fixture {
-    core: Arc<AppCore>,
-    api: ControlApi,
-    root: PathBuf,
-}
+mod support;
+use support::Fixture;
+
 impl Fixture {
     fn new() -> Self {
-        let root = std::env::temp_dir().join(format!(
-            "tt-api-manifest-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let paths = AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("absent"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.clone(),
-        };
-        paths.ensure_directories().unwrap();
-        for path in [
-            paths.points_database(),
-            paths.automation_database(),
-            paths.analytics_database(),
-        ] {
-            std::fs::File::create(path).unwrap();
-        }
-        let core = Arc::new(AppCore::with_paths(
-            Arc::new(Emitter),
-            Arc::new(NoopMediaHost),
-            paths,
-        ));
-        Self {
-            api: ControlApi::new(core.clone()),
-            core,
-            root,
-        }
+        Self::with_prefix("tt-api-manifest")
     }
     async fn call(&self, context: &RequestContext, params: Value, meta: Value) -> RpcResponse {
         let mut request = json!({"id":1,"method":"automation.manifest.get","params":params});

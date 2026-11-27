@@ -1,59 +1,15 @@
 #![cfg(feature = "persistence")]
 use serde_json::{json, Value};
-use std::sync::Arc;
 use tiktools_control_api::{
-    ControlApi, RemoteCapability, RemoteSession, RequestContext, RpcResponse,
+    RemoteCapability, RemoteSession, RequestContext, RpcResponse,
 };
-use tiktools_core::{
-    control::AutomationKind, paths::AppPaths, AppCore, HostEmitter, NoopMediaHost,
-};
-struct Emitter;
-impl HostEmitter for Emitter {
-    fn emit(&self, _: tiktools_core::ipc::messages::HostMessage) {}
-}
-struct Fixture {
-    core: Arc<AppCore>,
-    api: ControlApi,
-    root: std::path::PathBuf,
-}
+use tiktools_core::control::AutomationKind;
+mod support;
+use support::Fixture;
+
 impl Fixture {
     fn new() -> Self {
-        let root = std::env::temp_dir().join(format!(
-            "tt-automation-api-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let paths = AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("absent"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.clone(),
-        };
-        paths.ensure_directories().unwrap();
-        for path in [
-            paths.points_database(),
-            paths.automation_database(),
-            paths.analytics_database(),
-        ] {
-            std::fs::File::create(path).unwrap();
-        }
-        let core = Arc::new(AppCore::with_paths(
-            Arc::new(Emitter),
-            Arc::new(NoopMediaHost),
-            paths,
-        ));
-        Self {
-            api: ControlApi::new(core.clone()),
-            core,
-            root,
-        }
+        Self::with_prefix("tt-automation-api")
     }
     async fn call(&self, method: &str, params: Value, meta: Value) -> RpcResponse {
         let mut request = json!({"id":"request","method":method,"params":params});

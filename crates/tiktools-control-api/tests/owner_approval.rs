@@ -54,13 +54,13 @@ impl Fixture {
         self.pair_with(grant, "Owner approval API fixture", 'e')
     }
     async fn owner(&self, method: &str, params: Value, meta: Value) -> RpcResponse {
-        self.call(&RequestContext::LocalOwner, method, params, meta)
+        self.call_as(&RequestContext::LocalOwner, method, params, meta)
             .await
     }
     async fn drafts(&self, context: &RequestContext) {
         let instance = self.core.collaboration().unwrap().instance_id().to_owned();
         for kind in ["action", "event"] {
-            let response=self.call(context,"automation.create",json!({"kind":kind,"record":draft(kind)}),json!({"commandId":format!("author-{kind}"),"hostInstanceId":instance,"expectedRevision":"0"})).await;
+            let response=self.call_as(context,"automation.create",json!({"kind":kind,"record":draft(kind)}),json!({"commandId":format!("author-{kind}"),"hostInstanceId":instance,"expectedRevision":"0"})).await;
             assert!(response.is_ok(), "{response:?}");
         }
     }
@@ -240,7 +240,7 @@ async fn every_native_owner_approval_method_denies_remote_ingress_and_egress_wit
             json!({"commandId":"forged-owner-id","hostInstanceId":"forged-instance","expectedRevision":"1"}),
         ] {
             failure(
-                f.call(&author, method, input.clone(), meta).await,
+                f.call_as(&author, method, input.clone(), meta).await,
                 "forbidden",
             );
         }
