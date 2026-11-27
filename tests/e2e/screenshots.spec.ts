@@ -20,6 +20,8 @@ import {
   ttsPageState,
   webviewPageState,
 } from './fixtures/states.ts';
+import { SEL, PLUGIN_TITLE } from './support/selectors.ts';
+import { WAIT_MS } from './support/timeouts.ts';
 
 /**
  * Deterministic screenshot coverage. Every visual test first asserts
@@ -106,7 +108,7 @@ test('legacy plugin panel note', async ({ page }) => {
   await page.goto('/');
   await waitForFrontend(page);
   await freezeClock(page);
-  await page.getByRole('link', { name: 'Text to Speech' }).click();
+  await page.getByRole('link', { name: PLUGIN_TITLE.tts }).click();
   await expect(page.getByText('This panel moved to the plugin view.')).toBeVisible();
   await expect(page).toHaveScreenshot('plugin-legacy-note.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
@@ -120,9 +122,9 @@ test('plugin inline frame', async ({ page }) => {
   await page.goto('/');
   await waitForFrontend(page);
   await freezeClock(page);
-  await page.getByRole('link', { name: 'Text to Speech' }).click();
-  const frame = page.frameLocator('.plugin-frame');
-  await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: 10_000 });
+  await page.getByRole('link', { name: PLUGIN_TITLE.tts }).click();
+  const frame = page.frameLocator(SEL.pluginFrame);
+  await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: WAIT_MS.frame });
   await expect(page).toHaveScreenshot('plugin-inline.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();
@@ -151,7 +153,7 @@ test('plugin connection success', async ({ page }) => {
   await page.getByRole('link', { name: t('navigation.connections') }).click();
   await page.getByRole('button', { name: /SonicBoom Server/ }).click();
   await expect(page.getByText('Connected in 12 ms')).toBeVisible();
-  const urlField = page.locator('.plugin-servers__detail input').first();
+  const urlField = page.locator(SEL.pluginServerInput).first();
   await expect(urlField).toHaveValue('http://127.0.0.1:17842');
   await expect(page).toHaveScreenshot('plugin-connection-success.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
@@ -165,9 +167,9 @@ test('light theme inline frame', async ({ page }) => {
   await page.goto('/');
   await waitForFrontend(page);
   await freezeClock(page);
-  await page.getByRole('link', { name: 'Text to Speech' }).click();
-  const frame = page.frameLocator('.plugin-frame');
-  await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: 10_000 });
+  await page.getByRole('link', { name: PLUGIN_TITLE.tts }).click();
+  const frame = page.frameLocator(SEL.pluginFrame);
+  await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: WAIT_MS.frame });
   await expect(page).toHaveScreenshot('plugin-inline-light.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();
@@ -180,10 +182,10 @@ test('Spanish locale inline frame', async ({ page }) => {
   await page.goto('/');
   await waitForFrontend(page);
   await freezeClock(page);
-  await page.getByRole('link', { name: 'Text to Speech' }).click();
+  await page.getByRole('link', { name: PLUGIN_TITLE.tts }).click();
   await expect(page.getByRole('button', { name: te('plugins.page.openWindow') })).toBeVisible();
-  const frame = page.frameLocator('.plugin-frame');
-  await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: 10_000 });
+  const frame = page.frameLocator(SEL.pluginFrame);
+  await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: WAIT_MS.frame });
   await expect(page).toHaveScreenshot('plugin-inline-es.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();

@@ -4,6 +4,7 @@ const t = (key: string, params?: Record<string, string | number>): string => tes
 import { expect, test } from '@playwright/test';
 import { emptyState } from './fixtures/states.ts';
 import { installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
+import { ROUTE } from '../shared/index.ts';
 
 for (const { locale, name, label } of [
   { locale: 'zh', name: '简体中文', label: '界面语言' },
@@ -12,7 +13,7 @@ for (const { locale, name, label } of [
   test(`${locale}: the real app switches language and preserves it after reload`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const capture = await installFakeHost(page, emptyState());
-    await page.goto('/#/settings');
+    await page.goto(ROUTE.settings);
     await waitForFrontend(page);
     const picker = page.getByRole('combobox', { name: t('settings.language.label'), exact: true });
     await picker.fill(locale);
@@ -39,7 +40,7 @@ for (const { locale, name, label } of [
 
 test('the real startup accepts jp preferences and migrates them to canonical ja', async ({ page }) => {
   const capture = await installFakeHost(page, emptyState(), { locale: 'jp' });
-  await page.goto('/#/settings');
+  await page.goto(ROUTE.settings);
   await waitForFrontend(page);
   await expect(page.locator('html')).toHaveAttribute('lang', 'ja');
   await expect(page.getByRole('combobox', { name: '表示言語', exact: true })).toHaveValue(t('menu.languages.ja'));

@@ -12,6 +12,7 @@ import {
   writeHostState,
 } from './fixtures/tiktools-host.ts';
 import { emptyState, ttsPageState } from './fixtures/states.ts';
+import { PLUGIN_TITLE } from './support/selectors.ts';
 
 test('boots to the feed with named navigation and an active tab marker', async ({ page }) => {
   const consoleCapture = await installFakeHost(page, emptyState());
@@ -37,13 +38,13 @@ test('dynamic plugin tab appears, renders, and falls back when removed', async (
   await waitForFrontend(page);
 
   // Host snapshot contains the plugin page → tab appears.
-  const ttsTab = page.getByRole('link', { name: 'Text to Speech' });
+  const ttsTab = page.getByRole('link', { name: PLUGIN_TITLE.tts });
   await expect(ttsTab).toBeVisible();
 
   // Click tab → correct plugin page renders.
   await ttsTab.click();
   await expect(ttsTab).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('heading', { name: 'Text to Speech' }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: PLUGIN_TITLE.tts }).first()).toBeVisible();
 
   // Host drops the plugin → refresh → tab falls back to Plugins, no crash.
   const dropped = await readHostState(page);
@@ -52,7 +53,7 @@ test('dynamic plugin tab appears, renders, and falls back when removed', async (
   snapshot.plugins = [];
   await writeHostState(page, dropped);
   await emitTopic(page, 'plugin.uninstalled', { pluginId: 'sonicboom.server' });
-  await expect(page.getByRole('link', { name: 'Text to Speech' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: PLUGIN_TITLE.tts })).toHaveCount(0);
   await expect(page.getByRole('link', { name: t('navigation.plugins') })).toHaveAttribute(
     'aria-current',
     'page',

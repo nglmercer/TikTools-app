@@ -2,6 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 import { assertNoUnhandledCalls, emitTopic, installFakeHost, readHostState, waitForFrontend, writeHostState } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
+import { ROUTE } from '../shared/index.ts';
+import { SEL } from './support/selectors.ts';
 
 /** The edit notices float over the editor's header actions; close them so those actions are reachable. */
 async function dismissNotices(page: Page): Promise<void> {
@@ -21,7 +23,7 @@ for (const locale of ['en', 'es'] as const) {
       plugins: [], actionTypes: [], eventTypes: [], translations: {},
     };
     const capture = await installFakeHost(page, state, { locale });
-    await page.goto('/#/automations'); await waitForFrontend(page);
+    await page.goto(ROUTE.automations); await waitForFrontend(page);
     await page.locator('.automation-library tbody tr').filter({ hasText: 'Starting event' }).click();
     const name = page.locator('.event-editor input[type="text"]').first();
     await name.fill('My retained draft');
@@ -41,7 +43,7 @@ for (const locale of ['en', 'es'] as const) {
     await dismissNotices(page);
     await page.getByRole('button', { name: t('automations.conflict.compare'), exact: true }).click();
     const dialog = page.getByRole('dialog').filter({ has: page.locator('.change-review') });
-    await expect(dialog.locator('.change-review__card')).toHaveCount(2);
+    await expect(dialog.locator(SEL.changeReviewCard)).toHaveCount(2);
     for (const key of ['jsonView.draftChanges', 'jsonView.hostChanges']) {
       await expect(dialog).toContainText(t(key));
     }
@@ -50,7 +52,7 @@ for (const locale of ['en', 'es'] as const) {
     await chevrons.nth(0).click();
     await chevrons.nth(1).click();
     await dialog.getByRole('radio', { name: t('changeReview.code'), exact: true }).click();
-    await expect(dialog.locator('.base-json-diff').first()).toBeVisible();
+    await expect(dialog.locator(SEL.baseJsonDiff).first()).toBeVisible();
     await expect(dialog).toContainText('Host changed name');
     await expect(page.locator('.review-source-dialog')).toHaveCount(0);
     expect(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);

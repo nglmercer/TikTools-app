@@ -4,6 +4,7 @@ const t = (key: string, params?: Record<string, string | number>): string => tes
 import { expect, test } from '@playwright/test';
 import { assertNoUnhandledCalls, emitPush, emitTopic, installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
+import { SEL } from './support/selectors.ts';
 
 test('feed appends only format new cards and still update locale, search, and clear', async ({ page }) => {
   const capture = await installFakeHost(page, emptyState());
@@ -29,23 +30,23 @@ test('feed appends only format new cards and still update locale, search, and cl
     event: { kind: 'chat', author: 'alice', text: `feed message ${index}`, msgId: `feed-${index}` },
   });
   await emitChat(1);
-  await expect(page.locator('.event-card')).toHaveCount(1);
+  await expect(page.locator(SEL.eventCard)).toHaveCount(1);
   await page.evaluate(() => { (window as typeof window & { feedFormatCalls: number }).feedFormatCalls = 0; });
   await emitChat(2);
-  await expect(page.locator('.event-card')).toHaveCount(2);
+  await expect(page.locator(SEL.eventCard)).toHaveCount(2);
   expect(await page.evaluate(() => (window as typeof window & { feedFormatCalls: number }).feedFormatCalls)).toBe(1);
 
   // The native shell menu switches the language by pushing its action.
   await emitPush(page, { type: 'shell-menu-action', id: 'locale:es' });
   await expect(page.locator('html')).toHaveAttribute('lang', 'es');
   await expect.poll(() => page.evaluate(() => (window as typeof window & { feedFormatCalls: number }).feedFormatCalls)).toBe(3);
-  await page.locator('.live-feed__search input').fill('message 2');
-  await expect(page.locator('.event-card')).toHaveCount(1);
-  await expect(page.locator('.event-card')).toContainText('feed message 2');
-  await page.locator('.live-feed__search input').fill('');
-  await expect(page.locator('.event-card')).toHaveCount(2);
+  await page.locator(SEL.feedSearch).fill('message 2');
+  await expect(page.locator(SEL.eventCard)).toHaveCount(1);
+  await expect(page.locator(SEL.eventCard)).toContainText('feed message 2');
+  await page.locator(SEL.feedSearch).fill('');
+  await expect(page.locator(SEL.eventCard)).toHaveCount(2);
   await page.getByRole('button', { name: /Limpiar/ }).click();
-  await expect(page.locator('.event-card')).toHaveCount(0);
+  await expect(page.locator(SEL.eventCard)).toHaveCount(0);
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });
@@ -56,18 +57,18 @@ test('events keep arriving while another tab is open and are waiting on return',
   await page.goto('/');
   await waitForFrontend(page);
   await emitTopic(page, 'live.ui-event', { event: { kind: 'chat', author: 'alice', text: 'before', msgId: 'before' } });
-  await expect(page.locator('.event-card')).toHaveCount(1);
+  await expect(page.locator(SEL.eventCard)).toHaveCount(1);
   const setTab = (tab: string) => page.evaluate((target) => {
     (window as unknown as { __tiktools_benchmark_controls__: { setTab(tab: string): void } }).__tiktools_benchmark_controls__.setTab(target);
   }, tab);
   await setTab('settings');
-  await expect(page.locator('.live-feed__stream')).toHaveCount(0);
+  await expect(page.locator(SEL.feedStream)).toHaveCount(0);
   for (let index = 0; index < 5; index += 1) {
     await emitTopic(page, 'live.ui-event', { event: { kind: 'chat', author: 'alice', text: `hidden ${index}`, msgId: `hidden-${index}` } });
   }
   await setTab('feed');
-  await expect(page.locator('.event-card')).toHaveCount(6);
-  await expect(page.locator('.event-card').last()).toContainText('hidden 4');
+  await expect(page.locator(SEL.eventCard)).toHaveCount(6);
+  await expect(page.locator(SEL.eventCard).last()).toContainText('hidden 4');
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });
@@ -81,9 +82,9 @@ test('image-disabled diagnostic mode removes avatar and gift image requests', as
   });
   await emitTopic(page, 'live.ui-event', { event: { kind: 'gift', author: 'alice', text: 'gift', msgId: 'gift-image-ab',
     avatarUrl: 'https://example.invalid/avatar.png', giftDetails: { name: 'Rose', count: 1, diamonds: 1, imageUrl: 'https://example.invalid/gift.png' } } });
-  await expect(page.locator('.event-card')).toHaveCount(1);
+  await expect(page.locator(SEL.eventCard)).toHaveCount(1);
   await expect(page.locator('.event-card img')).toHaveCount(0);
-  await expect(page.locator('.event-card__content')).toHaveText('gift');
+  await expect(page.locator(SEL.eventCardContent)).toHaveText('gift');
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });
@@ -97,21 +98,21 @@ test('autoscroll and paused position survive feed navigation', async ({ page }) 
       data: { event: { kind: 'chat', author: 'alice', text: `scroll ${index}`, msgId: `scroll-${index}` } } } }));
     window.__tiktools_receive_batch__?.(batch);
   });
-  await expect(page.locator('.event-card')).toHaveCount(100);
-  const bottomDistance = () => page.locator('.live-feed__stream').evaluate((node) => node.scrollHeight - node.clientHeight - node.scrollTop);
+  await expect(page.locator(SEL.eventCard)).toHaveCount(100);
+  const bottomDistance = () => page.locator(SEL.feedStream).evaluate((node) => node.scrollHeight - node.clientHeight - node.scrollTop);
   await expect.poll(bottomDistance).toBeLessThan(2);
   await page.getByRole('button', { name: /auto-scroll/ }).click();
-  await page.locator('.live-feed__stream').evaluate((node) => { node.scrollTop = 100; });
+  await page.locator(SEL.feedStream).evaluate((node) => { node.scrollTop = 100; });
   await emitTopic(page, 'live.ui-event', { event: { kind: 'chat', author: 'alice', text: 'paused', msgId: 'paused-scroll' } });
-  await expect(page.locator('.event-card')).toHaveCount(100); // the per-type window evicts the oldest card
+  await expect(page.locator(SEL.eventCard)).toHaveCount(100); // the per-type window evicts the oldest card
   // Evicting the oldest card above the reader moves the offset by its height so the visible rows stay put.
-  const anchored = await page.locator('.live-feed__stream').evaluate((node) => node.scrollTop);
+  const anchored = await page.locator(SEL.feedStream).evaluate((node) => node.scrollTop);
   expect(anchored).toBeGreaterThan(0);
   expect(anchored).toBeLessThan(100);
   await page.evaluate(() => (window as unknown as { __tiktools_benchmark_controls__: { setTab(tab: string): void } }).__tiktools_benchmark_controls__.setTab('settings'));
-  await expect(page.locator('.live-feed__stream')).toHaveCount(0);
+  await expect(page.locator(SEL.feedStream)).toHaveCount(0);
   await page.evaluate(() => (window as unknown as { __tiktools_benchmark_controls__: { setTab(tab: string): void } }).__tiktools_benchmark_controls__.setTab('feed'));
-  await expect.poll(() => page.locator('.live-feed__stream').evaluate((node) => node.scrollTop)).toBe(anchored);
+  await expect.poll(() => page.locator(SEL.feedStream).evaluate((node) => node.scrollTop)).toBe(anchored);
   await page.getByRole('button', { name: /auto-scroll/ }).click();
   await expect.poll(bottomDistance).toBeLessThan(2);
   await assertNoUnhandledCalls(page);
@@ -128,15 +129,15 @@ test('a flood of one event type keeps the newest 100 and search stays within the
     window.__tiktools_receive_batch__?.(Array.from({ length: 300 }, (_, index) => JSON.stringify({ method: 'event', params: { topic: 'live.ui-event',
       data: { event: { kind: 'chat', author: 'alice', text: `buffer ${index}`, msgId: `buffer-${index}` } } } })));
   });
-  await expect(page.locator('.event-row')).toHaveCount(100);
+  await expect(page.locator(SEL.eventRow)).toHaveCount(100);
   await expect(page.locator('.live-feed__count')).toHaveText(t('feed.count', { count: 100 }));
-  await expect(page.locator('.event-row').last()).toContainText('buffer 299');
-  await page.locator('.live-feed__search input').fill('buffer 299');
-  await expect(page.locator('.event-row')).toHaveCount(1);
-  await page.locator('.live-feed__search input').fill('buffer 0');
-  await expect(page.locator('.event-row')).toHaveCount(0);
-  await page.locator('.live-feed__search input').fill('');
-  await expect(page.locator('.event-row')).toHaveCount(100);
+  await expect(page.locator(SEL.eventRow).last()).toContainText('buffer 299');
+  await page.locator(SEL.feedSearch).fill('buffer 299');
+  await expect(page.locator(SEL.eventRow)).toHaveCount(1);
+  await page.locator(SEL.feedSearch).fill('buffer 0');
+  await expect(page.locator(SEL.eventRow)).toHaveCount(0);
+  await page.locator(SEL.feedSearch).fill('');
+  await expect(page.locator(SEL.eventRow)).toHaveCount(100);
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });

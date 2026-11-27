@@ -4,6 +4,7 @@ import { expect, test } from '@playwright/test';
 
 import { assertNoUnhandledCalls, emitTopic, installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
+import { SEL } from './support/selectors.ts';
 
 test('feed rows stay badge-free and open details in the shared panel', async ({ page }) => {
   const capture = await installFakeHost(page, emptyState());
@@ -23,7 +24,7 @@ test('feed rows stay badge-free and open details in the shared panel', async ({ 
     },
   });
 
-  const row = page.locator('.event-card').first();
+  const row = page.locator(SEL.eventCard).first();
   await expect(row).toBeVisible();
   // Level and points are details, not row decoration.
   await expect(row.locator('.tt-badge-level')).toHaveCount(0);
@@ -31,15 +32,15 @@ test('feed rows stay badge-free and open details in the shared panel', async ({ 
   // The timestamp is always visible, even when points were earned.
   await expect(row.locator('.event-card__time')).toBeVisible();
 
-  await row.locator('.event-card__content').click();
-  await expect(page.locator('.event-details')).toBeVisible();
-  await expect(page.locator('.event-details')).toContainText('Level');
-  await expect(page.locator('.event-details')).toContainText(t('feed.details.points'));
-  await expect(page.locator('.event-details')).toContainText('Rose');
+  await row.locator(SEL.eventCardContent).click();
+  await expect(page.locator(SEL.eventDetails)).toBeVisible();
+  await expect(page.locator(SEL.eventDetails)).toContainText('Level');
+  await expect(page.locator(SEL.eventDetails)).toContainText(t('feed.details.points'));
+  await expect(page.locator(SEL.eventDetails)).toContainText('Rose');
 
   // Escape closes the panel and returns focus to the row's control.
   await page.keyboard.press('Escape');
-  await expect(page.locator('.event-details')).toHaveCount(0);
+  await expect(page.locator(SEL.eventDetails)).toHaveCount(0);
 
   await assertNoUnhandledCalls(page);
   capture.assertClean();
@@ -54,7 +55,7 @@ test('the avatar opens the user profile in the same panel', async ({ page }) => 
     event: { kind: 'chat', author: 'alice', nickname: 'Alice', text: 'hola', msgId: 'aside-chat-1' },
   });
 
-  await page.locator('.event-card').first().locator('.event-card__author').click();
+  await page.locator(SEL.eventCard).first().locator('.event-card__author').click();
   await expect(page.locator('.feed-inspector .viewer-profile')).toBeVisible();
   await expect(page.locator('.feed-inspector')).toContainText('@alice');
 

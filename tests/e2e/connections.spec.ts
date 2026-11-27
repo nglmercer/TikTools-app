@@ -15,6 +15,7 @@ import {
   sonicboomConnectedState,
   sonicboomDisconnectedState,
 } from './fixtures/states.ts';
+import { SEL } from './support/selectors.ts';
 
 async function openConnections(page: Parameters<typeof installFakeHost>[0]) {
   const tab = page.getByRole('link', { name: t('navigation.connections') });
@@ -48,7 +49,7 @@ test('server connection success shows latency and stays editable', async ({ page
   // The detail opens inside the server panel: the header carries the probe
   // status while the body keeps the connection fields editable.
   await expect(page.getByText(t('connections.servers.connectedIn', { ms: 12 }))).toBeVisible();
-  const urlField = page.locator('.plugin-servers__detail input').first();
+  const urlField = page.locator(SEL.pluginServerInput).first();
   await expect(urlField).toBeEnabled();
   await expect(urlField).toHaveValue('http://127.0.0.1:17842');
 
@@ -76,7 +77,7 @@ test('server connection failure shows the error without an app-wide crash', asyn
   await expect(page.getByText('connection refused', { exact: false }).first()).toBeVisible();
 
   // Settings remain editable after a failed probe.
-  const urlField = page.locator('.plugin-servers__detail input').first();
+  const urlField = page.locator(SEL.pluginServerInput).first();
   await expect(urlField).toBeEnabled();
   await expect(page.getByRole('link', { name: t('navigation.connections') })).toHaveAttribute(
     'aria-current',
@@ -114,7 +115,7 @@ test('REPO imports a token through the shared card without showing the secret', 
   await expect(page.getByText(t('plugins.messages.tokenImported'))).toBeVisible();
   await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveClass(/credentials__details--ok/);
   await expect(page.getByText(t('connections.servers.connectedIn', { ms: 1 }))).toBeVisible();
-  await expect(page.locator('.plugin-servers__detail input[type="password"]')).toHaveValue('••••••••');
+  await expect(page.locator(SEL.pluginServerPassword)).toHaveValue('••••••••');
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });
@@ -156,7 +157,7 @@ test('automatic REPO setup chooses a profile and distinguishes API availability 
   await expect(page.getByText(t('plugins.messages.tokenImported'))).toBeVisible();
   await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveClass(/credentials__details--ok/);
   await expect(page.getByText(t('connections.servers.apiNotReady'), { exact: true }).first()).toBeVisible();
-  await expect(page.locator('.plugin-servers__detail input[type="password"]')).toHaveValue('••••••••');
+  await expect(page.locator(SEL.pluginServerPassword)).toHaveValue('••••••••');
   await expect(page.locator('.connection-editor input').first()).toHaveValue('http://127.0.0.1:18053');
   await assertNoUnhandledCalls(page);
   capture.assertClean();

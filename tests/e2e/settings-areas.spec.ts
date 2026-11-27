@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { readHostState, installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState, sonicboomConnectedState } from './fixtures/states.ts';
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
+import { ROUTE } from '../shared/index.ts';
 
 const t = (key: string): string => testMessage('en', key);
 
@@ -13,7 +14,7 @@ const t = (key: string): string => testMessage('en', key);
 
 test('Settings keeps only application sections, with a language picker', async ({ page }) => {
   const consoleCapture = await installFakeHost(page, emptyState());
-  await page.goto('/#/settings');
+  await page.goto(ROUTE.settings);
   await waitForFrontend(page);
   await expect(page.getByRole('tab')).toHaveText([t('settingsLayout.labels.general'), t('settingsLayout.labels.account')]);
   await expect(page.getByRole('heading', { level: 1 })).toHaveCount(0);
@@ -29,7 +30,7 @@ test('the old globals link lands on Automations > Variables and saves through th
   const state = emptyState();
   state.globals = { commandPort: '46665' };
   const consoleCapture = await installFakeHost(page, state);
-  await page.goto('/#/settings?section=globals');
+  await page.goto(ROUTE.settingsGlobals);
   await waitForFrontend(page);
   await expect(page).toHaveURL(/#\/automations/);
   await expect(page.getByRole('tab', { name: t('automations.library.variables') })).toHaveAttribute('aria-selected', 'true');
@@ -43,7 +44,7 @@ test('the old globals link lands on Automations > Variables and saves through th
 
 test('the old plugin updates link opens the plugin preferences and goes back', async ({ page }) => {
   const consoleCapture = await installFakeHost(page, sonicboomConnectedState());
-  await page.goto('/#/settings?section=plugins');
+  await page.goto(ROUTE.settingsPlugins);
   await waitForFrontend(page);
   await expect(page).toHaveURL(/#\/plugins/);
   await expect(page.getByText(t('packages.sources.allowSideload'))).toBeVisible();
@@ -59,21 +60,21 @@ test('Cloud areas appear in their own page only when the host announces them', a
   const state = emptyState();
   state.announcedMethods = ['bundles.overlays.create', 'bundles.packages.preflight', 'integrations.connections'];
   await installFakeHost(page, state);
-  await page.goto('/#/overlays');
+  await page.goto(ROUTE.overlays);
   await waitForFrontend(page);
   await page.getByRole('button', { name: t('overlays.cloud') }).click();
   await expect(page.getByRole('heading', { name: t('overlays.cloud'), level: 2 })).toBeVisible();
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(page.getByRole('heading', { name: t('overlays.widgets') })).toBeVisible();
-  await page.goto('/#/connections');
+  await page.goto(ROUTE.connections);
   await expect(page.getByRole('button', { name: t('connections.tabs.webhooks') })).toBeVisible();
 });
 
 test('without announcements the Cloud areas stay hidden', async ({ page }) => {
   await installFakeHost(page, emptyState());
-  await page.goto('/#/overlays');
+  await page.goto(ROUTE.overlays);
   await waitForFrontend(page);
   await expect(page.getByRole('button', { name: t('overlays.cloud'), exact: true })).toHaveCount(0);
-  await page.goto('/#/connections');
+  await page.goto(ROUTE.connections);
   await expect(page.getByRole('button', { name: t('connections.tabs.webhooks') })).toHaveCount(0);
 });

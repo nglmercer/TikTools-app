@@ -29,6 +29,8 @@ import {
   routeExternalAssetFixture,
 } from './fixtures/plugin-frame.ts';
 import { webviewPageState } from './fixtures/states.ts';
+import { SEL, PLUGIN_TITLE } from './support/selectors.ts';
+import { WAIT_MS } from './support/timeouts.ts';
 
 test.skip(!compiledPluginUiAvailable, 'needs the plugins-example-tiktools checkout (set TIKTOOLS_PLUGINS_REPO)');
 
@@ -46,7 +48,7 @@ test('external module and stylesheet load in the sandboxed frame with CORS', asy
 
   await page.goto(`${PLUGIN_EXTERNAL_BASE}harness.html`);
   const frame = page.frameLocator('#plugin-frame');
-  await expect(frame.locator('#external')).toHaveText('external-js-ok', { timeout: 10_000 });
+  await expect(frame.locator('#external')).toHaveText('external-js-ok', { timeout: WAIT_MS.frame });
   await expect(frame.locator('#external')).toHaveCSS('color', 'rgb(1, 2, 3)');
 
   expect(errors).toEqual([]);
@@ -68,7 +70,7 @@ test('external module is blocked in the sandboxed frame without CORS', async ({ 
   // Poll the collector attached above (the block may already have fired
   // before a post-navigation listener could subscribe).
   await expect
-    .poll(() => errors.filter((text) => /cors/i.test(text)).length, { timeout: 10_000 })
+    .poll(() => errors.filter((text) => /cors/i.test(text)).length, { timeout: WAIT_MS.frame })
     .toBeGreaterThan(0);
   const frame = page.frameLocator('#plugin-frame');
   await expect(frame.locator('#external')).toHaveText('(pending)');
@@ -85,18 +87,18 @@ test('inline tab renders the real compiled SonicBoom bundle', async ({ page }) =
   await page.goto('/');
   await waitForFrontend(page);
 
-  const tab = page.getByRole('link', { name: 'Text to Speech' });
+  const tab = page.getByRole('link', { name: PLUGIN_TITLE.tts });
   await expect(tab).toBeVisible();
   await tab.click();
-  await expect(page.getByRole('heading', { name: 'Text to Speech' }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: PLUGIN_TITLE.tts }).first()).toBeVisible();
 
-  const frame = page.frameLocator('.plugin-frame');
-  await expect(frame.getByLabel('Default voice')).toBeVisible({ timeout: 20_000 });
-  await expect(frame.getByLabel('Audio output').first()).toBeVisible({ timeout: 10_000 });
+  const frame = page.frameLocator(SEL.pluginFrame);
+  await expect(frame.getByLabel('Default voice')).toBeVisible({ timeout: WAIT_MS.long });
+  await expect(frame.getByLabel('Audio output').first()).toBeVisible({ timeout: WAIT_MS.frame });
   await expect(frame.getByRole('button', { name: 'Play' })).toBeVisible();
 
   // The iframe fills the tab area instead of a fixed-height box.
-  const frameBox = await page.locator('.plugin-frame').boundingBox();
+  const frameBox = await page.locator(SEL.pluginFrame).boundingBox();
   expect(frameBox?.height).toBeGreaterThan(500);
 
   await assertNoUnhandledCalls(page);
@@ -132,13 +134,13 @@ async function expectScrollableInlineUi(
 
   // Narrow windows collapse navigation into the sidebar drawer; the native shell menu opens it.
   await emitPush(page, { type: 'shell-menu-action', id: 'toggle-sidebar' });
-  const tab = page.getByRole('link', { name: 'Text to Speech' });
+  const tab = page.getByRole('link', { name: PLUGIN_TITLE.tts });
   await expect(tab).toBeVisible();
   await tab.click();
-  await expect(page.getByRole('heading', { name: 'Text to Speech' }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: PLUGIN_TITLE.tts }).first()).toBeVisible();
 
-  const frame = page.frameLocator('.plugin-frame');
-  await expect(frame.getByLabel('Default voice')).toBeVisible({ timeout: 20_000 });
+  const frame = page.frameLocator(SEL.pluginFrame);
+  await expect(frame.getByLabel('Default voice')).toBeVisible({ timeout: WAIT_MS.long });
 
   // The plugin document is the single content scroller: at these sizes
   // the content overflows and must scroll instead of clipping.
@@ -179,7 +181,7 @@ async function expectScrollableInlineUi(
   expect(bottom.top).toBeGreaterThanOrEqual(bottom.max - 2);
 
   // The iframe keeps a usable height and still fills the tab area.
-  const frameBox = await page.locator('.plugin-frame').boundingBox();
+  const frameBox = await page.locator(SEL.pluginFrame).boundingBox();
   const scrollBox = await page.locator('.plugin-page__panel .base-panel__body').boundingBox();
   expect(frameBox?.height).toBeGreaterThan(options.minFrameHeight ?? 0);
   expect(Math.abs((frameBox?.height ?? 0) - (scrollBox?.height ?? 0))).toBeLessThan(40);

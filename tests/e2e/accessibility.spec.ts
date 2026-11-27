@@ -11,6 +11,8 @@ import {
 } from './fixtures/tiktools-host.ts';
 import { installPluginUiOverride, routePluginFixture } from './fixtures/plugin-frame.ts';
 import { optionFailureState, ttsPageState, webviewPageState } from './fixtures/states.ts';
+import { SEL, PLUGIN_TITLE } from './support/selectors.ts';
+import { WAIT_MS } from './support/timeouts.ts';
 
 test('navigation exposes named buttons and the active tab marker', async ({ page }) => {
   const consoleCapture = await installFakeHost(page, ttsPageState());
@@ -45,10 +47,10 @@ test('inline plugin frame exposes a keyboard-operable pop-out', async ({ page })
   await routePluginFixture(page);
   await page.goto('/');
   await waitForFrontend(page);
-  await page.getByRole('link', { name: 'Text to Speech' }).click();
+  await page.getByRole('link', { name: PLUGIN_TITLE.tts }).click();
 
-  const frame = page.frameLocator('.plugin-frame');
-  await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: 10_000 });
+  const frame = page.frameLocator(SEL.pluginFrame);
+  await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: WAIT_MS.frame });
 
   // Keyboard: the pop-out action is reachable and operable by keyboard.
   const popOut = page.getByRole('button', { name: t('plugins.page.openWindow') });

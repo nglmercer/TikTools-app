@@ -5,6 +5,8 @@ import { readHostState, installFakeHost, waitForFrontend } from './fixtures/tikt
 import { emptyState, sonicboomConnectedState } from './fixtures/states.ts';
 import { SONICBOOM_ID } from './fixtures/plugins.ts';
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
+import { ROUTE } from '../shared/index.ts';
+import { SEL } from './support/selectors.ts';
 
 const t = (key: string, params?: Record<string, string | number>): string => testMessage('en', key, params);
 
@@ -27,14 +29,14 @@ test('the Events tab lists what changed since the last snapshot and asks before 
   const snapshot = { greet: event('greet', 'Greeting'), gone: event('gone', 'Removed one') };
   const capture = await installFakeHost(page, state);
   await page.addInitScript((value) => localStorage.setItem('tiktools.sync.snapshot.automation-events', JSON.stringify(value)), snapshot);
-  await page.goto('/#/automations');
+  await page.goto(ROUTE.automations);
   await waitForFrontend(page);
 
   const button = page.getByRole('button', { name: t('syncChanges.buttonCount', { count: 3 }) });
   await expect(button).toBeVisible();
   await button.click();
   const panel = page.getByRole('dialog', { name: `${t('syncChanges.title')} · Events` });
-  await expect(panel.locator('.change-review__card')).toHaveCount(3);
+  await expect(panel.locator(SEL.changeReviewCard)).toHaveCount(3);
   // Automations have no Cloud transport yet, so only reset and mark as reviewed are offered.
   await expect(panel.locator('.sync-panel__status')).toContainText(t('syncChanges.automationsNotice'));
   await expect(panel.getByRole('button', { name: t('syncChanges.fetch') })).toHaveCount(0);
@@ -51,7 +53,7 @@ test('the Events tab lists what changed since the last snapshot and asks before 
   await panel.getByRole('button', { name: t('syncChanges.markReviewed') }).click();
   await expect(panel.getByRole('alertdialog')).toContainText(t('syncChanges.confirmMarkReviewed'));
   await panel.getByRole('button', { name: t('syncChanges.confirm') }).click();
-  await expect(panel.locator('.change-review__card')).toHaveCount(0);
+  await expect(panel.locator(SEL.changeReviewCard)).toHaveCount(0);
   await expect(panel.getByRole('button', { name: t('syncChanges.markReviewed') })).toBeDisabled();
   const reference = await page.evaluate(() => JSON.parse(localStorage.getItem('tiktools.sync.snapshot.automation-events') ?? '{}'));
   expect(Object.keys(reference).sort()).toEqual(['greet', 'new']);
@@ -73,7 +75,7 @@ test('Plugins send the whole pass and resolve a conflict through the v2 contract
     ],
   };
   const capture = await installFakeHost(page, state);
-  await page.goto('/#/plugins');
+  await page.goto(ROUTE.plugins);
   await waitForFrontend(page);
 
   await page.getByRole('button', { name: t('syncChanges.buttonCount', { count: 2 }) }).click();
@@ -81,7 +83,7 @@ test('Plugins send the whole pass and resolve a conflict through the v2 contract
   await expect(panel.locator('.sync-review__side--local')).toHaveCount(1);
   await expandCard(panel, 'other.plugin');
   await expect(panel.locator('.sync-panel__keys')).toContainText('Changed settings: apiKey, volume');
-  await expect(panel.locator('.base-json-diff')).toHaveCount(0);
+  await expect(panel.locator(SEL.baseJsonDiff)).toHaveCount(0);
   await expandCard(panel, 'SonicBoom Server');
   await expect(panel.locator('.sync-review__side--conflict')).toHaveCount(1);
   await expect(panel.getByRole('button', { name: t('syncChanges.sync'), exact: true })).toBeVisible();
@@ -100,7 +102,7 @@ test('the Plugins button explains why it is disabled when sync is off', async ({
   state.announcedMethods = ['cloud.status', 'sync.status', 'sync.v2.section', 'sync.v2.changes.list'];
   state.sync = { signedIn: true, enabled: false, entries: [], resolved: [] };
   const capture = await installFakeHost(page, state);
-  await page.goto('/#/plugins');
+  await page.goto(ROUTE.plugins);
   await waitForFrontend(page);
   const button = page.getByRole('button', { name: t('syncChanges.button') });
   await expect(button).toBeEnabled();

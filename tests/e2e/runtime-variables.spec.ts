@@ -3,6 +3,7 @@ import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test, type Locator } from '@playwright/test';
 import { countCalls, installFakeHost, readHostState, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
+import { ROUTE } from '../shared/index.ts';
 
 test('Variables preserves explicit types and keeps local secrets masked', async ({ page }, testInfo) => {
   const state = emptyState();
@@ -14,7 +15,7 @@ test('Variables preserves explicit types and keeps local secrets masked', async 
     names: { type: 'list', value: ['uno', 'dos'] },
   };
   const consoleCapture = await installFakeHost(page, state);
-  await page.goto('/#/automations?view=variables');
+  await page.goto(ROUTE.automationVariables);
   await waitForFrontend(page);
   const table = page.getByRole('table', { name: t('globals.title') });
   const rows = table.getByRole('row');
@@ -51,7 +52,7 @@ test('Variables Changes adopts a reviewed value and withdraws a secret without r
     { review: 'secret-withdraw-review', name: 'ordinary', local: null, cloud: null, cloudDeleted: false, localSecret: true, blockedLocal: false, pendingStatus: 'unconfirmed', canSend: false, canApply: false, canWithdraw: true },
   ];
   const capture = await installFakeHost(page, state);
-  await page.goto('/#/automations?view=variables');
+  await page.goto(ROUTE.automationVariables);
   await waitForFrontend(page);
   await page.getByRole('button', { name: /Sync changes/ }).click();
   const panel = page.getByRole('dialog', { name: 'Changes · Variables', exact: true });
@@ -84,7 +85,7 @@ test('editing another variable retains the exact native integer', async ({ page 
     label: { type: 'text', value: 'before' },
   };
   const capture = await installFakeHost(page, state);
-  await page.goto('/#/automations?view=variables');
+  await page.goto(ROUTE.automationVariables);
   await waitForFrontend(page);
   const rows = page.getByRole('table', { name: t('globals.title') }).getByRole('row');
   await expect(rows.nth(1).getByRole('textbox', { name: t('globals.value') })).toHaveValue('9223372036854775807');

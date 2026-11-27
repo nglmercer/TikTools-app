@@ -5,6 +5,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { assertNoUnhandledCalls, installFakeHost, readHostState, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
+import { SEL } from './support/selectors.ts';
 
 async function openOverlays(page: Page) {
   const capture = await installFakeHost(page, emptyState(), { theme: 'dark' });
@@ -49,7 +50,7 @@ test('every widget exposes its default layers in the inspector and preview', asy
       await layers(page).getByRole('option', { name: new RegExp(field + ' Text') }).click();
       await expect(page.getByRole('textbox', { name: 'Content', exact: true })).toBeVisible();
     }
-    await expect(page.locator('.widget-host').getByText('Viewer Name', { exact: true }).first()).toBeVisible();
+    await expect(page.locator(SEL.widgetHost).getByText('Viewer Name', { exact: true }).first()).toBeVisible();
   }
   await assertNoUnhandledCalls(page);
   capture.assertClean();
@@ -77,10 +78,10 @@ test('card styles preview, discard, save per widget, and reset', async ({ page }
   const background = page.getByRole('textbox', { name: 'Background', exact: true });
   await background.fill('#112233');
   await background.press('Enter');
-  await expect(page.locator('.follow-card')).toHaveCSS('background-color', 'rgb(17, 34, 51)');
+  await expect(page.locator(SEL.followCard)).toHaveCSS('background-color', 'rgb(17, 34, 51)');
   await page.getByRole('button', { name: t('overlays.editor.discard'), exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Discard', exact: true }).click();
-  await expect(page.locator('.follow-card')).toHaveCSS('background-color', 'rgb(22, 22, 29)');
+  await expect(page.locator(SEL.followCard)).toHaveCSS('background-color', 'rgb(22, 22, 29)');
   await background.fill('#112233');
   await background.press('Enter');
   await page.getByRole('button', { name: t('overlays.editor.save'), exact: true }).click();
@@ -92,7 +93,7 @@ test('card styles preview, discard, save per widget, and reset', async ({ page }
   await page.getByRole('button', { name: t('overlays.editor.options'), exact: true }).click();
   await page.getByRole('menuitem', { name: t('overlays.editor.resetDesign'), exact: true }).click();
   await page.getByRole('button', { name: t('overlays.editor.save'), exact: true }).click();
-  await expect(page.locator('.follow-card')).toHaveCSS('background-color', 'rgb(22, 22, 29)');
+  await expect(page.locator(SEL.followCard)).toHaveCSS('background-color', 'rgb(22, 22, 29)');
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });
@@ -102,7 +103,7 @@ test('rapid replay and tab changes never place alert cards side by side', async 
   await page.goto('/');
   await waitForFrontend(page);
   await page.getByRole('link', { name: 'Overlays', exact: true }).click();
-  await expect(page.locator('.follow-card')).toBeVisible();
+  await expect(page.locator(SEL.followCard)).toBeVisible();
   // Observe every animation frame, including the intermediate transition
   // states that a final visibility assertion would miss.
   await page.evaluate(() => {
@@ -143,7 +144,7 @@ test('rapid replay and tab changes never place alert cards side by side', async 
     return target.widgetTransitionViolations;
   });
   expect(violations).toEqual([]);
-  await expect(page.locator('.follow-card')).toHaveCount(1);
+  await expect(page.locator(SEL.followCard)).toHaveCount(1);
 });
 
 test('all widget previews render locally without a gateway and replay', async ({ page }, testInfo) => {
@@ -164,21 +165,21 @@ test('all widget previews render locally without a gateway and replay', async ({
     [t('overlays.kinds.subscribe.name'), 'subscribe', '.subscribe-card'],
   ]) {
     await page.getByRole('option', { name: label, exact: true }).click();
-    await expect(page.locator('.widget-host')).toHaveAttribute('data-widget', kind!);
+    await expect(page.locator(SEL.widgetHost)).toHaveAttribute('data-widget', kind!);
     await expect(page.locator(selector!).first()).toBeVisible();
     await page.getByRole('button', { name: t('overlays.preview.replay') }).click();
     await expect(page.locator(selector!).first()).toBeVisible();
-    await expect(page.locator('.widget-host')).toHaveCount(1);
+    await expect(page.locator(SEL.widgetHost)).toHaveCount(1);
   }
   // The sample must remain visible beyond the normal subscription duration.
   await page.waitForTimeout(5500);
-  await expect(page.locator('.subscribe-card')).toBeVisible();
+  await expect(page.locator(SEL.subscribeCard)).toBeVisible();
   await expect(page.locator('.overlay-preview__canvas iframe')).toHaveCount(0);
   expect(gatewayRequests).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('widgets-preview.png') });
   await page.setViewportSize({ width: 520, height: 800 });
   const preview = await page.locator('.overlay-preview__canvas').boundingBox();
-  const card = await page.locator('.subscribe-card').boundingBox();
+  const card = await page.locator(SEL.subscribeCard).boundingBox();
   expect(card!.width).toBeLessThanOrEqual(preview!.width);
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();

@@ -4,6 +4,8 @@ import { expect, test } from '@playwright/test';
 
 import { installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
+import { ROUTE } from '../shared/index.ts';
+import { SEL } from './support/selectors.ts';
 
 /**
  * Plugins, Explore lists the Cloud catalog when the host announces `catalog.items`; the rule templates
@@ -31,11 +33,11 @@ function catalogState() {
 
 test('Explore shows the published plugin from the Cloud catalog', async ({ page }) => {
   const capture = await installFakeHost(page, catalogState());
-  await page.goto('/#/plugins');
+  await page.goto(ROUTE.plugins);
   await waitForFrontend(page);
   await page.getByRole('tab', { name: /Explore/ }).click();
-  await expect(page.locator('.explore-list__row')).toHaveCount(1);
-  await expect(page.locator('.explore-list__row')).toContainText('Voice reader');
+  await expect(page.locator(SEL.exploreRow)).toHaveCount(1);
+  await expect(page.locator(SEL.exploreRow)).toContainText('Voice reader');
   await expect(page.getByText('marketplace', { exact: false })).toHaveCount(0);
   capture.assertClean();
 });
@@ -44,7 +46,7 @@ test('Explore shows a neutral retry state when the Cloud is unreachable, and "no
   const state = catalogState();
   state.catalog!.error = { code: 'unavailable', message: 'cloud down', data: { cloud: { code: 'offline' } } };
   await installFakeHost(page, state);
-  await page.goto('/#/plugins');
+  await page.goto(ROUTE.plugins);
   await waitForFrontend(page);
   await page.getByRole('tab', { name: /Explore/ }).click();
   await expect(page.getByText(t('exploreCatalog.unavailable'))).toBeVisible();
