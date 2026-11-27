@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
-  demoTestId, demoUrl, docLocales, expectFirstChatMessage, frameTestId, guideLink, retiredLandingSelectors, selector, stageFrame, stageTestId, trackPageErrors, viewport,
+  demoTestId, demoUrl, docLocales, expectFirstChatMessage, frameTestId, guideLink, qaArtifacts, qaScreenshot, retiredLandingSelectors, selector, stageFrame, stageTestId, trackPageErrors, viewport,
 } from './support/index.ts';
 import { docCopy } from '../../docs/locales.ts';
 import { experienceCopy } from '../../docs/experience/copy.ts';
@@ -52,13 +52,18 @@ test('demo toolbar shares real controls, contains menus and fits desktop and mob
   await expect(page).toHaveURL(/#\/points$/);
   await expect(play).toBeVisible();
   expect(errors).toEqual([]);
-  await page.setViewportSize(viewport.laptop);
-  await page.screenshot({ path: '/tmp/tiktools-docs-design-demo-desktop.png' });
-  await page.setViewportSize(viewport.mobile);
-  await page.screenshot({ path: '/tmp/tiktools-docs-design-demo-mobile.png' });
+  // Review-only captures at the end of the test; skipped outside QA runs.
+  if (qaArtifacts) {
+    await page.setViewportSize(viewport.laptop);
+    await qaScreenshot(page, 'tiktools-docs-design-demo-desktop.png');
+    await page.setViewportSize(viewport.mobile);
+    await qaScreenshot(page, 'tiktools-docs-design-demo-mobile.png');
+  }
 });
 
 test('the landing tour jumps between real views and docks the demo controls in the bar', async ({ page }) => {
+  // The suite reduces motion by default; the tour only autoplays with motion enabled.
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('');
   const frame = page.locator(selector.stageFrame);
   await expect(frame).toHaveAttribute('src', /showcase=1/);
@@ -67,6 +72,8 @@ test('the landing tour jumps between real views and docks the demo controls in t
   const tourToggle = page.getByTestId(stageTestId.tourToggle);
   const pointsStep = page.getByTestId(stageTestId.step('points'));
   await expect(tourToggle).toHaveAttribute('aria-pressed', 'true');
+  // Frame commands are ignored until the demo reports ready; the first chat message proves it did.
+  await expectFirstChatMessage(stageFrame(page));
   const source = await frame.getAttribute('src');
   await pointsStep.click();
   await expect(page.locator(selector.stageLesson)).toHaveText(experienceCopy.en.topics.points.title);
@@ -140,15 +147,15 @@ test('product landing pages show the real demo automatically and fit every viewp
     expect(await title.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeLessThanOrEqual(MAX_MOBILE_HERO_FONT_PX);
     const layout = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth, overflow: [...document.querySelectorAll('main *')].filter((node) => node.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map((node) => ({ element: node.tagName, class: node.className, right: node.getBoundingClientRect().right })) }));
     expect(layout.width, JSON.stringify(layout.overflow)).toBeLessThanOrEqual(layout.viewport);
-    await page.screenshot({ path: `/tmp/tiktools-docs-design-${route ? route.slice(0, 2) : 'root'}-mobile.png`, fullPage: true });
+    await qaScreenshot(page, `tiktools-docs-design-${route ? route.slice(0, 2) : 'root'}-mobile.png`, { fullPage: true });
     await page.setViewportSize(viewport.desktop);
-    await page.screenshot({ path: `/tmp/tiktools-docs-design-${route ? route.slice(0, 2) : 'root'}-desktop.png`, fullPage: true });
+    await qaScreenshot(page, `tiktools-docs-design-${route ? route.slice(0, 2) : 'root'}-desktop.png`, { fullPage: true });
   }
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.goto('');
   await expect(page.locator('html')).toHaveClass(/dark/);
-  await page.screenshot({ path: '/tmp/tiktools-docs-design-root-dark.png', fullPage: true });
+  await qaScreenshot(page, 'tiktools-docs-design-root-dark.png', { fullPage: true });
   await page.goto('es/');
   await expectFirstChatMessage(stageFrame(page));
-  await page.screenshot({ path: '/tmp/tiktools-docs-design-es-dark.png', fullPage: true });
+  await qaScreenshot(page, 'tiktools-docs-design-es-dark.png', { fullPage: true });
 });

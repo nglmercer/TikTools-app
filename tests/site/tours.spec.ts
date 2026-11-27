@@ -38,11 +38,6 @@ const catalog = {
   detailTitle: '.tutorial-catalog__detail h3',
 } as const;
 
-/** Every tutorial selected in turn, each prepared and dismissed. */
-const SWEEP_TIMEOUT_MS = 120_000;
-/** Every prepared step of the remaining tours, walked in one test. */
-const FULL_WALK_TIMEOUT_MS = 150_000;
-
 async function pickCatalogTour(page: Page, title: string): Promise<void> {
   const dialog = page.locator(catalog.dialog);
   await dialog.locator(catalog.search).fill(title);
@@ -99,9 +94,8 @@ for (const locale of cjkLocales) test(`${locale}: playback and a selected walkth
   await expect(page.getByTestId(demoTestId.guideStatus)).toHaveAttribute('data-status', 'dismissed');
 });
 
-test('tutorial selection prepares each matching scenario and reports dismissal without completion', async ({ page }) => {
-  test.setTimeout(SWEEP_TIMEOUT_MS);
-  for (const id of demoTutorialIds) {
+for (const id of demoTutorialIds) {
+  test(`tutorial selection prepares each matching scenario and reports dismissal without completion: ${id}`, async ({ page }) => {
     await page.goto(demoUrl({ scenario: 'connection', instance: instanceId('select', id) }));
     await expect(page.getByTestId(demoTestId.guide)).toBeEnabled();
     await launchFromCatalog(page, catalogCard('en', id).title);
@@ -117,8 +111,8 @@ test('tutorial selection prepares each matching scenario and reports dismissal w
     await page.locator(driver.close).click();
     await expect(page.getByTestId(demoTestId.guideStatus)).toHaveAttribute('data-status', 'dismissed');
     await expect(page.getByTestId(demoTestId.guide)).toBeEnabled();
-  }
-});
+  });
+}
 
 test('the in-app demo catalog keeps unsupported tours out and delegates scenario preparation', async ({ page }) => {
   await page.goto(demoUrl({ scenario: 'connection', instance: 'menu-catalog' }));
@@ -139,21 +133,22 @@ test('the in-app demo catalog keeps unsupported tours out and delegates scenario
   await page.locator(driver.close).click();
 });
 
-test('shared tours load Driver inside the demo and dismissal stays dismissed', async ({ page }) => {
-  const errors = trackPageErrors(page);
-  for (const [tour, scenario] of Object.entries(demoTourScenarios)) {
+for (const [tour, scenario] of Object.entries(demoTourScenarios)) {
+  test(`shared tours load Driver inside the demo and dismissal stays dismissed: ${tour}`, async ({ page }) => {
+    const errors = trackPageErrors(page);
     await page.goto(demoUrl({ scenario, tour, instance: instanceId('tour', tour) }));
     await expect(page.locator(driver.popover)).toBeVisible({ timeout: timeout.step });
     await page.locator(driver.close).click();
     await expect(page.locator(driver.popover)).toHaveCount(0);
+    // Each case has its own page, so sessionStorage only holds this tour's progress.
     const progress = await page.evaluate(
       (prefix) => Object.keys(sessionStorage).filter((key) => key.startsWith(prefix)).map((key) => sessionStorage.getItem(key)),
       DEMO_STORAGE_PREFIX,
     );
     expect(progress.some((value) => value?.includes('"status":"completed"'))).toBe(false);
-  }
-  expect(errors).toEqual([]);
-});
+    expect(errors).toEqual([]);
+  });
+}
 
 test('navigating away cancels the guide and reset clears only this instance progress', async ({ page }) => {
   await page.goto(demoUrl({ scenario: 'connection', tour: 'connection', instance: 'tour-reset' }));
@@ -228,20 +223,18 @@ for (const id of ['automationActionMedia', 'automationActionTts', 'automationAct
   });
 }
 
-test('orientation and remaining automation tours can walk every available prepared step', async ({ page }) => {
-  test.setTimeout(FULL_WALK_TIMEOUT_MS);
-  const tours = [
-    'automationEventChat', 'automationTemplates',
-    'connection', 'connectionRecovery', 'plugin', 'overlay', 'overlayObs',
-    'points', 'analytics', 'diagnostics', 'feed', 'settings',
-  ] as const;
-  for (const id of tours) {
+for (const id of [
+  'automationEventChat', 'automationTemplates',
+  'connection', 'connectionRecovery', 'plugin', 'overlay', 'overlayObs',
+  'points', 'analytics', 'diagnostics', 'feed', 'settings',
+] as const) {
+  test(`orientation and remaining automation tours can walk every available prepared step: ${id}`, async ({ page }) => {
     await page.goto(demoUrl({ scenario: demoTourScenarios[id], instance: instanceId('walk-full', id) }));
     await launchFromCatalog(page, catalogCard('en', id).title);
     await walkTour(page, id);
     await page.locator(driver.close).click();
-  }
-});
+  });
+}
 
 test('variables and changes tours follow live automations query state', async ({ page }) => {
   await page.goto(demoUrl({ scenario: 'cloud', instance: 'walk-variables' }));

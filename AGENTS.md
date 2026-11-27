@@ -73,3 +73,18 @@
   `assets/` for the README and attach `intro.mp4` to the release.
 - View Transitions are off in framed demos: `startViewTransition` inside the scaled docs iframe
   crashed headless Chromium. Framed views use a CSS fade-in instead.
+
+## Site e2e speed
+
+- `playwright.site.config.ts` runs 2 workers (one per CPU), reduced motion, and no tracing or
+  failure screenshots. A full run of 200 tests takes about 2 minutes; it was 3.5 minutes before.
+- Debugging: `TIKTOOLS_E2E_DEBUG=1` turns tracing, failure screenshots and the `/tmp` review
+  artifacts (`qaScreenshot`, `qaWrite` in `tests/site/support/qa.ts`) back on.
+  `TIKTOOLS_E2E_WORKERS=n` overrides the worker count.
+- A spec that tests motion opts back in (`test.use({ reducedMotion: 'no-preference' })` or
+  `page.emulateMedia`). Tests that only need the tour to progress add `pace=4` to the showcase URL.
+- Prefer one generated test per case (`for (const id of ids) test(...)`) over a loop inside a test, so
+  the two workers share the work and a failure names its case.
+- Frame commands (`showcase-goto`, ...) are ignored until the demo reports ready: wait for a rendered
+  event (`expectFirstChatMessage`) before sending one.
+

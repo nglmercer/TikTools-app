@@ -1,9 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createHash } from 'node:crypto';
-import { readFile, readdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { resolve, join, sep } from 'node:path';
 import {
-  demoTestId, demoUrl, docLocales, expectFirstChatMessage, frameTestId, readyPanelFrame, selector, trackPageErrors, viewport,
+  demoTestId, demoUrl, docLocales, expectFirstChatMessage, frameTestId, qaArtifacts, qaScreenshot, qaWrite, readyPanelFrame, selector, trackPageErrors, viewport,
 } from './support/index.ts';
 import { readArticles, metadataErrors } from '../../docs/scripts/content.ts';
 import { docCopy, localizedDocumentPath, type DocLocale } from '../../docs/locales.ts';
@@ -161,13 +161,17 @@ for (const locale of docLocales) {
     await expect(page.locator('main h1')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (locale === 'es') {
-      // QA captures intentionally wait beyond the navigation exit animation.
-      await page.waitForTimeout(NAV_SETTLE_MS);
-      await page.screenshot({ path: '/tmp/tiktools-docs-review-docs-mobile.png' });
+      if (qaArtifacts) {
+        // QA captures intentionally wait beyond the navigation exit animation.
+        await page.waitForTimeout(NAV_SETTLE_MS);
+        await qaScreenshot(page, 'tiktools-docs-review-docs-mobile.png');
+      }
       await menu.click();
       await expect(menu).toHaveAttribute('aria-expanded', 'true');
-      await page.waitForTimeout(NAV_SETTLE_MS);
-      await page.screenshot({ path: '/tmp/tiktools-docs-review-docs-mobile-navopen.png' });
+      if (qaArtifacts) {
+        await page.waitForTimeout(NAV_SETTLE_MS);
+        await qaScreenshot(page, 'tiktools-docs-review-docs-mobile-navopen.png');
+      }
     }
   });
 }
@@ -188,7 +192,7 @@ test('docs load demo iframes automatically without native IPC or external reques
   expect(await frame.evaluate(() => Object.hasOwn(window, '__TIKTOOLS_E2E_STATE__'))).toBe(false);
   await expect(page.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin');
   await expect(page.getByRole('button', { name: 'Cargar demo interactiva', exact: true })).toHaveCount(0);
-  await page.screenshot({ path: '/tmp/tiktools-docs-review-docs-desktop.png' });
+  await qaScreenshot(page, 'tiktools-docs-review-docs-desktop.png');
   expect(network.external).toEqual([]);
   expect(network.sockets).toEqual([]);
   expect(errors).toEqual([]);
@@ -248,20 +252,23 @@ test('standalone demo remains usable at desktop and mobile sizes', async ({ page
   await page.goto(demoUrl({ scenario: 'feed', locale: 'es', instance: 'documentation-screenshots' }));
   await expect(page.locator(selector.liveFeed)).toBeVisible();
   await expect.poll(async () => JSON.parse((await page.getByTestId(demoTestId.metrics).textContent()) || '{}').client?.pending).toBe(0);
-  const before = JSON.parse((await page.getByTestId(demoTestId.metrics).textContent())!);
+  // The before snapshot only feeds the review evidence.
+  const before = qaArtifacts ? JSON.parse((await page.getByTestId(demoTestId.metrics).textContent())!) : undefined;
   await page.getByTestId(demoTestId.step).click();
   await expect.poll(async () => JSON.parse((await page.getByTestId(demoTestId.metrics).textContent()) || '{}').host?.ticks).toBe(1);
-  const evidence = { url: page.url(), selector: selector.liveFeed, matchingPanels: await page.locator(selector.liveFeed).count(), visible: await page.locator(selector.liveFeed).isVisible(), before, after: JSON.parse((await page.getByTestId(demoTestId.metrics).textContent())!), feedText: await page.locator(selector.liveFeed).innerText() };
-  const report = JSON.stringify(evidence, null, 2);
-  await writeFile('/tmp/tiktools-docs-review-feed-evidence.json', `${report}\n`);
-  await testInfo.attach('demo-feed-step', { body: report, contentType: 'application/json' });
+  if (qaArtifacts) {
+    const evidence = { url: page.url(), selector: selector.liveFeed, matchingPanels: await page.locator(selector.liveFeed).count(), visible: await page.locator(selector.liveFeed).isVisible(), before, after: JSON.parse((await page.getByTestId(demoTestId.metrics).textContent())!), feedText: await page.locator(selector.liveFeed).innerText() };
+    const report = JSON.stringify(evidence, null, 2);
+    await qaWrite('tiktools-docs-review-feed-evidence.json', `${report}\n`);
+    await testInfo.attach('demo-feed-step', { body: report, contentType: 'application/json' });
+  }
   await expectFirstChatMessage(page);
-  await page.screenshot({ path: '/tmp/tiktools-docs-review-demo-desktop.png' });
+  await qaScreenshot(page, 'tiktools-docs-review-demo-desktop.png');
   await page.setViewportSize(viewport.mobile);
   await page.getByTestId(demoTestId.step).click();
   await expect(page.getByTestId(demoTestId.reset)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: '/tmp/tiktools-docs-review-demo-mobile.png' });
+  await qaScreenshot(page, 'tiktools-docs-review-demo-mobile.png');
   expect(network.external).toEqual([]); expect(network.sockets).toEqual([]);
 });
 

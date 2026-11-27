@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
-  demoTestId, demoUrl, docLocales, eventCountText, expectFirstChatMessage, FIRST_CHAT_MESSAGE, frameTestId, guideLink, guideTargetSelector, panelFrameFor, retiredLandingSelectors, selector, stageFrame, stageTestId, trackOutbound, trackPageErrors, viewport,
+  demoTestId, demoUrl, docLocales, eventCountText, expectFirstChatMessage, FIRST_CHAT_MESSAGE, frameTestId, guideLink, guideTargetSelector, panelFrameFor, qaArtifacts, qaScreenshot, retiredLandingSelectors, selector, stageFrame, stageTestId, trackOutbound, trackPageErrors, viewport,
 } from './support/index.ts';
 import { docCopy } from '../../docs/locales.ts';
 import { experienceCopy } from '../../docs/experience/copy.ts';
@@ -42,16 +42,17 @@ for (const locale of docLocales) {
     expect(new URL(await full.getAttribute('href') ?? '', page.url()).searchParams.has('embed')).toBe(false);
     if (locale === 'es') {
       await page.evaluate(() => window.scrollTo(0,0));
-      await page.screenshot({ path:'/tmp/tiktools-redesign-es-guide-desktop.png', fullPage:true });
+      await qaScreenshot(page, 'tiktools-redesign-es-guide-desktop.png', { fullPage: true });
       await page.setViewportSize(viewport.mobile);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await expect(page.locator('.VPSidebar')).not.toBeInViewport();
-      await page.screenshot({ path:'/tmp/tiktools-redesign-es-guide-mobile.png', fullPage:true });
+      await qaScreenshot(page, 'tiktools-redesign-es-guide-mobile.png', { fullPage: true });
     }
     expect(errors).toEqual([]);
   });
 
-  test(`${locale}: article zoom preserves a desktop viewport, working controls and existing state`, async ({ page }) => {
+  // Fixtures are identical in every locale, so this check runs once, in English.
+  if (locale === 'en') test(`${locale}: article zoom preserves a desktop viewport, working controls and existing state`, async ({ page }) => {
     await page.goto(`${locale}/user/live/feed.html`);
     const panel = page.locator('.demo-frame');
     const frame = (await (await panel.locator('iframe').elementHandle())!.contentFrame())!;
@@ -83,12 +84,13 @@ for (const locale of docLocales) {
     await expect(panel.getByTestId(frameTestId.play)).toHaveAttribute('aria-pressed','true');
     await panel.getByTestId(frameTestId.play).click();
     await expect(panel.getByTestId(frameTestId.play)).toHaveAttribute('aria-pressed','false');
-    if (locale === 'en') {
+    // Review-only captures: no assertion follows, so the whole block is skipped outside QA runs.
+    if (qaArtifacts) {
       await panel.getByTestId(frameTestId.step).click();
       await panel.scrollIntoViewIfNeeded();
-      await panel.screenshot({ path:'/tmp/tiktools-scaled-feed-fit.png' });
+      await qaScreenshot(panel, 'tiktools-scaled-feed-fit.png');
       await panel.getByTestId(frameTestId.zoom).selectOption('0.5');
-      await panel.screenshot({ path:'/tmp/tiktools-scaled-feed-50.png' });
+      await qaScreenshot(panel, 'tiktools-scaled-feed-50.png');
     }
   });
 
@@ -110,10 +112,10 @@ for (const locale of docLocales) {
     await expect(rose).toHaveAttribute('alt', 'Rose');
     await expect.poll(() => rose.evaluate(node => (node as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
     expect(new URL((await rose.getAttribute('src'))!,page.url()).origin).toBe(new URL(baseURL!).origin);
-    await expect(page.locator(selector.stageGuideLink)).toHaveAttribute('href', guideLink('feed'));
+    await expect(page.locator(selector.stageGuideLink)).toHaveAttribute('href', guideLink('feed', `/${locale}`));
     await page.getByTestId(stageTestId.step('overlays')).click();
     await expect(frame.locator(guideTargetSelector('overlay-preview'))).toBeVisible();
-    await expect(page.locator(selector.stageGuideLink)).toHaveAttribute('href', guideLink('overlays'));
+    await expect(page.locator(selector.stageGuideLink)).toHaveAttribute('href', guideLink('overlays', `/${locale}`));
     const source = await page.locator(selector.stageFrame).getAttribute('src');
     await page.locator('.docs-home__actions a').first().click();
     await expect(page).toHaveURL(/#playground$/);
@@ -175,7 +177,13 @@ for (const locale of docLocales) {
     await expect(page.locator('h2#linux')).toBeInViewport();
     await page.setViewportSize(viewport.mobile);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    if (locale === 'es') { await expect(page.locator('.VPSidebar')).not.toBeInViewport(); await page.evaluate(() => window.scrollTo(0,0)); await page.screenshot({ path:'/tmp/tiktools-redesign-es-installation-mobile.png',fullPage:true }); }
+    if (locale === 'es') {
+      await expect(page.locator('.VPSidebar')).not.toBeInViewport();
+      if (qaArtifacts) {
+        await page.evaluate(() => window.scrollTo(0,0));
+        await qaScreenshot(page, 'tiktools-redesign-es-installation-mobile.png', { fullPage: true });
+      }
+    }
   });
 
   test(`${locale}: release cards use published assets and filter by operating system`, async ({ page }) => {
@@ -194,7 +202,7 @@ for (const locale of docLocales) {
     }
     await page.setViewportSize(viewport.mobile);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    if (locale === 'es') await page.screenshot({ path:'/tmp/tiktools-redesign-es-releases-mobile.png', fullPage:true });
+    if (locale === 'es') await qaScreenshot(page, 'tiktools-redesign-es-releases-mobile.png', { fullPage: true });
   });
 }
 

@@ -137,19 +137,19 @@ test('the jp URL alias selects Japanese and is rewritten to the canonical ja loc
   expect(new URL(page.url()).searchParams.get('locale')).toBe('ja');
 });
 
-test('every public scenario loads real pages without external or native requests', async ({ page, baseURL }) => {
-  const failures = trackPageErrors(page);
-  const outbound = trackOutbound(page, baseURL!);
-  for (const scenario of Object.keys(scenarios)) {
+for (const scenario of Object.keys(scenarios)) {
+  test(`every public scenario loads real pages without external or native requests: ${scenario}`, async ({ page, baseURL }) => {
+    const failures = trackPageErrors(page);
+    const outbound = trackOutbound(page, baseURL!);
     await page.goto(demoUrl({ scenario, instance: instanceId('smoke', scenario) }));
     await expect(page.getByTestId(demoTestId.play)).toBeVisible();
     await expect(page.locator('#app')).not.toBeEmpty();
     await expectSettled(page);
     await expect(page.locator('body')).not.toContainText('Invalid automation snapshot');
     expect(await page.evaluate(() => typeof window.ipc)).toBe('undefined');
-  }
-  expect(failures).toEqual([]); expect(outbound).toEqual([]);
-});
+    expect(failures).toEqual([]); expect(outbound).toEqual([]);
+  });
+}
 
 test('connect → event → automation → result, then reset and direct refresh', async ({ page }) => {
   await page.goto(demoUrl({ scenario: 'connection', instance: 'flow' }));
@@ -165,6 +165,8 @@ test('connect → event → automation → result, then reset and direct refresh
 });
 
 test('Play connects the first scenario, shows events, and pause/step/reset remain coherent', async ({ page }) => {
+  // Install before navigation so the page's autoplay timer runs on the fake clock.
+  await page.clock.install();
   await page.goto(demoUrl({ scenario: 'connection', instance: 'playback-controls' }));
   const status = page.getByTestId(demoTestId.playbackStatus);
   await expect(page.getByTestId(demoTestId.play)).toBeEnabled();
@@ -174,7 +176,7 @@ test('Play connects the first scenario, shows events, and pause/step/reset remai
   await page.getByTestId(demoTestId.play).click();
   await expect(status).toHaveAttribute('data-status', 'paused');
   const count = await page.getByTestId(demoTestId.eventCount).textContent();
-  await page.waitForTimeout(AUTOPLAY_PAUSE_MS); // Cross the actual autoplay interval: pause must stop delivery.
+  await page.clock.runFor(AUTOPLAY_PAUSE_MS); // Cross the autoplay interval on the fake clock: pause must stop delivery.
   await expect(page.getByTestId(demoTestId.eventCount)).toHaveText(count ?? '');
   await expect(page.getByTestId(demoTestId.step)).toHaveCount(0);
   await feedLink(page).click();
@@ -187,17 +189,17 @@ test('Play connects the first scenario, shows events, and pause/step/reset remai
   await expect(status).toHaveAttribute('data-status', 'ready');
 });
 
-test('component previews and every locale work at a narrow width', async ({ page }) => {
-  await page.setViewportSize(viewport.mobile);
-  for (const locale of demoLocales) {
-    await page.goto(demoUrl({ scenario: 'settings', locale, route: '/components/buttons' }));
+for (const locale of demoLocales) {
+  test(`component previews and every locale work at a narrow width: ${locale}`, async ({ page }) => {
+    await page.setViewportSize(viewport.mobile);
+    await page.goto(demoUrl({ scenario: 'settings', locale, route: '/components/buttons', instance: instanceId('preview', locale) }));
     await expect(page.locator('html')).toHaveAttribute('lang', locale);
     await expect(page.getByTestId(demoTestId.play)).toBeEnabled();
     await expect(page.locator(EXAMPLE_BUTTON)).toBeVisible();
     await page.locator(EXAMPLE_BUTTON).click();
     await expect(page.locator(EXAMPLE_BUTTON)).toContainText('1');
-  }
-});
+  });
+}
 
 test('direct component entry owns a working runtime across catalog and workspace navigation', async ({ page }) => {
   const errors = trackPageErrors(page);
@@ -219,18 +221,18 @@ test('direct component entry owns a working runtime across catalog and workspace
   expect(errors).toEqual([]);
 });
 
-test('all executable component examples render and survive state changes', async ({ page }) => {
-  const errors = trackPageErrors(page);
-  for (const family of Object.keys(componentFamilies)) {
-    await page.goto(demoUrl({ scenario: 'settings', route: `/components/${family}` }));
+for (const family of Object.keys(componentFamilies)) {
+  test(`all executable component examples render and survive state changes: ${family}`, async ({ page }) => {
+    const errors = trackPageErrors(page);
+    await page.goto(demoUrl({ scenario: 'settings', route: `/components/${family}`, instance: instanceId('components', family) }));
     await expect(page.locator(COMPONENT_EXAMPLE)).toBeVisible();
     for (const state of ['Disabled', 'No items', 'Loading']) {
       await page.getByRole('combobox', { name: 'Preview state', exact: true }).click();
       await page.getByRole('option', { name: state, exact: true }).click();
     }
-  }
-  expect(errors).toEqual([]);
-});
+    expect(errors).toEqual([]);
+  });
+}
 
 test('copying a demo URL into another tab isolates preferences and reset', async ({ page, context }) => {
   await page.goto(demoUrl({ scenario: 'settings', route: '/components/buttons', instance: 'copied' }));

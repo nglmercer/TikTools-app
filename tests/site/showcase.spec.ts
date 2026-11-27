@@ -9,10 +9,15 @@ import { showcaseSteps } from '../../src/web/demo/showcase/script.ts';
 const RECORDING_TEST_MS = 90_000;
 /** Reduced motion must not advance the showcase; wait this long, then check it has not moved. */
 const STILL_OBSERVATION_MS = 2_500;
+/** Speed-up for the tests that only need the tour to progress; recordings use real time. */
+const TEST_PACE = 4;
+
+// The default config reduces motion to speed the suite up; the tour only autoplays with motion.
+test.use({ reducedMotion: 'no-preference' });
 
 test('the showcase walks the real views on its own, with a spotlight and a tooltip', async ({ page }) => {
   const errors = trackPageErrors(page);
-  await page.goto(demoUrl({ showcase: true, instance: instanceId('showcase', 'auto') }));
+  await page.goto(demoUrl({ showcase: true, pace: TEST_PACE, instance: instanceId('showcase', 'auto') }));
   await expect(page.locator('html')).toHaveAttribute('data-demo-showcase', 'true');
   await expect(page.locator(`${selector.showcaseLayer}[data-on="true"] ${selector.showcaseTip}`)).toHaveText(showcaseCopy.en.feed);
   await expectFirstChatMessage(page);
@@ -26,7 +31,7 @@ test('the showcase walks the real views on its own, with a spotlight and a toolt
 test('a recording run plays every step once and flags the end', async ({ page }) => {
   test.setTimeout(RECORDING_TEST_MS);
   const errors = trackPageErrors(page);
-  await page.goto(demoUrl({ showcase: true, record: true, framed: true, instance: instanceId('showcase', 'record') }));
+  await page.goto(demoUrl({ showcase: true, record: true, framed: true, pace: TEST_PACE, instance: instanceId('showcase', 'record') }));
   const visited = new Set<string>();
   await expect.poll(async () => {
     const text = await page.locator(selector.showcaseTip).textContent().catch(() => null);

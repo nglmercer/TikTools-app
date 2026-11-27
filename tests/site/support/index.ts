@@ -5,5 +5,6 @@ export * from './links.ts';
 export * from './locales.ts';
 export * from './messages.ts';
 export * from './network.ts';
+export * from './qa.ts';
 export * from './selectors.ts';
 export { demoTestId, frameTestId, stageTestId } from '../../../src/web/demo/test-ids.ts';
