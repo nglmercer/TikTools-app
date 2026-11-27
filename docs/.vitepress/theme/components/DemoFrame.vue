@@ -131,14 +131,21 @@ const fullUrl = computed(() => {
   for (const key of frameOnlyParams) clean.delete(key);
   return `${withBase('/demo/')}?${clean}${hash ? `#${hash}` : ''}`;
 });
+/** A step chosen before the demo is ready would be ignored by it; keep the latest and send it on ready. */
+let queuedStep: FrameAction | null = null;
 function command(action: FrameAction) {
-  if (!runtime.value?.ready) return;
+  if (!runtime.value?.ready) {
+    if (action.action === 'showcase-goto') queuedStep = action;
+    return;
+  }
   iframe.value?.contentWindow?.postMessage({ type: frameMessageType.command, instance: runtime.value.instance, ...action }, location.origin);
   if (action.action === 'reset') { ready.value = false; runtime.value = null; }
 }
 defineExpose({ command });
 watch([() => runtime.value?.ready, isDark], ([frameReady, dark]) => {
-  if (frameReady) command({ action: 'theme', value: dark ? 'dark' : 'light' });
+  if (!frameReady) return;
+  command({ action: 'theme', value: dark ? 'dark' : 'light' });
+  if (queuedStep) { const queued = queuedStep; queuedStep = null; command(queued); }
 });
 </script>
 

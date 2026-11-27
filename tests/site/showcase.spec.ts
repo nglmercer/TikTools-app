@@ -44,10 +44,12 @@ test('a recording run plays every step once and flags the end', async ({ page })
 
 test('reduced motion shows the first step still and waits for the viewer', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  // The fake clock lets the observation window pass without waiting for it.
+  await page.clock.install();
   await page.goto(demoUrl({ showcase: true, instance: instanceId('showcase', 'still') }));
   await expect(page.locator(`${selector.showcaseLayer}[data-still="true"][data-on="true"]`)).toBeVisible();
   await expectFirstChatMessage(page);
-  await page.waitForTimeout(STILL_OBSERVATION_MS);
+  await page.clock.runFor(STILL_OBSERVATION_MS);
   await expect(page.locator(selector.showcaseTip)).toHaveText(showcaseCopy.en.feed);
   await expect(page.locator('html')).not.toHaveAttribute('data-showcase-done', 'true');
 });

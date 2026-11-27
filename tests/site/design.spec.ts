@@ -72,8 +72,7 @@ test('the landing tour jumps between real views and docks the demo controls in t
   const tourToggle = page.getByTestId(stageTestId.tourToggle);
   const pointsStep = page.getByTestId(stageTestId.step('points'));
   await expect(tourToggle).toHaveAttribute('aria-pressed', 'true');
-  // Frame commands are ignored until the demo reports ready; the first chat message proves it did.
-  await expectFirstChatMessage(stageFrame(page));
+  // A step picked before the demo is ready is queued by the frame and applied once it is.
   const source = await frame.getAttribute('src');
   await pointsStep.click();
   await expect(page.locator(selector.stageLesson)).toHaveText(experienceCopy.en.topics.points.title);
