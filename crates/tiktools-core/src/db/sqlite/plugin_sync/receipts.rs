@@ -34,10 +34,7 @@ impl DatabaseManager {
         let pending_json = serde_json::to_string(pending)
             .map_err(|_| DatabaseError::Invalid("invalid staged sync value".into()))?;
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let matching: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM plugin_sync_outbox o JOIN plugin_sync_source_versions s ON s.plugin_id=o.plugin_id
@@ -173,10 +170,7 @@ impl DatabaseManager {
             _ => return Ok(false),
         };
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let stored: Option<String> = tx.query_row(
             "SELECT r.pending_json FROM plugin_sync_receipts r JOIN plugin_sync_source_versions s ON s.plugin_id=r.plugin_id

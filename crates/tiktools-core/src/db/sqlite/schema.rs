@@ -923,10 +923,7 @@ mod competition_revision_tests {
 /// digest. Preserve them as NULL, which journal readers reject for review;
 /// inventing a digest would authorize a different package operation.
 fn migrate_package_journal(db: &mut Connection) -> Result<(), DatabaseError> {
-    db.execute_batch(&format!(
-        "PRAGMA synchronous={};",
-        crate::db::sqlite::sqlite_synchronous()
-    ))?;
+    crate::db::sqlite::apply_synchronous(&db)?;
     let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
     let present: i64 = tx.query_row(
         "SELECT COUNT(*) FROM pragma_table_info('plugin_package_mutation_intents') WHERE name='operation_digest'",
@@ -945,10 +942,7 @@ fn migrate_package_journal(db: &mut Connection) -> Result<(), DatabaseError> {
 /// were recorded. Preserve every candidate and leave its generation NULL:
 /// readers must require a fresh review instead of inventing prior consent.
 fn migrate_plugin_sync_outbox(db: &mut Connection) -> Result<(), DatabaseError> {
-    db.execute_batch(&format!(
-        "PRAGMA synchronous={};",
-        crate::db::sqlite::sqlite_synchronous()
-    ))?;
+    crate::db::sqlite::apply_synchronous(&db)?;
     let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
     let present: i64 = tx.query_row(
         "SELECT COUNT(*) FROM pragma_table_info('plugin_sync_outbox') WHERE name='config_generation'",

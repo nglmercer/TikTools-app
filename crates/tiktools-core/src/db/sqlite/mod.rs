@@ -30,6 +30,12 @@ pub(crate) fn sqlite_synchronous() -> &'static str {
     )
 }
 
+/// Applies [`sqlite_synchronous`] to one connection. Every writer calls this
+/// right after opening so the durability policy has a single source.
+pub(crate) fn apply_synchronous(db: &rusqlite::Connection) -> rusqlite::Result<()> {
+    db.execute_batch(&format!("PRAGMA synchronous={};", sqlite_synchronous()))
+}
+
 /// The hot WAL points writer keeps `NORMAL` in production (checkpoint-only
 /// fsyncs) but follows the test override like every other connection.
 pub(crate) fn sqlite_points_synchronous() -> &'static str {

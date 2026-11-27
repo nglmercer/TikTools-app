@@ -135,10 +135,7 @@ impl DatabaseManager {
             ));
         }
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         if !apply_history_allows_source(&tx, &entry.plugin_id)? {
             return Ok(false);

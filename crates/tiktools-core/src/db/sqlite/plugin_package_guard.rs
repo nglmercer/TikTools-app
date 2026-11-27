@@ -240,10 +240,7 @@ impl DatabaseManager {
             return Err(invalid());
         }
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         ensure_unidentified_journal_absent(&tx)?;
         if receipt(&tx, intent_id)?.is_some() {
@@ -362,10 +359,7 @@ impl DatabaseManager {
         intent: &PackageMutationIntent,
     ) -> Result<bool, DatabaseError> {
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         ensure_unidentified_journal_absent(&tx)?;
         if intent.phase != PackageMutationPhase::Prepared
@@ -438,10 +432,7 @@ impl DatabaseManager {
     ) -> Result<bool, DatabaseError> {
         let intent = &review.intent;
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         ensure_unidentified_journal_absent(&tx)?;
         if intent.phase != PackageMutationPhase::Prepared
@@ -481,10 +472,7 @@ impl DatabaseManager {
     ) -> Result<bool, DatabaseError> {
         let intent = &review.intent;
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         ensure_unidentified_journal_absent(&tx)?;
         if intent.phase != PackageMutationPhase::Mutating
@@ -522,10 +510,7 @@ impl DatabaseManager {
         advance: bool,
     ) -> Result<bool, DatabaseError> {
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         ensure_unidentified_journal_absent(&tx)?;
         if intent.phase != phase

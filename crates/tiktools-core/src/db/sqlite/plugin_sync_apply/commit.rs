@@ -25,10 +25,7 @@ impl DatabaseManager {
             None => false,
         };
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let eligible: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM plugin_sync_apply_intents i
@@ -91,10 +88,7 @@ impl DatabaseManager {
             return Ok(false);
         }
         let db = self.open(&self.automation_path())?;
-        db.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&db)?;
         let changed = db.execute(
             "UPDATE plugin_sync_apply_intents SET phase='applied',runtime_epoch=?1 WHERE intent_id=?2
              AND plugin_id=?3 AND payload_json=?4 AND phase IN ('runtime_pending','applied') AND committed_generation=?5

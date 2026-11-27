@@ -36,10 +36,7 @@ impl DatabaseManager {
             &command.request.expected_revision,
         )?;
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let caller = service
             .execution_authorizations(&[(command.principal_id.clone(), command.session_id.clone())])
@@ -220,10 +217,7 @@ impl DatabaseManager {
             &command.request.expected_revision,
         )?;
         let mut connection = self.open(&self.automation_path())?;
-        connection.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&connection)?;
         let tx = connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         subjects.with_current(|identities| {
             let identity = identities.first().ok_or(DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden))?;

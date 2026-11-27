@@ -194,10 +194,7 @@ impl DatabaseManager {
     ) -> Result<bool, DatabaseError> {
         let encoded = payload(context, intent)?;
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         if superseding_generation(&tx, context, intent, &encoded)? != Some(generation) {
             return Ok(false);
@@ -237,10 +234,7 @@ impl DatabaseManager {
     ) -> Result<bool, DatabaseError> {
         let encoded = payload(context, intent)?;
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         if newer_candidate(&tx, context, intent, epoch, &encoded)?.as_ref()
             != Some(&(candidate.clone(), proof.clone()))
@@ -279,10 +273,7 @@ impl DatabaseManager {
             return Ok(false);
         }
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         if source_receipt(&tx, context, intent, epoch)?.is_none() {
             return Ok(false);
@@ -377,10 +368,7 @@ impl DatabaseManager {
         };
         let encoded = payload(&previous, intent)?;
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let removed = tx.execute("DELETE FROM plugin_sync_rebase_intents WHERE origin=?1 AND account_id=?2 AND plugin_id=?3 AND payload_json=?4",
             params![context.origin, context.account_id, intent.key(), encoded])?;
@@ -426,10 +414,7 @@ impl DatabaseManager {
             return Ok(false);
         }
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch(&format!(
-            "PRAGMA synchronous={};",
-            crate::db::sqlite::sqlite_synchronous()
-        ))?;
+        crate::db::sqlite::apply_synchronous(&db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let saved: Option<String> = tx.query_row("SELECT payload_json FROM plugin_sync_rebase_intents WHERE origin=?1 AND account_id=?2 AND plugin_id=?3",
             params![context.origin, context.account_id, intent.key()], |row| row.get(0)).optional()?;
