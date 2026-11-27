@@ -2,10 +2,9 @@ use std::{
     fs,
     path::PathBuf,
     sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        atomic::Ordering,
         Arc, RwLock,
     },
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 use tiktools_plugin_api::HostCompat;
@@ -13,148 +12,13 @@ use tiktools_plugin_package::{
     pack, sign_archive, KeyId, KeyRole, PackRequest, PackageArchive, Sha256Digest, SigningKey,
     TrustStore, TrustedKey,
 };
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+use crate::test_support::{StaticServer, TempDir};
 use crate::{
     cloud_source, generation_files_url, join_url, latest_compatible, resolve, Advisory,
     AdvisorySeverity, DownloadRequest, Downloader, IndexWriter, RegistriesConfig, RegistryClient,
     RegistryError, RegistrySource, RejectionReason, ResolveRequest, SearchQuery,
 };
-
-struct TempDir(PathBuf);
-
-impl TempDir {
-    fn new(name: &str) -> Self {
-        static COUNTER: AtomicU64 = AtomicU64::new(0);
-        let suffix = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "tiktools-cloud-{name}-{}-{suffix}-{}",
-            std::process::id(),
-            COUNTER.fetch_add(1, Ordering::AcqRel)
-        ));
-        fs::create_dir_all(&path).unwrap();
-        Self(path)
-    }
-
-    fn join(&self, path: &str) -> PathBuf {
-        self.0.join(path)
-    }
-}
-
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
-}
-
-/// Minimal Cloud origin mock: serves a static file tree, including the
-/// generation pointer at `api/v1/registry/current` and immutable snapshots at
-/// `api/v1/registry/generations/{n}/files/...`.
-struct MockCloud {
-    origin: String,
-    root: PathBuf,
-    requests: Arc<AtomicUsize>,
-    task: tokio::task::JoinHandle<()>,
-}
-
-impl MockCloud {
-    async fn start(root: PathBuf) -> Self {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let origin = format!("http://{}", listener.local_addr().unwrap());
-        let requests = Arc::new(AtomicUsize::new(0));
-        let counter = requests.clone();
-        let serve_root = root.clone();
-        let task = tokio::spawn(async move {
-            let root = serve_root;
-            loop {
-                let Ok((mut socket, _)) = listener.accept().await else {
-                    break;
-                };
-                let root = root.clone();
-                let counter = counter.clone();
-                tokio::spawn(async move {
-                    let mut buffer = vec![0_u8; 16 * 1024];
-                    let Ok(read) = socket.read(&mut buffer).await else {
-                        return;
-                    };
-                    counter.fetch_add(1, Ordering::AcqRel);
-                    let request = String::from_utf8_lossy(&buffer[..read]).to_string();
-                    let path = request
-                        .lines()
-                        .next()
-                        .and_then(|line| line.split_whitespace().nth(1))
-                        .unwrap_or("/")
-                        .split('?')
-                        .next()
-                        .unwrap_or("/")
-                        .trim_start_matches('/')
-                        .to_owned();
-                    let header = |name: &str| {
-                        request.lines().find_map(|line| {
-                            let (key, value) = line.split_once(':')?;
-                            key.trim()
-                                .eq_ignore_ascii_case(name)
-                                .then(|| value.trim().to_owned())
-                        })
-                    };
-                    let response = match fs::read(root.join(&path)) {
-                        Ok(body) => {
-                            let etag = format!("\"{}\"", Sha256Digest::of_bytes(&body));
-                            if header("if-none-match").as_deref() == Some(etag.as_str()) {
-                                (304, "Not Modified", Vec::new(), etag, None)
-                            } else if let Some(start) = header("range")
-                                .and_then(|range| {
-                                    range.strip_prefix("bytes=").map(ToOwned::to_owned)
-                                })
-                                .and_then(|range| range.trim_end_matches('-').parse::<usize>().ok())
-                                .filter(|start| *start < body.len())
-                            {
-                                let total = body.len();
-                                (
-                                    206,
-                                    "Partial Content",
-                                    body[start..].to_vec(),
-                                    etag,
-                                    Some(format!("bytes {start}-{}/{total}", total - 1)),
-                                )
-                            } else {
-                                (200, "OK", body, etag, None)
-                            }
-                        }
-                        Err(_) => (404, "Not Found", b"missing".to_vec(), String::new(), None),
-                    };
-                    let (status, reason, body, etag, range) = response;
-                    let mut head = format!(
-                        "HTTP/1.1 {status} {reason}\r\ncontent-length: {}\r\nconnection: close\r\n",
-                        body.len()
-                    );
-                    if !etag.is_empty() {
-                        head.push_str(&format!("etag: {etag}\r\naccept-ranges: bytes\r\n"));
-                    }
-                    if let Some(range) = range {
-                        head.push_str(&format!("content-range: {range}\r\n"));
-                    }
-                    head.push_str("\r\n");
-                    let _ = socket.write_all(head.as_bytes()).await;
-                    let _ = socket.write_all(&body).await;
-                });
-            }
-        });
-        Self {
-            origin,
-            root,
-            requests,
-            task,
-        }
-    }
-
-    fn stop(self) {
-        self.task.abort();
-    }
-}
 
 struct Keys {
     root: SigningKey,
@@ -235,12 +99,12 @@ fn signed_tree(tree: PathBuf, keys: &Keys, archives: &[PathBuf], description: &s
     writer
 }
 
-fn gen_files(mock: &MockCloud, generation: u64) -> PathBuf {
+fn gen_files(mock: &StaticServer, generation: u64) -> PathBuf {
     mock.root
         .join(format!("api/v1/registry/generations/{generation}/files"))
 }
 
-fn set_current(mock: &MockCloud, generation: u64) {
+fn set_current(mock: &StaticServer, generation: u64) {
     let path = mock.root.join("api/v1/registry/current");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
@@ -284,11 +148,11 @@ async fn fixed_product_package_uses_the_same_generation_as_its_metadata() {
     let v2 = package(&directory, "acme.tts", "1.1.0");
     sign_archive(&v1, &keys.publisher).unwrap();
     sign_archive(&v2, &keys.publisher).unwrap();
-    let mock = MockCloud::start(directory.join("origin")).await;
+    let mock = StaticServer::start(directory.join("origin")).await;
     signed_tree(gen_files(&mock, 1), &keys, &[v1], "first");
     signed_tree(gen_files(&mock, 2), &keys, &[v2], "second");
     set_current(&mock, 1);
-    let source = cloud_source("official", &mock.origin, vec![keys.root.public_key()]).unwrap();
+    let source = cloud_source("official", &mock.base, vec![keys.root.public_key()]).unwrap();
     let client = RegistryClient::new_fixed(
         directory.join("cache"),
         directory.join("registries.json"),
@@ -301,7 +165,7 @@ async fn fixed_product_package_uses_the_same_generation_as_its_metadata() {
         let (source, document) = client.package("acme.tts", None).await.unwrap();
         assert_eq!(
             source.url,
-            generation_files_url(&mock.origin, generation).unwrap()
+            generation_files_url(&mock.base, generation).unwrap()
         );
         let artifact = &document.release(version).unwrap().artifacts[0];
         let bytes = reqwest::get(join_url(&source.url, &artifact.url).unwrap())
@@ -321,10 +185,10 @@ async fn fixed_product_does_not_use_previous_generation_metadata_on_failure() {
     let keys = keys();
     let archive = package(&directory, "acme.tts", "1.0.0");
     sign_archive(&archive, &keys.publisher).unwrap();
-    let mock = MockCloud::start(directory.join("origin")).await;
+    let mock = StaticServer::start(directory.join("origin")).await;
     signed_tree(gen_files(&mock, 1), &keys, &[archive], "first");
     set_current(&mock, 1);
-    let source = cloud_source("official", &mock.origin, vec![keys.root.public_key()]).unwrap();
+    let source = cloud_source("official", &mock.base, vec![keys.root.public_key()]).unwrap();
     let client = RegistryClient::new_fixed(
         directory.join("cache"),
         directory.join("registries.json"),
@@ -349,14 +213,14 @@ async fn cloud_discovery_pins_refresh_and_search() {
     let archive = package(&directory, "acme.tts", "1.0.0");
     let signed = sign_archive(&archive, &keys.publisher).unwrap();
     let _ = signed;
-    let mock = MockCloud::start(directory.join("origin")).await;
+    let mock = StaticServer::start(directory.join("origin")).await;
     signed_tree(gen_files(&mock, 1), &keys, &[archive], "Staging cloud");
     set_current(&mock, 1);
 
-    let client = cloud_client(&directory, &mock.origin, vec![keys.root.public_key()]);
+    let client = cloud_client(&directory, &mock.base, vec![keys.root.public_key()]);
     let status = client.refresh("official").await.unwrap();
     assert!(status.verified, "{status:?}");
-    let expected = generation_files_url(&mock.origin, 1).unwrap();
+    let expected = generation_files_url(&mock.base, 1).unwrap();
     assert_eq!(status.url, expected);
 
     // The resolved generation endpoint is persisted, so restarts keep it.
@@ -365,7 +229,7 @@ async fn cloud_discovery_pins_refresh_and_search() {
     assert_eq!(saved.registries[0].url, expected);
     assert_eq!(
         saved.registries[0].cloud_origin.as_deref(),
-        Some(mock.origin.trim_end_matches('/'))
+        Some(mock.base.trim_end_matches('/'))
     );
 
     let results = client
@@ -387,7 +251,7 @@ async fn cloud_discovery_pins_refresh_and_search() {
 
     // A rebuilt client keeps the resolved generation URL without network.
     drop(client);
-    let rebuilt = cloud_client(&directory, &mock.origin, vec![keys.root.public_key()]);
+    let rebuilt = cloud_client(&directory, &mock.base, vec![keys.root.public_key()]);
     assert_eq!(
         rebuilt.status("official").unwrap().url,
         expected,
@@ -405,7 +269,7 @@ async fn cloud_signed_download_verifies_and_updates_across_generations() {
     let v2 = package(&directory, "acme.tts", "1.1.0");
     let added_v2 = sign_archive(&v2, &keys.publisher).unwrap();
     let _ = added_v2;
-    let mock = MockCloud::start(directory.join("origin")).await;
+    let mock = StaticServer::start(directory.join("origin")).await;
     signed_tree(
         gen_files(&mock, 1),
         &keys,
@@ -426,7 +290,7 @@ async fn cloud_signed_download_verifies_and_updates_across_generations() {
         .unwrap();
     set_current(&mock, 1);
 
-    let client = cloud_client(&directory, &mock.origin, vec![keys.root.public_key()]);
+    let client = cloud_client(&directory, &mock.base, vec![keys.root.public_key()]);
     client.refresh("official").await.unwrap();
     let (source, document) = client.package("acme.tts", None).await.unwrap();
     assert!(source.url.contains("/generations/1/files"));
@@ -507,7 +371,7 @@ async fn cloud_pinned_operations_survive_generation_changes() {
     sign_archive(&v1, &keys.publisher).unwrap();
     let v2 = package(&directory, "acme.tts", "1.1.0");
     sign_archive(&v2, &keys.publisher).unwrap();
-    let mock = MockCloud::start(directory.join("origin")).await;
+    let mock = StaticServer::start(directory.join("origin")).await;
     signed_tree(
         gen_files(&mock, 1),
         &keys,
@@ -522,13 +386,13 @@ async fn cloud_pinned_operations_survive_generation_changes() {
     );
     set_current(&mock, 1);
 
-    let client = cloud_client(&directory, &mock.origin, vec![keys.root.public_key()]);
+    let client = cloud_client(&directory, &mock.base, vec![keys.root.public_key()]);
     client.refresh("official").await.unwrap();
 
     // An operation pinned to generation 1 keeps serving generation 1 bytes
     // after the pointer advances: this is the static-URL form of the same
     // snapshot the Cloud client pins per operation.
-    let gen1_url = generation_files_url(&mock.origin, 1).unwrap();
+    let gen1_url = generation_files_url(&mock.base, 1).unwrap();
     let mut pinned = RegistrySource::new("pinned", &gen1_url).unwrap();
     pinned.root_keys = vec![keys.root.public_key()];
     let pinned_client = RegistryClient::new(
@@ -563,11 +427,11 @@ async fn cloud_offline_serves_cached_signed_metadata() {
     let keys = keys();
     let archive = package(&directory, "acme.tts", "1.0.0");
     sign_archive(&archive, &keys.publisher).unwrap();
-    let mock = MockCloud::start(directory.join("origin")).await;
+    let mock = StaticServer::start(directory.join("origin")).await;
     signed_tree(gen_files(&mock, 1), &keys, &[archive], "gen one");
     set_current(&mock, 1);
 
-    let client = cloud_client(&directory, &mock.origin, vec![keys.root.public_key()]);
+    let client = cloud_client(&directory, &mock.base, vec![keys.root.public_key()]);
     client.refresh("official").await.unwrap();
     assert_eq!(
         client.package("acme.tts", None).await.unwrap().1.id,
@@ -601,18 +465,18 @@ async fn cloud_rejects_wrong_roots_tampering_and_digest_mismatch() {
     let keys = keys();
     let archive = package(&directory, "acme.tts", "1.0.0");
     sign_archive(&archive, &keys.publisher).unwrap();
-    let mock = MockCloud::start(directory.join("origin")).await;
+    let mock = StaticServer::start(directory.join("origin")).await;
     signed_tree(gen_files(&mock, 1), &keys, &[archive], "gen one");
     set_current(&mock, 1);
 
     let impostor = SigningKey::generate(KeyId::parse("root-x").unwrap(), None).unwrap();
-    let wrong = cloud_client(&directory, &mock.origin, vec![impostor.public_key()]);
+    let wrong = cloud_client(&directory, &mock.base, vec![impostor.public_key()]);
     assert!(matches!(
         wrong.refresh("official").await,
         Err(RegistryError::Signature { .. })
     ));
 
-    let client = cloud_client(&directory, &mock.origin, vec![keys.root.public_key()]);
+    let client = cloud_client(&directory, &mock.base, vec![keys.root.public_key()]);
     client.refresh("official").await.unwrap();
     // Resolve the document before tampering so the digest check below runs
     // against the cached signed metadata.
@@ -633,7 +497,7 @@ async fn cloud_rejects_wrong_roots_tampering_and_digest_mismatch() {
     fs::write(&plugin, bytes).unwrap();
     let downloader = Downloader::new(directory.join("downloads")).unwrap();
     let url = join_url(
-        &generation_files_url(&mock.origin, 1).unwrap(),
+        &generation_files_url(&mock.base, 1).unwrap(),
         &resolved.artifact.url,
     )
     .unwrap();
@@ -660,7 +524,7 @@ async fn cloud_rejects_wrong_roots_tampering_and_digest_mismatch() {
         .replace("audio.output", "points.write");
     fs::write(&doc, tampered).unwrap();
     let fresh_dir = TempDir::new("tamper-fresh");
-    let fresh = cloud_client(&fresh_dir, &mock.origin, vec![keys.root.public_key()]);
+    let fresh = cloud_client(&fresh_dir, &mock.base, vec![keys.root.public_key()]);
     let tampered_result = fresh.package("acme.tts", None).await;
     assert!(
         matches!(tampered_result, Err(RegistryError::Signature { .. })),
@@ -677,7 +541,7 @@ async fn cloud_enforces_yanks_revocations_and_reports_no_generation() {
     sign_archive(&v1, &keys.publisher).unwrap();
     let v2 = package(&directory, "acme.tts", "1.1.0");
     sign_archive(&v2, &keys.publisher).unwrap();
-    let mock = MockCloud::start(directory.join("origin")).await;
+    let mock = StaticServer::start(directory.join("origin")).await;
     signed_tree(
         gen_files(&mock, 1),
         &keys,
@@ -695,7 +559,7 @@ async fn cloud_enforces_yanks_revocations_and_reports_no_generation() {
     writer2.revoke_digest(&revoked).unwrap();
     set_current(&mock, 1);
 
-    let client = cloud_client(&directory, &mock.origin, vec![keys.root.public_key()]);
+    let client = cloud_client(&directory, &mock.base, vec![keys.root.public_key()]);
     client.refresh("official").await.unwrap();
 
     set_current(&mock, 2);
@@ -758,11 +622,11 @@ async fn cloud_interrupted_downloads_fail_closed_and_retry() {
     let keys = keys();
     let archive = package(&directory, "acme.tts", "1.0.0");
     sign_archive(&archive, &keys.publisher).unwrap();
-    let mock = MockCloud::start(directory.join("origin")).await;
+    let mock = StaticServer::start(directory.join("origin")).await;
     signed_tree(gen_files(&mock, 1), &keys, &[archive], "gen one");
     set_current(&mock, 1);
 
-    let client = cloud_client(&directory, &mock.origin, vec![keys.root.public_key()]);
+    let client = cloud_client(&directory, &mock.base, vec![keys.root.public_key()]);
     client.refresh("official").await.unwrap();
     let (source, document) = client.package("acme.tts", None).await.unwrap();
     let resolved = latest_compatible(&document, "stable", &host()).unwrap();
@@ -806,7 +670,7 @@ async fn cloud_third_party_registries_keep_working() {
     let cloud_keys = keys();
     let archive = package(&directory, "acme.tts", "1.0.0");
     sign_archive(&archive, &cloud_keys.publisher).unwrap();
-    let mock = MockCloud::start(directory.join("origin")).await;
+    let mock = StaticServer::start(directory.join("origin")).await;
     signed_tree(gen_files(&mock, 1), &cloud_keys, &[archive], "gen one");
     set_current(&mock, 1);
 
@@ -835,12 +699,12 @@ async fn cloud_third_party_registries_keep_working() {
         )
         .unwrap();
     writer.add(&other_archive, "stable", None).unwrap();
-    let third = MockCloud::start(third_dir).await;
+    let third = StaticServer::start(third_dir).await;
 
     let mut official =
-        cloud_source("official", &mock.origin, vec![cloud_keys.root.public_key()]).unwrap();
+        cloud_source("official", &mock.base, vec![cloud_keys.root.public_key()]).unwrap();
     official.priority = 100;
-    let mut third_source = RegistrySource::new("acme", &third.origin).unwrap();
+    let mut third_source = RegistrySource::new("acme", &third.base).unwrap();
     third_source.root_keys = vec![other_keys.root.public_key()];
     let client = RegistryClient::new(
         directory.join("cache"),

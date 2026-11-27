@@ -11,6 +11,8 @@ mod url_policy;
 #[cfg(test)]
 mod cloud_tests;
 #[cfg(test)]
+mod test_support;
+#[cfg(test)]
 mod tests;
 
 pub use client::{
