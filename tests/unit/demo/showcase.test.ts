@@ -4,6 +4,7 @@ import { parseDemoOptions } from '../../../src/web/demo/scenarios.ts';
 import { isDemoFrameState, parseFrameCommand } from '../../../src/web/demo/frame-messages.ts';
 import { createShowcaseHarness } from './support/showcase-harness.ts';
 import { commandMessage, stateMessage } from './support/messages.ts';
+import { FIXTURE_ID } from '../../shared/index.ts';
 
 /** The stage log line for a step's spotlight, derived from the script so renamed ids stay in sync. */
 const focusLog = (id: ShowcaseStep['id']) => {
@@ -176,10 +177,10 @@ describe('showcase options and frame bridge', () => {
   });
 
   it('accepts showcase commands with bounded indices and validates the reported state', () => {
-    expect(parseFrameCommand(commandMessage('showcase-play'), 'frame-1')).toEqual({ action: 'showcase-play' });
-    expect(parseFrameCommand(commandMessage('showcase-pause'), 'frame-1')).toEqual({ action: 'showcase-pause' });
-    expect(parseFrameCommand(commandMessage('showcase-goto', { value: 3 }), 'frame-1')).toEqual({ action: 'showcase-goto', value: 3 });
-    for (const value of [-1, 12, 1.5, '3', null]) expect(parseFrameCommand(commandMessage('showcase-goto', { value }), 'frame-1')).toBeNull();
+    expect(parseFrameCommand(commandMessage('showcase-play'), FIXTURE_ID.frame1)).toEqual({ action: 'showcase-play' });
+    expect(parseFrameCommand(commandMessage('showcase-pause'), FIXTURE_ID.frame1)).toEqual({ action: 'showcase-pause' });
+    expect(parseFrameCommand(commandMessage('showcase-goto', { value: 3 }), FIXTURE_ID.frame1)).toEqual({ action: 'showcase-goto', value: 3 });
+    for (const value of [-1, 12, 1.5, '3', null]) expect(parseFrameCommand(commandMessage('showcase-goto', { value }), FIXTURE_ID.frame1)).toBeNull();
     const state = stateMessage({ paused: false, events: 3 });
     expect(isDemoFrameState({ ...state, showcase: { step: 2, count: 5, paused: false, done: false } })).toBe(true);
     expect(isDemoFrameState(state)).toBe(true);

@@ -9,6 +9,7 @@ import { createFakeControlClient } from '@/shared/lib/testing/fake-control-clien
 import { ControlCallError } from '../../../../../src/web/shared/api/control-client.ts';
 import { ownerMutationGate } from '../../../../../src/web/shared/api/owner-mutation-gate.ts';
 import { recoverOwnerJournalsOnReconnect } from '../../../../../src/web/shared/api/owner-journal-reconnect.ts';
+import { FIXTURE_ID } from '../../../../shared/index.ts';
 
 function fixture() {
   const native = nativeDefinitionHost(() => { throw new Error('Metadata recovery must not read or write source.'); });
@@ -29,7 +30,7 @@ function fixture() {
   const stop = recoverOwnerJournalsOnReconnect(fake.client, journals);
   const committed = () => native.replaceState({ ...native.state(), recent: [{
     intent: { commandId: `owner-definition-${'a'.repeat(32)}`, operation: 'update', kind: 'action', id: 'original-id',
-      expectedRevision: '1', hostInstanceId: 'instance-a', recordDigest: 'b'.repeat(64), createdAt: 1 },
+      expectedRevision: '1', hostInstanceId: FIXTURE_ID.instanceA, recordDigest: 'b'.repeat(64), createdAt: 1 },
     outcome: 'succeeded', receipt: { revision: '2', recordDigest: 'b'.repeat(64), enabled: false, deleted: null, affectedResources: 1 },
     errorCode: null, recordedAt: 2,
   }] });

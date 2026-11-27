@@ -1,5 +1,5 @@
 import { type VueWrapper, flushPromises, beforeEach, describe, expect, it, ControlCallError, type PluginStatus, t, mountPage, buttonByLabel, openTab, detailsTitle, menuItem, REGISTRY_HOST } from '../../../../../../src/web/pages/plugins/ui/plugins-page-fixture.ts';
-import { PLUGIN_ID, RPC } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, PLUGIN_ID, RPC } from '../../../../../shared/index.ts';
 
 describe('PluginsPage catalog', () => {
   describe('on a host that announces the unified catalog', () => {
@@ -47,7 +47,7 @@ describe('PluginsPage catalog', () => {
       releaseRef: kind === 'plugin' ? { type: 'pluginRelease', version: '1.2.0' } : { type: 'documentRevision', revision: 3, sha256: 'a'.repeat(64) },
       publication: { yanked: false },
     });
-    const cloudItems = [wire('plugin', PLUGIN_ID.acmeTts, 'Acme TTS'), wire('template', 'tpl-1', 'Gift alert'), wire('profile', 'prof-1', 'Starter pack')];
+    const cloudItems = [wire('plugin', PLUGIN_ID.acmeTts, 'Acme TTS'), wire('template', FIXTURE_ID.tpl1, 'Gift alert'), wire('profile', 'prof-1', 'Starter pack')];
     const explore = (handle?: Parameters<typeof mountPage>[6], announce: string[] = [RPC.catalogItems]) =>
       mountPage(undefined, undefined, undefined, announce, [], '', handle ?? ((method) => (method === RPC.catalogItems ? { items: cloudItems, nextCursor: null } : undefined)));
     const names = (wrapper: VueWrapper) => wrapper.findAll('.explore-list__row').map((item) => item.get('.explore-list__name').text());
@@ -100,7 +100,7 @@ describe('PluginsPage catalog', () => {
 
     it('shows a plugin-only empty state even when the backend returns templates', async () => {
       const { wrapper } = await explore((method) => (method === RPC.catalogItems
-        ? { items: [wire('template', 'tpl-1', 'Gift alert')], nextCursor: null, dataState: 'noActiveGeneration' }
+        ? { items: [wire('template', FIXTURE_ID.tpl1, 'Gift alert')], nextCursor: null, dataState: 'noActiveGeneration' }
         : undefined));
       await openTab(wrapper, t(RPC.pluginsCatalogBrowse));
       expect(names(wrapper)).toEqual([]);
@@ -129,7 +129,7 @@ describe('PluginsPage catalog', () => {
 
     it('lists bundled plugins that are not installed above the catalog and does not repeat them', async () => {
       const { wrapper } = await explore((method) => (method === RPC.catalogItems
-        ? { items: [wire('plugin', 'tts', 'Bundled TTS in Cloud'), wire('template', 'tpl-1', 'Gift alert')], nextCursor: null }
+        ? { items: [wire('plugin', 'tts', 'Bundled TTS in Cloud'), wire('template', FIXTURE_ID.tpl1, 'Gift alert')], nextCursor: null }
         : undefined));
       await openTab(wrapper, t(RPC.pluginsCatalogBrowse));
       expect(wrapper.findAll('.plugin-catalog__row').map((item) => item.text())).toEqual([expect.stringContaining('TTS')]);

@@ -1,5 +1,5 @@
 import { chatEvent, giftEvent, t, mountPage, buttonByText, goBack, documentButton, selectRow, it, expect, nextTick, ControlCallError, flushPromises, type LiveEvent, afterEach, beforeEach, resetResolutionPreference } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
-import { RPC } from '../../../../../shared/index.ts';
+import { ERROR_CODE, RPC } from '../../../../../shared/index.ts';
 
 beforeEach(() => { localStorage.clear(); resetResolutionPreference('manual'); });
 afterEach(() => resetResolutionPreference('automatic'));
@@ -131,13 +131,13 @@ it('pins the base across background refreshes, preserves a conflicting draft and
 
   it('failed deletion keeps the editor and its unsaved candidate', async () => {
     const { wrapper } = await mountPage((method) => method === RPC.automationDelete
-      ? Promise.reject(new ControlCallError('revision_conflict', 'Changed before delete')) : undefined);
+      ? Promise.reject(new ControlCallError(ERROR_CODE.revisionConflict, 'Changed before delete')) : undefined);
     await selectRow(wrapper, 'Chat hello');
     await wrapper.get('.event-editor input[type="text"]').setValue('Keep after delete failed');
     await buttonByText(wrapper, t('automations.editor.delete')).trigger('click'); await nextTick(); documentButton(t('automations.editor.deleteConfirm')).click(); await flushPromises();
     expect(wrapper.find('.event-editor').exists()).toBe(true);
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Keep after delete failed');
-    expect(wrapper.text()).toContain('revision_conflict');
+    expect(wrapper.text()).toContain(ERROR_CODE.revisionConflict);
   });
 
   it('canceling enablement restores the committed checkbox without a write', async () => {
@@ -154,7 +154,7 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     snapshot.events[1] = { ...chatEvent, name: 'New name before confirmation' }; versions.set('event:e2', '2');
     documentButton(t('automations.conflict.confirmToggle')).click(); await flushPromises();
     expect(requests.find((r) => r.method === RPC.automationDisable)?.meta?.expectedRevision).toBe('1');
-    expect(document.body.textContent).toContain('revision_conflict');
+    expect(document.body.textContent).toContain(ERROR_CODE.revisionConflict);
     documentButton(t('automations.conflict.readCurrent')).click(); await flushPromises();
     expect(document.body.textContent).toContain('New name before confirmation');
     expect(requests.filter((r) => r.method === RPC.automationDisable)).toHaveLength(1);

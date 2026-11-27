@@ -13,7 +13,7 @@ test('minecraft gift-wall preset parses on the desktop path', () => {
   const triggers = new Set(parsed.profile.templates.map((entry) => entry.template.event.trigger));
   expect(triggers.has(EVENT_KIND.tiktokGift)).toBe(true);
   expect(triggers.has('tiktok.follow')).toBe(true);
-  expect(triggers.has('tiktok.share')).toBe(true);
+  expect(triggers.has(EVENT_KIND.tiktokShare)).toBe(true);
 });
 
 test('every gift-wall rule runs plugin actions with a title + subtitle', () => {

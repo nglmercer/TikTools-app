@@ -1,10 +1,11 @@
 import { frameMessageType } from '../../../../src/web/demo/contract.ts';
+import { FIXTURE_ID } from '../../../shared/index.ts';
 
 /** A valid `tiktools.demo.state` message; overrides replace only the fields a test is probing. */
 export function stateMessage(overrides: Record<string, unknown> = {}) {
   return {
     type: frameMessageType.state,
-    instance: 'frame-1',
+    instance: FIXTURE_ID.frame1,
     ready: true,
     paused: true,
     busy: false,
@@ -17,5 +18,5 @@ export function stateMessage(overrides: Record<string, unknown> = {}) {
 
 /** A valid `tiktools.demo.command` message for `action`; extra fields such as `value` go in `overrides`. */
 export function commandMessage(action: string, overrides: Record<string, unknown> = {}) {
-  return { type: frameMessageType.command, instance: 'frame-1', action, ...overrides };
+  return { type: frameMessageType.command, instance: FIXTURE_ID.frame1, action, ...overrides };
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ControlCallError } from '../../../../../src/web/shared/api/control-client.ts';
 import { lifecycleFailure, lifecycleMessageKey } from '../../../../../src/web/shared/api/cloud-lifecycle.ts';
+import { ERROR_CODE } from '../../../../shared/index.ts';
 
 const fail = (code: string, reason?: string) => new ControlCallError(code, 'host text', reason ? { reason } : undefined);
 
@@ -20,13 +21,13 @@ describe('lifecycle failure mapping', () => {
 
   it('maps a missing Cloud capability for every reason the host reports', () => {
     for (const reason of ['cloud_feature_unsupported', 'capabilities_missing', 'variables_unsupported']) {
-      expect(lifecycleFailure(fail('capability_unavailable', reason))).toBe('unsupported');
+      expect(lifecycleFailure(fail(ERROR_CODE.capabilityUnavailable, reason))).toBe('unsupported');
     }
   });
 
   it('maps not found, rate limit and sign-in', () => {
-    expect(lifecycleFailure(fail('not_found', 'notPublished'))).toBe('notPublished');
-    expect(lifecycleFailure(fail('not_found'))).toBe('notFound');
+    expect(lifecycleFailure(fail(ERROR_CODE.notFound, 'notPublished'))).toBe('notPublished');
+    expect(lifecycleFailure(fail(ERROR_CODE.notFound))).toBe('notFound');
     expect(lifecycleFailure(fail('unavailable', 'rateLimited'))).toBe('rateLimited');
     expect(lifecycleFailure(fail('unavailable'))).toBe('other');
     expect(lifecycleFailure(fail('forbidden'))).toBe('signIn');

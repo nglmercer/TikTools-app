@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'vitest';
 
 import { eventIdentity, type AutomationEventLike } from '../../../../src/widgets/shared/event-types.ts';
-import { EVENT_KIND } from '../../../shared/index.ts';
+import { EVENT_KIND, FIXTURE_ID } from '../../../shared/index.ts';
 
 function event(overrides: Partial<AutomationEventLike> & { msgId?: string } = {}): AutomationEventLike {
   const { msgId, ...rest } = overrides;
   return {
     id: rest.id ?? 'envelope-1',
-    type: rest.type ?? 'tiktok.share',
+    type: rest.type ?? EVENT_KIND.tiktokShare,
     timestamp: rest.timestamp ?? 1,
     creator: rest.creator,
     user: rest.user ?? null,
@@ -17,7 +17,7 @@ function event(overrides: Partial<AutomationEventLike> & { msgId?: string } = {}
 
 describe('eventIdentity', () => {
   test('keys on the upstream message id, not the minted envelope id', () => {
-    expect(eventIdentity(event({ msgId: '9007199254740993' }))).toBe(JSON.stringify(['', '', 'tiktok.share', '9007199254740993']));
+    expect(eventIdentity(event({ msgId: '9007199254740993' }))).toBe(JSON.stringify(['', '', EVENT_KIND.tiktokShare, '9007199254740993']));
   });
 
   test('two emissions of the same message share one identity', () => {
@@ -33,10 +33,10 @@ describe('eventIdentity', () => {
   });
 
   test('the room scopes the identity so two rooms cannot collide', () => {
-    const roomA = event({ msgId: 'msg-5', creator: { uniqueId: 'c', roomId: 'room-a' } });
+    const roomA = event({ msgId: 'msg-5', creator: { uniqueId: 'c', roomId: FIXTURE_ID.roomA } });
     const roomB = event({ msgId: 'msg-5', creator: { uniqueId: 'c', roomId: 'room-b' } });
-    expect(eventIdentity(roomA)).toBe(JSON.stringify(['c', 'room-a', 'tiktok.share', 'msg-5']));
-    expect(eventIdentity(roomB)).toBe(JSON.stringify(['c', 'room-b', 'tiktok.share', 'msg-5']));
+    expect(eventIdentity(roomA)).toBe(JSON.stringify(['c', FIXTURE_ID.roomA, EVENT_KIND.tiktokShare, 'msg-5']));
+    expect(eventIdentity(roomB)).toBe(JSON.stringify(['c', 'room-b', EVENT_KIND.tiktokShare, 'msg-5']));
     expect(eventIdentity(roomA)).not.toBe(eventIdentity(roomB));
   });
 

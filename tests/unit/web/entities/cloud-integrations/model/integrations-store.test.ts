@@ -4,7 +4,7 @@ import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testin
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { isValidLabel, useIntegrationsStore } from '../../../../../../src/web/entities/cloud-integrations/model/integrations-store.ts';
-import { ACCOUNT_STATE, RPC } from '../../../../../shared/index.ts';
+import { ACCOUNT_STATE, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 const id = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
 const secret = 'b'.repeat(64);
@@ -15,7 +15,7 @@ function host(announced: string[], rows: unknown[] = []) {
     if (method === RPC.rpcDiscover) return { methods: announced.map((name) => ({ name })) };
     if (method === RPC.integrationsConnections) return { items: rows };
     if (method === 'integrations.connect') return { connectionId: id, provider: 'webhook', label: 'Alerts', secret, deliveryPath: `/api/v3/integrations/webhook/${id}/deliveries` };
-    if (method === 'integrations.disconnect') return { id, status: 'revoked' };
+    if (method === RPC.integrationsDisconnect) return { id, status: 'revoked' };
     if (method === 'integrations.events') return { items: [], truncated: false };
     throw new Error(`unexpected ${method}`);
   });
@@ -33,14 +33,14 @@ describe('cloud integrations store', () => {
 
   it('does not call integrations when the host did not announce them', async () => {
     const { stores, calls } = host([RPC.rpcDiscover]);
-    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
     await stores.use(() => useIntegrationsStore()).refresh();
     expect(calls.map((call) => call.method)).toEqual([RPC.rpcDiscover]);
   });
 
   it('holds the secret in memory until it is dismissed', async () => {
-    const { stores } = host([RPC.integrationsConnections, 'integrations.connect']);
-    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    const { stores } = host([RPC.integrationsConnections, RPC.integrationsConnect]);
+    await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
     const integrations = stores.use(() => useIntegrationsStore());
     expect(await integrations.connect('Alerts')).toBe(true);
     expect(integrations.issued?.secret).toBe(secret);
@@ -49,8 +49,8 @@ describe('cloud integrations store', () => {
   });
 
   it('clears the secret and any open events when the panel resets', async () => {
-    const { stores } = host([RPC.integrationsConnections, 'integrations.connect', 'integrations.events']);
-    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    const { stores } = host([RPC.integrationsConnections, RPC.integrationsConnect, 'integrations.events']);
+    await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
     const integrations = stores.use(() => useIntegrationsStore());
     await integrations.connect('Alerts');
     await integrations.openEvents(id);
@@ -61,12 +61,12 @@ describe('cloud integrations store', () => {
   });
 
   it('revokes and refreshes the list', async () => {
-    const { stores, calls } = host([RPC.integrationsConnections, 'integrations.disconnect'], [row]);
-    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    const { stores, calls } = host([RPC.integrationsConnections, RPC.integrationsDisconnect], [row]);
+    await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
     const integrations = stores.use(() => useIntegrationsStore());
     await integrations.refresh();
     expect(await integrations.remove(id)).toBe(true);
-    expect(calls.map((call) => call.method)).toEqual([RPC.rpcDiscover, RPC.integrationsConnections, 'integrations.disconnect', RPC.integrationsConnections]);
+    expect(calls.map((call) => call.method)).toEqual([RPC.rpcDiscover, RPC.integrationsConnections, RPC.integrationsDisconnect, RPC.integrationsConnections]);
   });
 
   describe('late replies', () => {
@@ -79,8 +79,8 @@ describe('cloud integrations store', () => {
     function held(extra: (method: string) => unknown = () => undefined) {
       const connect = deferred<unknown>();
       const { client, calls } = createFakeControlClient((method) => {
-        if (method === RPC.rpcDiscover) return { methods: [RPC.integrationsConnections, 'integrations.connect', 'integrations.disconnect', 'integrations.events'].map((name) => ({ name })) };
-        if (method === 'integrations.connect') return connect.promise;
+        if (method === RPC.rpcDiscover) return { methods: [RPC.integrationsConnections, RPC.integrationsConnect, RPC.integrationsDisconnect, 'integrations.events'].map((name) => ({ name })) };
+        if (method === RPC.integrationsConnect) return connect.promise;
         if (method === RPC.integrationsConnections) return { items: [row] };
         return extra(method) ?? { items: [], truncated: false };
       });
@@ -90,7 +90,7 @@ describe('cloud integrations store', () => {
 
     it('never publishes a secret that arrives after the panel reset, and does not leave it working', async () => {
       const { stores, connect, calls } = held();
-      await stores.use(() => useCapabilityStore()).refresh('host-a');
+      await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
       const integrations = stores.use(() => useIntegrationsStore());
       const created = integrations.connect('Alerts');
       expect(integrations.working).toBe(true);
@@ -102,12 +102,12 @@ describe('cloud integrations store', () => {
       expect(integrations.error).toBeNull();
       expect(integrations.working).toBe(false);
       // The mutation was sent once and is never repeated by the store.
-      expect(calls.filter((call) => call.method === 'integrations.connect')).toHaveLength(1);
+      expect(calls.filter((call) => call.method === RPC.integrationsConnect)).toHaveLength(1);
     });
 
     it('never publishes a secret that arrives after the account changed, including logout and login of the same account', async () => {
       const { stores, connect } = held();
-      await stores.use(() => useCapabilityStore()).refresh('host-a');
+      await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
       const account = stores.use(() => useAccountStore());
       account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
       const integrations = stores.use(() => useIntegrationsStore());
@@ -129,7 +129,7 @@ describe('cloud integrations store', () => {
         return (lists += 1) === 1 ? list.promise : { items: [] };
       });
       const stores = createStoreHarness(client);
-      await stores.use(() => useCapabilityStore()).refresh('host-a');
+      await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
       const account = stores.use(() => useAccountStore());
       account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
       const integrations = stores.use(() => useIntegrationsStore());
@@ -168,7 +168,7 @@ describe('cloud integrations store', () => {
 
     it('a nested operation does not release the activity of the outer one', async () => {
       const { stores, connect } = held();
-      await stores.use(() => useCapabilityStore()).refresh('host-a');
+      await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
       const integrations = stores.use(() => useIntegrationsStore());
       const created = integrations.connect('Alerts');
       await integrations.remove(id);

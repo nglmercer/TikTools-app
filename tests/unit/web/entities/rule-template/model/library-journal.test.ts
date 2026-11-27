@@ -10,7 +10,7 @@ import { libraryPreview } from '../../../../../../src/web/entities/rule-template
 import { useRuleProfiles } from '../../../../../../src/web/entities/rule-template/model/rule-profiles-state.ts';
 import { useRuleTemplates } from '../../../../../../src/web/entities/rule-template/model/rule-templates-state.ts';
 import { applyRuleTemplate, parseRuleTemplate } from '../../../../../../src/web/entities/rule-template/lib/rule-templates.ts';
-import { ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 const action = (id = 'old-action'): LiveAction => ({ schemaVersion: 2, id, name: id, enabled: false, typeId: ACTION_TYPE.coreLog, config: { message: 'private-source' } });
 const event = (id = 'old-event', actionIds = ['old-action']): LiveEvent => ({ schemaVersion: 1, id, name: id, enabled: false, trigger: EVENT_KIND.tiktokChat, filters: [], actionIds, cooldownMs: 0, cooldownScope: 'global', runMode: 'all' });
@@ -35,7 +35,7 @@ function fixture() {
     const kind = params?.kind as 'action' | 'event'; const record = params?.record as LiveAction | LiveEvent | undefined;
     const id = (record?.id ?? params?.id) as string; const key = `${kind}:${id}`;
     const list = (kind === 'action' ? source.actions : source.events) as Array<LiveAction | LiveEvent>; const index = list.findIndex((row) => row.id === id);
-    if (method === RPC.automationCreate && index >= 0) throw new ControlCallError('revision_conflict', 'Already created');
+    if (method === RPC.automationCreate && index >= 0) throw new ControlCallError(ERROR_CODE.revisionConflict, 'Already created');
     if (method === RPC.automationDelete) { if (index >= 0) list.splice(index, 1); }
     else if (record) { if (index < 0) list.push(structuredClone(record)); else list[index] = structuredClone(record); }
     const revision = String(BigInt(revisions.get(key) ?? '0') + 1n); revisions.set(key, revision);
@@ -135,7 +135,7 @@ describe('atomic Owner library transition gateway', () => {
     const pending = f.journal.request({ operation: 'switch-profile', id: 'b' }, context).catch((failure: unknown) => failure);
     f.source.actions.push(action('phantom')); f.revisions.set('action:phantom', '1');
     await f.journal.confirm();
-    expect(f.journal.draft.value?.error).toContain('revision_conflict');
+    expect(f.journal.draft.value?.error).toContain(ERROR_CODE.revisionConflict);
     expect(f.native.library.state().recent[0]?.outcome).toBe('rejected'); expect(f.writes).toEqual([]);
     expect(f.journal.draft.value?.context.definitionDigest).toBe(context.definitionDigest);
     f.journal.dismiss(); await pending;
@@ -162,7 +162,7 @@ describe('atomic Owner library transition gateway', () => {
 
   test('unsafe source and missing reviewed context fail before requests; native failures never fall back', async () => {
     const f = fixture();
-    await expect(f.journal.request({ operation: 'apply-template', profileId: 'a', entry: { actions: [{ ...action(), config: { integer: 9007199254740992 } }], event: event() } }, null)).rejects.toMatchObject({ code: 'capability_unavailable' });
+    await expect(f.journal.request({ operation: 'apply-template', profileId: 'a', entry: { actions: [{ ...action(), config: { integer: 9007199254740992 } }], event: event() } }, null)).rejects.toMatchObject({ code: ERROR_CODE.capabilityUnavailable });
     const context = await f.journal.refreshSnapshot(); f.calls.length = 0;
     await expect(f.journal.submit({ operation: 'apply-template', profileId: 'a', entry: { actions: [{ ...action(), config: { integer: 9007199254740992 } }], event: event() } }, context)).rejects.toMatchObject({ code: 'unsafe_source' });
     expect(f.calls).toHaveLength(0);
@@ -174,7 +174,7 @@ describe('atomic Owner library transition gateway', () => {
   test('definition writes cannot proceed through a pending library intent on the same original client', async () => {
     const f = fixture(); await apply(f, { operation: 'create-profile', id: 'c', name: 'C', description: '' });
     const stored = f.native.library.state(); f.native.library.setState({ ...stored, pending: { ...stored.recent[0]!.intent, commandId: `owner-library-${'f'.repeat(32)}` } });
-    await expect(definitionJournal(f.client).submit({ operation: 'update', kind: 'action', id: 'old-action', expectedRevision: '1', record: action() }, { hostId: 'host-a', hostInstanceId: 'instance-a' })).rejects.toMatchObject({ code: 'command_pending' });
+    await expect(definitionJournal(f.client).submit({ operation: 'update', kind: 'action', id: 'old-action', expectedRevision: '1', record: action() }, { hostId: FIXTURE_ID.hostA, hostInstanceId: FIXTURE_ID.instanceA })).rejects.toMatchObject({ code: 'command_pending' });
     expect(f.calls.some((call) => call.method === RPC.automationDefinitionSubmit)).toBe(false);
   });
 });
@@ -211,8 +211,8 @@ test('same-target membership acknowledgements bind kind and profile and reject a
 
 test('legacy profile/template helpers cannot write when persistence is unknown or enabled', async () => {
   const fake = createFakeControlClient(() => { throw new Error('No persistent legacy fallback'); });
-  await expect(useRuleProfiles(fake.client).createPack('Profile')).rejects.toMatchObject({ code: 'capability_unavailable' });
-  await expect(useRuleProfiles(fake.client, () => true).createPack('Profile')).rejects.toMatchObject({ code: 'capability_unavailable' });
+  await expect(useRuleProfiles(fake.client).createPack('Profile')).rejects.toMatchObject({ code: ERROR_CODE.capabilityUnavailable });
+  await expect(useRuleProfiles(fake.client, () => true).createPack('Profile')).rejects.toMatchObject({ code: ERROR_CODE.capabilityUnavailable });
   await useRuleTemplates(fake.client).deleteCustom('example');
   expect(fake.calls).toHaveLength(0);
 });

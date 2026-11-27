@@ -4,7 +4,7 @@ import type { HostMessage } from '../../../../../../src/shared/messages.ts';
 import type { ControlClient, PushHandler, TopicHandler } from '@/shared/api/control-client.ts';
 import { useAutomation } from '../../../../../../src/web/entities/automation/model/automation-state.ts';
 import { libraryDefinitionDigest } from '@/entities/rule-template/model/library-contracts.ts';
-import { EVENT_KIND, RPC, TOPIC } from '../../../../../shared/index.ts';
+import { EVENT_KIND, FIXTURE_ID, RPC, TOPIC } from '../../../../../shared/index.ts';
 
 function fakeControl(): {
   client: ControlClient;
@@ -213,7 +213,7 @@ describe('useAutomation hotkey access request', () => {
       if (method === RPC.automationRuns) return Promise.resolve({ runs: [] });
       if (method === 'automation.library.snapshot') {
         const definitions = { actions: [], events: [], plugins: [], actionTypes: [], translations: {} };
-        return Promise.resolve({ hostId: 'host-a', hostInstanceId: 'instance-a', revision: '0', definitionDigest: libraryDefinitionDigest(definitions, []),
+        return Promise.resolve({ hostId: FIXTURE_ID.hostA, hostInstanceId: FIXTURE_ID.instanceA, revision: '0', definitionDigest: libraryDefinitionDigest(definitions, []),
           catalog: { packs: [], activeId: 'default', templates: [] }, definitions, resourceVersions: [] });
       }
       return Promise.resolve({ actions: [], events: [], plugins: [], actionTypes: [], translations: {} });

@@ -8,7 +8,7 @@ import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import ExploreList from '../../../../../../src/web/features/explore-catalog/ui/ExploreList.vue';
-import { PLUGIN_ID, RPC } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, PLUGIN_ID, RPC } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -59,7 +59,7 @@ const rowTitles = (wrapper: Awaited<ReturnType<typeof mountList>>['wrapper']) =>
 describe('ExploreList', () => {
   it('renders plugins, templates and profiles as rows with their own action', async () => {
     const { wrapper, calls } = await mountList(() => ({
-      items: [wire('plugin', PLUGIN_ID.acmeTts, 'Acme TTS'), wire('template', 'tpl-1', t('overlays.kinds.gift.name')), wire('profile', 'prof-1', 'Starter pack')],
+      items: [wire('plugin', PLUGIN_ID.acmeTts, 'Acme TTS'), wire('template', FIXTURE_ID.tpl1, t('overlays.kinds.gift.name')), wire('profile', 'prof-1', 'Starter pack')],
       nextCursor: null,
     }));
     expect(calls.find((call) => call.method === RPC.catalogItems)?.params).toMatchObject({ limit: 25 });
@@ -106,10 +106,10 @@ describe('ExploreList', () => {
   it('imports a template or a profile through the single library import', async () => {
     imports.importTemplate.mockResolvedValue(undefined);
     imports.importProfile.mockResolvedValue(undefined);
-    const { wrapper } = await mountList(() => ({ items: [wire('template', 'tpl-1', t('overlays.kinds.gift.name')), wire('profile', 'prof-1', 'Starter pack')], nextCursor: null }));
+    const { wrapper } = await mountList(() => ({ items: [wire('template', FIXTURE_ID.tpl1, t('overlays.kinds.gift.name')), wire('profile', 'prof-1', 'Starter pack')], nextCursor: null }));
     await wrapper.get('button[aria-label="Import template Gift alert"]').trigger('click');
     await flushPromises();
-    expect(imports.importTemplate).toHaveBeenCalledWith({ id: 'tpl-1', revision: 3 });
+    expect(imports.importTemplate).toHaveBeenCalledWith({ id: FIXTURE_ID.tpl1, revision: 3 });
     expect(wrapper.get('[role="status"]').text()).toContain('Imported');
     await wrapper.get('button[aria-label="Import profile Starter pack"]').trigger('click');
     await flushPromises();
@@ -118,7 +118,7 @@ describe('ExploreList', () => {
 
   it('asks to sign in when the import needs an account', async () => {
     imports.importTemplate.mockRejectedValue(new ControlCallError('signed_out', 'not signed in'));
-    const { wrapper } = await mountList(() => ({ items: [wire('template', 'tpl-1', t('overlays.kinds.gift.name'))], nextCursor: null }));
+    const { wrapper } = await mountList(() => ({ items: [wire('template', FIXTURE_ID.tpl1, t('overlays.kinds.gift.name'))], nextCursor: null }));
     await wrapper.get('button[aria-label="Import template Gift alert"]').trigger('click');
     await flushPromises();
     expect(wrapper.text()).toContain(t('exploreCatalog.signInToImport'));
@@ -161,7 +161,7 @@ describe('ExploreList', () => {
 
     it('still renders templates and profiles, with a neutral note for the plugins', async () => {
       const { wrapper } = await mountList(() => ({
-        items: [wire('template', 'tpl-1', t('overlays.kinds.gift.name'))], nextCursor: null, dataState: 'noActiveGeneration',
+        items: [wire('template', FIXTURE_ID.tpl1, t('overlays.kinds.gift.name'))], nextCursor: null, dataState: 'noActiveGeneration',
       }));
       expect(rowTitles(wrapper)).toEqual([t('overlays.kinds.gift.name')]);
       expect(wrapper.text()).toContain(t('exploreCatalog.noPlugins'));

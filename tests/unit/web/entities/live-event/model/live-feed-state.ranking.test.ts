@@ -1,5 +1,5 @@
 import { callbacks, createControl, describe, expect, it, createLiveFeedState } from '../../../../../../src/web/entities/live-event/model/testing/live-feed-fixture.ts';
-import { TOPIC } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, TOPIC } from '../../../../../shared/index.ts';
 
 describe('authoritative core likes ranking', () => {
   it('keeps the likes ranking independent of feed history, and rejects another room', () => {
@@ -9,37 +9,37 @@ describe('authoritative core likes ranking', () => {
       // Ranking may arrive on the lossy lane before the reliable
       // live.connected notification.
       const preconnectLeader = { rank: 1, score: 5, uniqueId: 'early', nickname: 'Early', userId: '9' };
-      harness.emit('live.likes-ranking', {
-        creatorId: 'creator', roomId: 'room-a', leaders: [preconnectLeader],
+      harness.emit(TOPIC.liveLikesRanking, {
+        creatorId: 'creator', roomId: FIXTURE_ID.roomA, leaders: [preconnectLeader],
       } as never);
-      harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: 'room-a' } as never);
+      harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: FIXTURE_ID.roomA } as never);
       expect(live.likeLeaders.value).toEqual([preconnectLeader]);
       const alice = { rank: 1, score: 150, uniqueId: 'alice', nickname: 'Alice', userId: '1' };
       const bob = { rank: 2, score: 90, uniqueId: 'bob', nickname: 'Bob', userId: '2' };
-      harness.emit('live.likes-ranking', {
+      harness.emit(TOPIC.liveLikesRanking, {
         creatorId: 'creator',
-        roomId: 'room-a',
+        roomId: FIXTURE_ID.roomA,
         leaders: [alice, bob],
       } as never);
       expect(live.likeLeaders.value).toEqual([alice, bob]);
       expect(live.events.value).toHaveLength(0);
 
-      harness.emit('live.likes-ranking', {
+      harness.emit(TOPIC.liveLikesRanking, {
         creatorId: 'creator',
         roomId: 'other-room',
         leaders: [{ ...alice, score: 9000 }],
       } as never);
       expect(live.likeLeaders.value).toEqual([alice, bob]);
 
-      harness.emit('live.likes-ranking', {
+      harness.emit(TOPIC.liveLikesRanking, {
         creatorId: 'creator',
-        roomId: 'room-a',
+        roomId: FIXTURE_ID.roomA,
         leaders: [{ ...bob, rank: 1, score: 200 }, { ...alice, rank: 2, score: 150 }],
       } as never);
       expect(live.likeLeaders.value.map((leader) => leader.uniqueId)).toEqual(['bob', 'alice']);
 
       // Rejoining the same room does not clear authoritative session totals.
-      harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: 'room-a' } as never);
+      harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: FIXTURE_ID.roomA } as never);
       expect(live.likeLeaders.value).toHaveLength(2);
       harness.emit(TOPIC.liveConnected, { uniqueId: 'creator', roomId: 'room-b' } as never);
       expect(live.likeLeaders.value).toHaveLength(0);
@@ -52,7 +52,7 @@ describe('authoritative core likes ranking', () => {
     const harness = createControl();
     const live = createLiveFeedState(harness.control, callbacks('system'));
     try {
-      harness.emit('live.likes-ranking', {
+      harness.emit(TOPIC.liveLikesRanking, {
         creatorId: 'creator',
         roomId: 'room',
         leaders: [

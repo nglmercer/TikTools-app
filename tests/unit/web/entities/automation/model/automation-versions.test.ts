@@ -7,7 +7,7 @@ import type { BehaviorSnapshot, LiveAction } from '../../../../../../src/automat
 import { ControlCallError, type ControlCallOptions, type RpcParams } from '@/shared/api/control-client.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import { useAutomation } from '../../../../../../src/web/entities/automation/model/automation-state.ts';
-import { ACTION_TYPE, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 beforeEach(() => resetResolutionPreference('manual'));
 afterEach(() => resetResolutionPreference('automatic'));
@@ -39,7 +39,7 @@ function fixture() {
     }
     if (method === RPC.automationUpdate || method === RPC.automationCreate) {
       if (options?.meta?.expectedRevision !== (method === RPC.automationCreate ? (missing ? revision : '0') : revision) && persistence !== false) {
-        throw new ControlCallError('revision_conflict', 'Host changed', meta());
+        throw new ControlCallError(ERROR_CODE.revisionConflict, 'Host changed', meta());
       }
       if (method === RPC.automationUpdate && missing) throw new ControlCallError('automation_not_found', 'Deleted', meta());
       revision = String(BigInt(method === RPC.automationCreate && !missing ? '0' : revision) + 1n);
@@ -77,9 +77,9 @@ test('saved-base updates keep their precondition after refresh and never recreat
   const f = fixture(); await f.automation.refresh();
   const base = f.automation.revisionFor('action', 'same'); expect(base).toBe('1');
   f.changeHost('Host change', '2'); await f.automation.refresh();
-  await expect(f.automation.saveRecordAndRefresh('action', { ...original, name: 'Draft' }, { revision: base!, create: false, host: f.automation.sourceHost.value })).rejects.toMatchObject({ code: 'revision_conflict' });
+  await expect(f.automation.saveRecordAndRefresh('action', { ...original, name: 'Draft' }, { revision: base!, create: false, host: f.automation.sourceHost.value })).rejects.toMatchObject({ code: ERROR_CODE.revisionConflict });
   f.setMissing('2');
-  await expect(f.automation.saveRecordAndRefresh('action', original, { revision: '2', create: false, host: f.automation.sourceHost.value })).rejects.toMatchObject({ code: 'not_found' });
+  await expect(f.automation.saveRecordAndRefresh('action', original, { revision: '2', create: false, host: f.automation.sourceHost.value })).rejects.toMatchObject({ code: ERROR_CODE.notFound });
   expect(f.requests.filter((r) => r.method === RPC.automationUpdate).map((r) => r.meta)).toEqual([{ expectedRevision: '1' }, { expectedRevision: '2' }]);
   expect(f.requests.some((r) => r.method === RPC.automationCreate)).toBe(false);
   f.automation.dispose();
@@ -90,7 +90,7 @@ test('new records use explicit create with zero; missing records expose the reta
   await f.automation.saveRecordAndRefresh('action', { ...original, id: 'fresh' }, { revision: '0', create: true, host: f.automation.sourceHost.value });
   expect(f.requests.find((r) => r.method === RPC.automationCreate)?.meta).toEqual({ expectedRevision: '0' });
   f.setMissing('4');
-  expect(await f.automation.readRecord('action', 'same')).toEqual({ record: null, revision: '4', host: { hostId: 'host-a', hostInstanceId: 'instance-a' } });
+  expect(await f.automation.readRecord('action', 'same')).toEqual({ record: null, revision: '4', host: { hostId: FIXTURE_ID.hostA, hostInstanceId: FIXTURE_ID.instanceA } });
   const result = await f.automation.saveRecordAndRefresh('action', original, { revision: '4', create: true, host: f.automation.sourceHost.value });
   expect(result.revision).toBe('5');
   f.automation.dispose();
@@ -118,7 +118,7 @@ test('only explicitly non-persistent owner hosts allow an unversioned memory edi
       expect((await saving).revision).toBe(null);
       expect(f.requests.find((r) => r.method === RPC.automationUpdate)?.meta).toBeUndefined();
     } else {
-      await expect(saving).rejects.toMatchObject({ code: 'capability_unavailable' });
+      await expect(saving).rejects.toMatchObject({ code: ERROR_CODE.capabilityUnavailable });
       expect(f.requests.some((r) => r.method === RPC.automationUpdate)).toBe(false);
     }
     f.automation.dispose();
@@ -147,7 +147,7 @@ test('a long-lived editor keeps its opening host when a replacement host has the
   await editor.save();
   expect(editor.state.value?.reviewRequired).toBe(true);
   expect(editor.state.value?.candidate.name).toBe('Draft for the original host');
-  expect(editor.state.value?.host).toEqual({ hostId: 'host-a', hostInstanceId: 'instance-a' });
+  expect(editor.state.value?.host).toEqual({ hostId: FIXTURE_ID.hostA, hostInstanceId: FIXTURE_ID.instanceA });
   expect(f.calls.filter((call) => call.method === RPC.automationDefinitionSubmit)).toHaveLength(0);
   await editor.readForReview(); expect(editor.adoptReview()).toBe(true);
   expect(editor.state.value?.host).toEqual({ hostId: 'replacement-host', hostInstanceId: 'replacement-instance' });
@@ -165,7 +165,7 @@ test('persistent helpers never borrow a background projection host when the open
     () => f.automation.saveRecordAndRefresh('action', original, { create: false, revision: '1' }),
     () => f.automation.deleteRecord('action', 'same', '1'),
     () => f.automation.setRecordEnabled('action', 'same', false, '1'),
-  ]) await expect(writing()).rejects.toMatchObject({ code: 'capability_unavailable' });
+  ]) await expect(writing()).rejects.toMatchObject({ code: ERROR_CODE.capabilityUnavailable });
   expect(f.calls.filter((call) => call.method === RPC.automationDefinitionSubmit)).toHaveLength(0);
   expect(f.requests.some((call) => [RPC.automationCreate, RPC.automationUpdate, RPC.automationDelete, 'automation.enable', RPC.automationDisable].includes(call.method))).toBe(false);
   f.automation.dispose();

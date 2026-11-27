@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { callWithMeta, createControlClient } from '../../../../../src/web/shared/api/control-client.ts';
-import { ACCOUNT_STATE, RPC, TOPIC } from '../../../../shared/index.ts';
+import { ACCOUNT_STATE, ERROR_CODE, RPC, TOPIC } from '../../../../shared/index.ts';
 
 type MockIpc = {
   sent: string[];
@@ -105,8 +105,8 @@ describe('createControlClient', () => {
       control.attach();
       const conflict = callWithMeta(control, 'workflows.save', { graph: {} }, { meta: { expectedRevision: '1' } });
       const data = { resourceVersions: [{ kind: 'workflow', id: 'welcome', scope: 'host', revision: '2' }] };
-      respond(sentId(), { error: { code: 'revision_conflict', message: 'reload', data } });
-      await expect(conflict).rejects.toMatchObject({ code: 'revision_conflict', data });
+      respond(sentId(), { error: { code: ERROR_CODE.revisionConflict, message: 'reload', data } });
+      await expect(conflict).rejects.toMatchObject({ code: ERROR_CODE.revisionConflict, data });
       const malformed = callWithMeta(control, 'workflows.get', { id: 'welcome' });
       respond(sentId(), { result: {}, meta: { resourceVersions: [{ revision: 'invalid' }] } });
       await expect(malformed).rejects.toMatchObject({ code: 'protocol' });
@@ -136,7 +136,7 @@ describe('createControlClient', () => {
       const control = createControlClient({ timeoutMs: 5 });
       control.attach();
       const huge = 'x'.repeat(1024 * 1024 + 1);
-      await expect(control.call('system.ping', { blob: huge })).rejects.toMatchObject({ code: 'too_large' });
+      await expect(control.call('system.ping', { blob: huge })).rejects.toMatchObject({ code: ERROR_CODE.tooLarge });
       expect(ipc.sent).toHaveLength(0);
       control.detach();
     });
@@ -146,7 +146,7 @@ describe('createControlClient', () => {
       const pending = control.call(RPC.automationLibrarySubmit, { blob: 'x'.repeat(2 * 1024 * 1024) });
       expect(ipc.sent).toHaveLength(1);
       respond(sentId(), { result: { accepted: true } }); await expect(pending).resolves.toEqual({ accepted: true });
-      await expect(control.call(RPC.automationLibrarySubmit, { blob: 'x'.repeat(8 * 1024 * 1024 + 64 * 1024) })).rejects.toMatchObject({ code: 'too_large' });
+      await expect(control.call(RPC.automationLibrarySubmit, { blob: 'x'.repeat(8 * 1024 * 1024 + 64 * 1024) })).rejects.toMatchObject({ code: ERROR_CODE.tooLarge });
       expect(ipc.sent).toHaveLength(1); control.detach();
     });
 
@@ -155,8 +155,8 @@ describe('createControlClient', () => {
       const control = createControlClient();
       control.attach();
       const pending = control.call('system.ping', {});
-      respond(sentId(), { error: { code: 'too_large', message: 'request too large' } });
-      await expect(pending).rejects.toMatchObject({ code: 'too_large' });
+      respond(sentId(), { error: { code: ERROR_CODE.tooLarge, message: 'request too large' } });
+      await expect(pending).rejects.toMatchObject({ code: ERROR_CODE.tooLarge });
       control.detach();
     });
 
@@ -177,7 +177,7 @@ describe('createControlClient', () => {
         const ipc = installMockIpc();
         const control = createControlClient({ timeoutMs: 5 });
         control.attach();
-        const pending = control.call('cloud.login.complete', {}, { timeoutMs: 50 });
+        const pending = control.call(RPC.cloudLoginComplete, {}, { timeoutMs: 50 });
         let settled = false;
         void pending.then(() => { settled = true; });
         await vi.advanceTimersByTimeAsync(5);

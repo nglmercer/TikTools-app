@@ -3,9 +3,10 @@ import { ref } from 'vue';
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import type { AutomationHost } from '@/entities/automation/model/record-versions.ts';
 import { useAutomationToggleReview } from '../../../../../../src/web/features/manage-automations/model/use-automation-toggle-review.ts';
+import { ERROR_CODE, FIXTURE_ID } from '../../../../../shared/index.ts';
 
-const hostA: AutomationHost = { hostId: 'host-a', hostInstanceId: 'instance-a' };
-const hostB: AutomationHost = { hostId: 'host-a', hostInstanceId: 'instance-b' };
+const hostA: AutomationHost = { hostId: FIXTURE_ID.hostA, hostInstanceId: FIXTURE_ID.instanceA };
+const hostB: AutomationHost = { hostId: FIXTURE_ID.hostA, hostInstanceId: 'instance-b' };
 const messages: Record<string, string> = {
   'automations.conflict.missingRevision': 'missing revision',
   'automations.conflict.deleted': 'deleted',
@@ -55,7 +56,7 @@ describe('automation toggle review', () => {
   });
 
   it('requires a fresh read after a failed write and never writes again without it', async () => {
-    const f = fixture({ write: () => Promise.reject(new ControlCallError('revision_conflict', 'Host changed')) });
+    const f = fixture({ write: () => Promise.reject(new ControlCallError(ERROR_CODE.revisionConflict, 'Host changed')) });
     f.review.request('event', 'present', true);
     await f.review.confirm();
     expect(f.review.error.value).toBe('Host changed');
@@ -68,7 +69,7 @@ describe('automation toggle review', () => {
   it('adopts the current revision and host after reading, and allows one explicit confirmation', async () => {
     let attempts = 0;
     const f = fixture({
-      write: () => (attempts++ === 0 ? Promise.reject(new ControlCallError('revision_conflict', 'Host changed')) : Promise.resolve()),
+      write: () => (attempts++ === 0 ? Promise.reject(new ControlCallError(ERROR_CODE.revisionConflict, 'Host changed')) : Promise.resolve()),
       read: () => Promise.resolve({ record: { name: 'Renamed', enabled: false }, revision: '4', host: hostB }),
     });
     f.review.request('event', 'present', true);
@@ -83,7 +84,7 @@ describe('automation toggle review', () => {
 
   it('reports an operation that was already applied and blocks the write', async () => {
     const f = fixture({
-      write: () => Promise.reject(new ControlCallError('revision_conflict', 'Host changed')),
+      write: () => Promise.reject(new ControlCallError(ERROR_CODE.revisionConflict, 'Host changed')),
       read: () => Promise.resolve({ record: { name: 'Present', enabled: true }, revision: '4', host: hostA }),
     });
     f.review.request('event', 'present', true);

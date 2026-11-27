@@ -4,7 +4,7 @@ import type { LiveAction, LiveEvent } from '../../../../../../src/automation/beh
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import type { AutomationRecordVersion } from '@/entities/automation/model/record-versions.ts';
 import { useAutomationEditor, type AutomationEditorGateway } from '../../../../../../src/web/features/edit-automation-record/model/automation-editor.ts';
-import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, EVENT_KIND } from '../../../../../shared/index.ts';
 
 const action: LiveAction = { id: 'same', name: 'Initial', schemaVersion: 2, enabled: true, typeId: ACTION_TYPE.coreLog, config: { message: 'one' } };
 const event: LiveEvent = { id: 'same', name: 'Event', schemaVersion: 1, enabled: true, trigger: EVENT_KIND.tiktokChat, filters: [], cooldownMs: 0, cooldownScope: 'user', runMode: 'all', actionIds: ['same'] };
@@ -27,7 +27,7 @@ describe('automation editor base and outcome fencing', () => {
     const host = gateway();
     host.read = vi.fn(async () => current);
     host.save = vi.fn(async (_kind, record, base) => {
-      if (base.revision !== current.revision) throw new ControlCallError('revision_conflict', 'Host changed');
+      if (base.revision !== current.revision) throw new ControlCallError(ERROR_CODE.revisionConflict, 'Host changed');
       current = { record: record as LiveAction, revision: '2' };
       return current;
     });
@@ -155,7 +155,7 @@ describe('automation editor base and outcome fencing', () => {
   });
 
   test('delete failures retain the draft; deletion completed after newer edits keeps those edits for review', async () => {
-    const host = gateway(); host.remove = vi.fn(async () => { throw new ControlCallError('revision_conflict', 'Host changed'); });
+    const host = gateway(); host.remove = vi.fn(async () => { throw new ControlCallError(ERROR_CODE.revisionConflict, 'Host changed'); });
     const editor = useAutomationEditor(host); editor.open('action', action, '1');
     editor.change({ ...action, name: 'Keep on failure' }); await editor.remove();
     expect(editor.state.value).toMatchObject({ reviewRequired: true, candidate: { name: 'Keep on failure' } });
@@ -185,7 +185,7 @@ describe('automatic resolution (default)', () => {
     host.read = vi.fn(async () => current);
     host.save = vi.fn(async () => {
       current = { record: { ...action, name: 'Host saved' }, revision: '2' };
-      throw new ControlCallError('revision_conflict', 'Host changed');
+      throw new ControlCallError(ERROR_CODE.revisionConflict, 'Host changed');
     });
     const editor = useAutomationEditor(host);
     editor.open('action', action, '1');
@@ -203,7 +203,7 @@ test('clears the auto-resolve notice once the user edits again', async () => {
   host.read = vi.fn(async () => current);
   host.save = vi.fn(async () => {
     current = { record: { ...action, name: 'Host saved' }, revision: '2' };
-    throw new ControlCallError('revision_conflict', 'Host changed');
+    throw new ControlCallError(ERROR_CODE.revisionConflict, 'Host changed');
   });
   const editor = useAutomationEditor(host);
   editor.open('action', action, '1');

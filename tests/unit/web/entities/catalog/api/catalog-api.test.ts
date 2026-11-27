@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { catalogItemsParams, InvalidCatalogResponse, parseCatalogItem, parseCatalogPage } from '../../../../../../src/web/entities/catalog/api/catalog-api.ts';
 import { normalizeQuery } from '../../../../../../src/web/entities/catalog/model/catalog-query.ts';
+import { FIXTURE_ID } from '../../../../../shared/index.ts';
 
 const plugin = {
   identity: { kind: 'plugin', id: 'acme.gift' },
@@ -24,7 +25,7 @@ describe('catalog item parsing', () => {
 
   it('reads a version only from a plugin release', () => {
     const template = parseCatalogItem({
-      identity: { kind: 'template', id: 'tpl-1' },
+      identity: { kind: 'template', id: FIXTURE_ID.tpl1 },
       releaseRef: { type: 'documentRevision', revision: 3, sha256: 'b' },
     });
     expect(template.version).toBeNull();

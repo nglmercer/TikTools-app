@@ -1,5 +1,5 @@
 import { callbacks, createControl, chatEvent, describe, expect, it, createLiveFeedState, likeEvent } from '../../../../../../src/web/entities/live-event/model/testing/live-feed-fixture.ts';
-import { RPC, TOPIC } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, RPC, TOPIC } from '../../../../../shared/index.ts';
 
 describe('live feed rendering', () => {
   it('renders every event immediately, capped at 100 per category', () => {
@@ -81,7 +81,7 @@ describe('live feed rendering', () => {
     const live = createLiveFeedState(harness.control, callbacks('system'));
     harness.emit(TOPIC.liveUiEvent, chatEvent('dispose', 'user-0', 0) as never);
     live.dispose();
-    harness.emit(TOPIC.liveUiEvent, chatEvent('dispose', 'user-1', 1) as never);
+    harness.emit(TOPIC.liveUiEvent, chatEvent('dispose', FIXTURE_ID.user1, 1) as never);
     expect(live.events.value).toHaveLength(1);
     expect(harness.unsubscribed).toContain(TOPIC.liveUiEvent);
     expect(harness.unsubscribed).toContain('room.stats');

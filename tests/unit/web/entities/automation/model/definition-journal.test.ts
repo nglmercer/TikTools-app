@@ -8,7 +8,7 @@ import { useAutomationEditor } from '@/features/edit-automation-record/model/aut
 import { nativeDefinitionHost } from '../../../../../../src/web/entities/automation/testing/native-definition-fixture.ts';
 import { parseDefinitionState, parseDefinitionSubmission, type DefinitionState, type DefinitionWrite } from '../../../../../../src/web/entities/automation/model/definition-contracts.ts';
 import { definitionJournal } from '../../../../../../src/web/entities/automation/model/definition-journal.ts';
-import { ACTION_TYPE, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 const source = (): LiveAction => ({ schemaVersion: 2, id: 'saved', name: 'Saved action', enabled: false, typeId: ACTION_TYPE.coreLog, config: { message: 'private source' } });
 function fixture() {
@@ -25,7 +25,7 @@ function fixture() {
   const transport = createFakeControlClient(native.handle);
   const journal = definitionJournal(transport.client);
   const input = { operation: 'update' as const, kind: 'action' as const, id: 'saved', expectedRevision: '1', record: source() };
-  return { ...transport, native, journal, input, host: { hostId: 'host-a', hostInstanceId: 'instance-a' }, writes: () => writes, record: () => record, revision: () => revision };
+  return { ...transport, native, journal, input, host: { hostId: String(FIXTURE_ID.hostA), hostInstanceId: String(FIXTURE_ID.instanceA) }, writes: () => writes, record: () => record, revision: () => revision };
 }
 
 describe('native Owner definition journal', () => {
@@ -96,7 +96,7 @@ describe('native Owner definition journal', () => {
 
   test('the native journal cannot lend its cached current host to an unbound definition write', async () => {
     const f = fixture(); await f.journal.refresh(); f.calls.length = 0;
-    await expect(f.journal.submit(f.input, undefined as unknown as typeof f.host)).rejects.toMatchObject({ code: 'capability_unavailable' });
+    await expect(f.journal.submit(f.input, undefined as unknown as typeof f.host)).rejects.toMatchObject({ code: ERROR_CODE.capabilityUnavailable });
     expect(f.calls).toHaveLength(0); expect(f.writes()).toBe(0);
   });
 
@@ -111,7 +111,7 @@ describe('native Owner definition journal', () => {
     expect((ack.value as LiveAction).config.message).toBe('private source');
     expect(f.writes()).toBe(1);
     expect(f.calls.filter((c) => c.method === RPC.automationDefinitionSubmit)).toHaveLength(1);
-    expect(f.calls.find((c) => c.method === RPC.automationDefinitionSubmit)?.params).toMatchObject({ operation: 'update', id: 'saved', expectedRevision: '1', hostId: 'host-a' });
+    expect(f.calls.find((c) => c.method === RPC.automationDefinitionSubmit)?.params).toMatchObject({ operation: 'update', id: 'saved', expectedRevision: '1', hostId: FIXTURE_ID.hostA });
   });
 
   test('known success without a fresh acknowledgement requires review and cannot borrow an older rejection', async () => {

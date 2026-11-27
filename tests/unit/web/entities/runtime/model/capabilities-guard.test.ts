@@ -3,7 +3,7 @@ import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testin
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import { useSyncStore } from '@/entities/cloud-sync/model/sync-store.ts';
 import { useCapabilityStore } from '../../../../../../src/web/entities/runtime/model/capabilities-store.ts';
-import { ACCOUNT_STATE, RPC } from '../../../../../shared/index.ts';
+import { ACCOUNT_STATE, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 function host(announced: string[]) {
   const { client, calls } = createFakeControlClient((method) => {
@@ -19,7 +19,7 @@ function host(announced: string[]) {
 describe('capability guards', () => {
   it('does not call Cloud or sync methods the host did not announce', async () => {
     const { stores, calls } = host([RPC.rpcDiscover, RPC.systemInfo]);
-    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
     await stores.use(() => useAccountStore()).refresh();
     await stores.use(() => useSyncStore()).refresh();
     expect(calls()).toEqual([RPC.rpcDiscover]);
@@ -29,7 +29,7 @@ describe('capability guards', () => {
 
   it('calls announced methods normally', async () => {
     const { stores, calls } = host([RPC.rpcDiscover, RPC.cloudStatus, RPC.syncStatus]);
-    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
     await stores.use(() => useAccountStore()).refresh();
     await stores.use(() => useSyncStore()).refresh();
     expect(calls()).toEqual([RPC.rpcDiscover, RPC.cloudStatus, RPC.syncStatus]);

@@ -11,7 +11,7 @@ import {
   makeTestShareEvent,
   toLiveEnvelope,
 } from '../../../../src/widgets/shared/test-events.ts';
-import { TOPIC } from '../../../shared/index.ts';
+import { FIXTURE_ID, TOPIC } from '../../../shared/index.ts';
 
 function setup(options: { visibleMs?: number; queueCapacity?: number } = {}) {
   const fake = createFakeClock();
@@ -106,7 +106,7 @@ describe('share controller', () => {
     const event = makeTestShareEvent({ msgId: 'shared-1' });
     expect(
       controller.handleEnvelope(
-        toLiveEnvelope({ ...event, creator: { uniqueId: 'creator', roomId: 'room-1' } }),
+        toLiveEnvelope({ ...event, creator: { uniqueId: 'creator', roomId: FIXTURE_ID.room1 } }),
       ),
     ).toBe('shown');
     expect(

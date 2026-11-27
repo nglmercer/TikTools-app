@@ -5,7 +5,7 @@ import { ControlCallError } from '@/shared/api/control-client.ts';
 import { createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import type { AccountStatus } from '../../../../../../src/web/entities/cloud-account/api/account-types.ts';
 import { useAccountStore } from '../../../../../../src/web/entities/cloud-account/model/account-store.ts';
-import { ACCOUNT_STATE, RPC } from '../../../../../shared/index.ts';
+import { ACCOUNT_STATE, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 function signedOut(overrides: Partial<AccountStatus> = {}): AccountStatus {
   return {
@@ -93,15 +93,15 @@ describe('account store', () => {
     const { store } = harness((method) => {
       if (method === RPC.cloudLoginBegin) return { browserUrl: 'https://cloud.example/desktop/login?x=1' };
       if (method === 'cloud.login.open') return { ok: true };
-      if (method === 'cloud.login.complete') {
-        return signedOut({ state: ACCOUNT_STATE.signedIn, accountId: 'user-1' });
+      if (method === RPC.cloudLoginComplete) {
+        return signedOut({ state: ACCOUNT_STATE.signedIn, accountId: FIXTURE_ID.user1 });
       }
       throw new Error(`unexpected ${method}`);
     });
     await store.startLogin();
     expect(store.loginUrl).toBeNull();
     expect(store.status?.state).toBe(ACCOUNT_STATE.signedIn);
-    expect(store.status?.accountId).toBe('user-1');
+    expect(store.status?.accountId).toBe(FIXTURE_ID.user1);
     expect(store.error).toBeNull();
   });
 
@@ -111,7 +111,7 @@ describe('account store', () => {
       if (method === 'cloud.login.open') {
         throw new ControlCallError('internal', 'cannot open', { reason: 'failed' });
       }
-      if (method === 'cloud.login.complete') {
+      if (method === RPC.cloudLoginComplete) {
         return signedOut({ state: ACCOUNT_STATE.signedIn, accountId: 'user-2' });
       }
       throw new Error(`unexpected ${method}`);
@@ -140,13 +140,13 @@ describe('account store', () => {
       if (method === RPC.cloudLoginCancel) {
         return signedOut({ state: ACCOUNT_STATE.signedOut, error: 'login cancelled' });
       }
-      if (method === 'cloud.logout') return signedOut();
+      if (method === RPC.cloudLogout) return signedOut();
       throw new Error(`unexpected ${method}`);
     });
     store.status = signedOut({ state: 'signing-in', loginOperationId: '0123456789abcdef0123456789abcdef' });
     await store.cancelLogin();
     await store.logout();
-    expect(calls.map((call) => call.method)).toEqual([RPC.cloudLoginCancel, 'cloud.logout']);
+    expect(calls.map((call) => call.method)).toEqual([RPC.cloudLoginCancel, RPC.cloudLogout]);
     expect(calls[0]?.params).toEqual({ operationId: '0123456789abcdef0123456789abcdef' });
     expect(store.status?.state).toBe(ACCOUNT_STATE.signedOut);
   });
@@ -169,7 +169,7 @@ describe('account store', () => {
     const delayed = new Promise<AccountStatus>((resolve) => { release = resolve; });
     const { store } = harness((method) => {
       if (method === RPC.cloudStatus) return delayed;
-      if (method === 'cloud.logout') return signedOut();
+      if (method === RPC.cloudLogout) return signedOut();
       throw new Error(`unexpected ${method}`);
     });
     store.status = signedOut({ state: ACCOUNT_STATE.signedIn, accountId: 'alice' });
@@ -188,7 +188,7 @@ describe('account store', () => {
     const { store } = harness((method) => {
       if (method === RPC.cloudStatus) return signedOut();
       if (method === RPC.cloudRestore) return delayed;
-      if (method === 'cloud.logout') return signedOut();
+      if (method === RPC.cloudLogout) return signedOut();
       throw new Error(`unexpected ${method}`);
     });
     const old = store.ensureRestored();
@@ -227,7 +227,7 @@ describe('account store', () => {
     const delayed = new Promise<AccountStatus>((resolve) => { release = resolve; });
     const { store } = harness((method) => {
       if (method === RPC.cloudStatus) { requests += 1; return requests === 1 ? delayed : signedOut(); }
-      if (method === 'cloud.logout') return signedOut();
+      if (method === RPC.cloudLogout) return signedOut();
       throw new Error(`unexpected ${method}`);
     });
     const old = store.ensureRestored();
@@ -327,13 +327,13 @@ describe('account store', () => {
     const { store, calls } = harness((method) => {
       if (method === RPC.cloudLoginBegin) return { browserUrl: 'https://cloud.example/login' };
       if (method === 'cloud.login.open') return { ok: true };
-      if (method === 'cloud.login.complete') throw new ControlCallError('deadline', 'operation may still complete');
+      if (method === RPC.cloudLoginComplete) throw new ControlCallError('deadline', 'operation may still complete');
       if (method === RPC.cloudLoginCancel || method === RPC.cloudStatus) return signedOut();
       throw new Error(`unexpected ${method}`);
     });
     await store.startLogin();
     expect(calls.map((entry) => entry.method)).toEqual([
-      RPC.cloudLoginReserve, RPC.cloudLoginBegin, 'cloud.login.open', 'cloud.login.complete',
+      RPC.cloudLoginReserve, RPC.cloudLoginBegin, 'cloud.login.open', RPC.cloudLoginComplete,
       RPC.cloudLoginCancel, RPC.cloudStatus,
     ]);
     expect(calls[4]?.params).toEqual({ operationId: '0123456789abcdef0123456789abcdef' });
@@ -349,7 +349,7 @@ describe('account store', () => {
     const { store, calls } = harness((method) => {
       if (method === RPC.cloudLoginBegin) return { browserUrl: 'https://cloud.example/login' };
       if (method === 'cloud.login.open') return { ok: true };
-      if (method === 'cloud.login.complete') return completion;
+      if (method === RPC.cloudLoginComplete) return completion;
       if (method === RPC.cloudLoginCancel) return signedOut();
       throw new Error(`unexpected ${method}`);
     }, () => ++reservations === 1 ? reservation : { operationId: '0123456789abcdef0123456789abcdef' });

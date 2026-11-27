@@ -4,3 +4,5 @@ export * from './events.ts';
 export * from './plugins.ts';
 export * from './actions.ts';
 export * from './status.ts';
+export * from './errors.ts';
+export * from './fixtures.ts';

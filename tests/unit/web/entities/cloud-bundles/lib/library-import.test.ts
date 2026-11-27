@@ -6,7 +6,7 @@ import { libraryJournal } from '@/entities/rule-template/model/library-journal.t
 import { ControlCallError, type ControlClient } from '@/shared/api/control-client.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import { importLibraryDocument, readLibraryDocument, type LibraryImportEnvironment } from '../../../../../../src/web/entities/cloud-bundles/lib/library-import.ts';
-import { ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 const id = '00000000-0000-4000-8000-000000000001';
 const sha256 = 'a'.repeat(64);
@@ -52,7 +52,7 @@ describe('Cloud library import coordinator', () => {
     await flushPromises();
     expect(f.journal.draft.value?.mutation).toMatchObject({ operation: 'import-templates', templates: [{ id: 'cloud-template' }] });
     expect(f.journal.draft.value?.provenance).toEqual({ origin: 'https://cloud.example', accountId: 'alice', documentId: id, revision: '3', sha256 });
-    expect(f.journal.draft.value?.context.hostId).toBe('host-a');
+    expect(f.journal.draft.value?.context.hostId).toBe(FIXTURE_ID.hostA);
     expect(settled).toBe(false);
     expect(submits(f)).toHaveLength(0);
     await f.journal.confirm(); await outcome;
@@ -156,7 +156,7 @@ describe('readLibraryDocument', () => {
   });
 
   it('tries the owner copy only when the public document is explicitly absent', async () => {
-    const f = fixture((params) => { if (params?.scope === 'public') throw new ControlCallError('not_found', 'Cloud document not found'); return record(template); });
+    const f = fixture((params) => { if (params?.scope === 'public') throw new ControlCallError(ERROR_CODE.notFound, 'Cloud document not found'); return record(template); });
     await readLibraryDocument(f.environment.client, id, 3);
     expect(f.calls.map((call) => call.params?.scope)).toEqual(['public', 'mine']);
   });

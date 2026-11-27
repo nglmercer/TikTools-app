@@ -19,7 +19,7 @@ function mount(rows: unknown[] = [active]) {
   const { client, calls } = createFakeControlClient((method) => {
     if (method === RPC.integrationsConnections) return { items: rows };
     if (method === 'integrations.connect') return { connectionId: id, provider: 'webhook', label: 'New', secret, deliveryPath: `/api/v3/integrations/webhook/${id}/deliveries` };
-    if (method === 'integrations.disconnect') return { id, status: 'revoked' };
+    if (method === RPC.integrationsDisconnect) return { id, status: 'revoked' };
     throw new Error(`unexpected ${method}`);
   });
   const wrapper = mountWithPlugins(CloudConnections, { global: { plugins: storePlugins(client) } });
@@ -41,7 +41,7 @@ describe('CloudConnections', () => {
 
     await wrapper.get('form').trigger('submit');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'integrations.connect')?.params).toEqual({ label: 'New' });
+    expect(calls.find((call) => call.method === RPC.integrationsConnect)?.params).toEqual({ label: 'New' });
     expect(wrapper.text()).toContain(secret);
     expect(wrapper.text()).toContain('It will not be shown again');
 
@@ -54,10 +54,10 @@ describe('CloudConnections', () => {
     const { wrapper, calls } = mount();
     await flushPromises();
     await button(wrapper, 'Disconnect').trigger('click');
-    expect(calls.some((call) => call.method === 'integrations.disconnect')).toBe(false);
+    expect(calls.some((call) => call.method === RPC.integrationsDisconnect)).toBe(false);
     await button(wrapper, t('cloudConnections.confirmDisconnect')).trigger('click');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'integrations.disconnect')?.params).toEqual({ id });
+    expect(calls.find((call) => call.method === RPC.integrationsDisconnect)?.params).toEqual({ id });
   });
 
   it('shows the empty state when there are no connections', async () => {

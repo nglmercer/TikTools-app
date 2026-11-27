@@ -37,7 +37,7 @@ describe('competition controls', () => {
     });
     const mixed: RankingDefinition = { ...ranking, id: 'mixed', sources: [...ranking.sources,
       { source: EVENT_KIND.tiktokLike, metric: 'like.count', weight: 2, enabled: true },
-      { source: 'tiktok.share', metric: 'share.count', weight: 3, enabled: true }] };
+      { source: EVENT_KIND.tiktokShare, metric: 'share.count', weight: 3, enabled: true }] };
     const gift: RankingDefinition = { ...mixed, id: 'unsupported', sources: [...mixed.sources,
       { source: 'tiktok.follow', metric: 'event.count', weight: 1, enabled: true }] };
     const wrapper = mountWithPlugins(CompetitionPanel, { props: { rankings: [mixed, gift] }, global: { plugins: storePlugins(client) } });

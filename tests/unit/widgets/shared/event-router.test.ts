@@ -40,7 +40,7 @@ describe('event router', () => {
     const share = routeLiveEvent(makeTestShareEnvelope());
     expect(share?.kind).toBe('share');
     if (share?.kind === 'share') {
-      expect(share.event.type).toBe('tiktok.share');
+      expect(share.event.type).toBe(EVENT_KIND.tiktokShare);
     }
     const subscribe = routeLiveEvent(makeTestSubscribeEnvelope());
     expect(subscribe?.kind).toBe('subscribe');

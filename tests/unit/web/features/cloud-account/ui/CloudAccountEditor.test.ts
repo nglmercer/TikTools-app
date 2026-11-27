@@ -8,13 +8,13 @@ import { ControlCallError } from '@/shared/api/control-client.ts';
 import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import CloudAccountEditor from '../../../../../../src/web/features/cloud-account/ui/CloudAccountEditor.vue';
-import { ACCOUNT_STATE, RPC } from '../../../../../shared/index.ts';
+import { ACCOUNT_STATE, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 function signedIn(overrides: Partial<AccountStatus> = {}): AccountStatus {
   return {
     origin: 'http://127.0.0.1:3000',
     state: ACCOUNT_STATE.signedIn,
-    accountId: 'user-1',
+    accountId: FIXTURE_ID.user1,
     email: 'user@example.com',
     displayName: 'Test User',
     persistence: 'keychain',
@@ -71,7 +71,7 @@ describe('CloudAccountEditor', () => {
     const wrapper = setup(signedIn());
     await flushPromises();
     expect(wrapper.text()).toContain('Test User');
-    expect(wrapper.text()).not.toContain('user-1');
+    expect(wrapper.text()).not.toContain(FIXTURE_ID.user1);
   });
 
   it('falls back to email and then account id', async () => {
@@ -81,7 +81,7 @@ describe('CloudAccountEditor', () => {
 
     const byId = setup(signedIn({ displayName: null, email: null }));
     await flushPromises();
-    expect(byId.text()).toContain('user-1');
+    expect(byId.text()).toContain(FIXTURE_ID.user1);
   });
 
   it('shows manual login and cancellation', async () => {
@@ -95,7 +95,7 @@ describe('CloudAccountEditor', () => {
       if (method === RPC.cloudLoginReserve) return { operationId: '0123456789abcdef0123456789abcdef' };
       if (method === RPC.cloudLoginBegin) return { browserUrl: 'https://cloud.example/desktop/login' };
       if (method === 'cloud.login.open') throw new Error('browser unavailable');
-      if (method === 'cloud.login.complete') return pending;
+      if (method === RPC.cloudLoginComplete) return pending;
       if (method === RPC.cloudLoginCancel) return out;
       throw new Error(`unexpected ${method}`);
     });
@@ -132,7 +132,7 @@ describe('CloudAccountEditor', () => {
         };
       }
       if (method === RPC.cloudBackupList) return { items: [] };
-      if (method === 'cloud.logout') return { origin: null, state: ACCOUNT_STATE.signedOut, persistence: 'keychain' };
+      if (method === RPC.cloudLogout) return { origin: null, state: ACCOUNT_STATE.signedOut, persistence: 'keychain' };
       throw new Error(`unexpected ${method}`);
     });
     const wrapper = mountWithPlugins(CloudAccountEditor, { global: { plugins: storePlugins(client) } });
@@ -148,7 +148,7 @@ describe('CloudAccountEditor', () => {
     expect(wrapper.find('[data-guide-scope="account"]').exists()).toBe(true);
     await aside.get(`button[aria-label="${t('account.signOut')}"]`).trigger('click');
     await flushPromises();
-    expect(calls).toContain('cloud.logout');
+    expect(calls).toContain(RPC.cloudLogout);
     wrapper.unmount();
   });
 

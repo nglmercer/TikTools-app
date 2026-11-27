@@ -6,7 +6,7 @@ import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { DEFAULT_CATALOG_FILTERS } from '../../../../../../src/web/entities/catalog/model/catalog-query.ts';
 import { useCatalogStore } from '../../../../../../src/web/entities/catalog/model/catalog-store.ts';
-import { ACCOUNT_STATE, RPC } from '../../../../../shared/index.ts';
+import { ACCOUNT_STATE, ERROR_CODE, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 function item(id: string, kind = 'plugin') {
   return {
@@ -35,7 +35,7 @@ function host(announced: string[], handler: (method: string, params: unknown) =>
 }
 
 async function discover(stores: ReturnType<typeof createStoreHarness>) {
-  await stores.use(() => useCapabilityStore()).refresh('host-a');
+  await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
 }
 
 describe('unified catalog store', () => {
@@ -84,7 +84,7 @@ describe('unified catalog store', () => {
     const { stores, calls } = host([RPC.catalogItems, 'catalog.item'], (method, params) => {
       if (method === 'catalog.item') {
         if ((params as { id: string }).id === 'b.two') return item('b.two');
-        throw new ControlCallError('not_found', 'catalog item not found');
+        throw new ControlCallError(ERROR_CODE.notFound, 'catalog item not found');
       }
       return { items: [item('a.one')], nextCursor: null };
     });
@@ -103,13 +103,13 @@ describe('unified catalog store', () => {
 
   it('pages the owner library through catalog.mine and never asks it for plugins', async () => {
     const { stores, calls } = host([RPC.catalogItems, RPC.catalogMine], (method) => {
-      if (method === RPC.catalogMine) return { items: [item('tpl-1', 'template')], nextCursor: null };
+      if (method === RPC.catalogMine) return { items: [item(FIXTURE_ID.tpl1, 'template')], nextCursor: null };
       return { items: [], nextCursor: null };
     });
     await discover(stores);
     const catalog = stores.use(() => useCatalogStore());
     await catalog.setFilters({ ...DEFAULT_CATALOG_FILTERS, view: 'mine', type: 'template' });
-    expect(catalog.items.map((entry) => entry.id)).toEqual(['tpl-1']);
+    expect(catalog.items.map((entry) => entry.id)).toEqual([FIXTURE_ID.tpl1]);
     expect(calls.at(-1)).toEqual({ method: RPC.catalogMine, params: { query: '', limit: 25, kind: 'template' } });
     const before = calls.length;
     await catalog.setFilters({ ...DEFAULT_CATALOG_FILTERS, view: 'mine', type: 'plugin' });
@@ -147,7 +147,7 @@ describe('unified catalog store', () => {
     const { stores, calls } = host([RPC.catalogItems], () => ({ items: [], nextCursor: null }));
     await discover(stores);
     const catalog = stores.use(() => useCatalogStore());
-    const template = { kind: 'template', id: 'tpl-1', title: 'T', summary: '', publisher: null, categories: [], targets: [], version: null, yanked: false, published: true, revision: 3, sha256: 'a'.repeat(64) } as const;
+    const template = { kind: 'template', id: FIXTURE_ID.tpl1, title: 'T', summary: '', publisher: null, categories: [], targets: [], version: null, yanked: false, published: true, revision: 3, sha256: 'a'.repeat(64) } as const;
     expect(await catalog.importItem(template)).toBe(false);
     expect(catalog.importState).toBe('signIn');
     expect(await catalog.importItem({ ...template, revision: null })).toBe(false);

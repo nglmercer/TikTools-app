@@ -6,7 +6,7 @@ import { libraryJournal } from '@/entities/rule-template/model/library-journal.t
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { createJournal, parseJournal, serializeJournal, setEntry } from '../../../../../../src/web/entities/cloud-bundles/model/apply-journal.ts';
 import { JOURNAL_KEY, useBundlesStore } from '../../../../../../src/web/entities/cloud-bundles/model/bundles-store.ts';
-import { ACCOUNT_STATE, ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+import { ACCOUNT_STATE, ACTION_TYPE, EVENT_KIND, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 const id = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
 
@@ -32,7 +32,7 @@ const report = (items: unknown[], canApply: boolean) => ({ packageVersion: 1, it
 describe('package apply', () => {
   it('refuses to apply a package whose last check did not allow it', async () => {
     const { stores, writes } = host(report([{ kind: 'overlay', id, version: null, revision: 2, required: true, status: 'revisionChanged', permissions: 'none' }], false));
-    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
     const bundles = stores.use(() => useBundlesStore());
     await bundles.checkPackage(id);
     expect(await bundles.applyPackage()).toBe(false);
@@ -44,7 +44,7 @@ describe('package apply', () => {
       { kind: 'overlay', id, version: null, revision: 2, required: true, status: 'ready', permissions: 'none' },
       { kind: 'profile', id, version: null, revision: 1, required: false, status: 'ready', permissions: 'none' },
     ], true));
-    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
     const bundles = stores.use(() => useBundlesStore());
     await bundles.checkPackage(id);
     expect(await bundles.applyPackage()).toBe(true);
@@ -57,7 +57,7 @@ describe('package apply', () => {
 
   it('fails a template step without a signed-in account and keeps the failure visible', async () => {
     const { stores } = host(report([{ kind: 'template', id, version: null, revision: 4, required: true, status: 'ready', permissions: 'none' }], true));
-    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
     const bundles = stores.use(() => useBundlesStore());
     await bundles.checkPackage(id);
     await bundles.applyPackage();
@@ -96,7 +96,7 @@ describe('package apply with Cloud templates and profiles', () => {
     });
     const { client, calls } = createFakeControlClient(native.handle);
     const stores = createStoreHarness(client);
-    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
     const account = stores.use(() => useAccountStore());
     account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
     const bundles = stores.use(() => useBundlesStore());

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ControlClient, GapHandler, TopicHandler } from '@/shared/api/control-client.ts';
 import type { RankingDefinition } from '../../../../../../src/web/entities/ranking/types.ts';
 import { createFeedRankings, feedRankingDefinition, FEED_RANKING_IDS } from '../../../../../../src/web/entities/ranking/model/feed-rankings.ts';
-import { EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+import { EVENT_KIND, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 export function rankingSnapshot(rankingId: string, creatorId: string, roomId: string, scores: number[], revision = 1) {
   return {
@@ -57,10 +57,10 @@ describe('feed rankings', () => {
     const host = fakeHost();
     host.scores[FEED_RANKING_IDS.top] = [500, 20];
     const rankings = createFeedRankings(host.client);
-    await rankings.connect('luna', 'room-1');
+    await rankings.connect('luna', FIXTURE_ID.room1);
     await flushPromises();
 
-    expect(host.definitions.get(FEED_RANKING_IDS.top)).toEqual(feedRankingDefinition('top', 'luna', 'room-1'));
+    expect(host.definitions.get(FEED_RANKING_IDS.top)).toEqual(feedRankingDefinition('top', 'luna', FIXTURE_ID.room1));
     expect(host.definitions.get(FEED_RANKING_IDS.likes)?.sources).toEqual([
       { source: EVENT_KIND.tiktokLike, metric: 'like.count', weight: 1, enabled: true },
     ]);
@@ -73,8 +73,8 @@ describe('feed rankings', () => {
   it('applies pushes for the current room only', async () => {
     const host = fakeHost();
     const rankings = createFeedRankings(host.client);
-    await rankings.connect('luna', 'room-1');
-    host.emit('ranking.updated', { snapshot: rankingSnapshot(FEED_RANKING_IDS.likes, 'luna', 'room-1', [9], 2) });
+    await rankings.connect('luna', FIXTURE_ID.room1);
+    host.emit('ranking.updated', { snapshot: rankingSnapshot(FEED_RANKING_IDS.likes, 'luna', FIXTURE_ID.room1, [9], 2) });
     expect(rankings.likesRanking.value?.entries[0]?.score).toBe(9);
     host.emit('ranking.updated', { snapshot: rankingSnapshot(FEED_RANKING_IDS.likes, 'other', 'room-9', [99], 3) });
     expect(rankings.likesRanking.value).toBeNull();
@@ -84,10 +84,10 @@ describe('feed rankings', () => {
   it('retargets the same ids with a reset on room change and skips unchanged reconnects', async () => {
     const host = fakeHost();
     const rankings = createFeedRankings(host.client);
-    await rankings.connect('luna', 'room-1');
+    await rankings.connect('luna', FIXTURE_ID.room1);
     host.calls.length = 0;
 
-    await rankings.connect('luna', 'room-1');
+    await rankings.connect('luna', FIXTURE_ID.room1);
     expect(host.calls.map((call) => call.method)).toEqual([RPC.rankingsList, RPC.rankingsSnapshot, RPC.rankingsSnapshot]);
 
     host.calls.length = 0;
@@ -103,7 +103,7 @@ describe('feed rankings', () => {
   it('reports unavailable when the host refuses, so the feed can fall back', async () => {
     const host = fakeHost({ fail: true });
     const rankings = createFeedRankings(host.client);
-    await rankings.connect('luna', 'room-1');
+    await rankings.connect('luna', FIXTURE_ID.room1);
     expect(rankings.rankingsAvailable.value).toBe(false);
     expect(rankings.topRanking.value).toBeNull();
     expect(rankings.likesRanking.value).toBeNull();
@@ -113,7 +113,7 @@ describe('feed rankings', () => {
   it('reloads snapshots after a delivery gap', async () => {
     const host = fakeHost();
     const rankings = createFeedRankings(host.client);
-    await rankings.connect('luna', 'room-1');
+    await rankings.connect('luna', FIXTURE_ID.room1);
     host.scores[FEED_RANKING_IDS.top] = [42];
     host.gap();
     await flushPromises();

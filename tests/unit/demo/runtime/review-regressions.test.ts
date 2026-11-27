@@ -3,7 +3,7 @@ import type { BehaviorSnapshot, LiveAction } from '../../../../src/automation/be
 import { callWithMeta } from '@/shared/api/control-client.ts';
 import { createDemoTransport, demoMethod, objectParams } from '../../../../src/web/demo/runtime/transport.ts';
 import { createDemoFixture } from '../support/host.ts';
-import { ACTION_TYPE, RPC } from '../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, RPC } from '../../../shared/index.ts';
 
 const MiB = 1024 * 1024;
 const cleanup: Array<() => void> = [];
@@ -45,7 +45,7 @@ describe('review regressions: demo runtime contract and isolation', () => {
         else Reflect.deleteProperty(Object.prototype, 'values');
       }
       expect(failure).toBeDefined();
-      expect(['not_found', 'invalid_params']).toContain((failure as { code?: string } | undefined)?.code);
+      expect([ERROR_CODE.notFound, 'invalid_params']).toContain((failure as { code?: string } | undefined)?.code);
       expect(observedValues).toEqual(originalValues);
       expect(observedPrototypeValues).toEqual(originalPrototypeValues);
       expect(host.wasSuccessful(method)).toBe(false);
@@ -60,7 +60,7 @@ describe('review regressions: demo runtime contract and isolation', () => {
     const before = structuredClone(host.state.leaderboard);
     expect(host.wasSuccessful(RPC.pointsAdjust)).toBe(false);
     await expect(client.call(RPC.pointsAdjust, { uniqueId: 'missing-fictional-viewer', delta: 5 }))
-      .rejects.toMatchObject({ code: 'not_found' });
+      .rejects.toMatchObject({ code: ERROR_CODE.notFound });
     expect(host.state.leaderboard).toEqual(before);
     expect(host.wasSuccessful(RPC.pointsAdjust)).toBe(false);
 
@@ -70,7 +70,7 @@ describe('review regressions: demo runtime contract and isolation', () => {
     expect(host.wasSuccessful(RPC.pointsAdjust)).toBe(true);
 
     await expect(client.call(RPC.pointsAdjust, { uniqueId: 'still-missing', delta: 5 }))
-      .rejects.toMatchObject({ code: 'not_found' });
+      .rejects.toMatchObject({ code: ERROR_CODE.notFound });
     expect(host.wasSuccessful(RPC.pointsAdjust)).toBe(true);
   });
 
@@ -105,7 +105,7 @@ describe('review regressions: demo runtime contract and isolation', () => {
     peer.transport.send(request(1, 'fixture.large'));
     await Promise.resolve();
     expect(delivered).toHaveLength(1);
-    expect(delivered[0]!.response).toMatchObject({ id: 1, error: { code: 'too_large' } });
+    expect(delivered[0]!.response).toMatchObject({ id: 1, error: { code: ERROR_CODE.tooLarge } });
     expect(delivered[0]!.response).not.toHaveProperty('result');
     expect(peer.diagnostics().queuedBytes).toBe(0);
   });

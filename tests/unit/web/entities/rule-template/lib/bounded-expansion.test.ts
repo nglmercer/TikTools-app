@@ -3,7 +3,7 @@ import type { JsonValue } from '../../../../../../src/automation/types.ts';
 import { applyRuleTemplate, parseRuleTemplate, substituteRuleParams, type RuleTemplate } from '../../../../../../src/web/entities/rule-template/lib/rule-templates.ts';
 import { instantiateProfile, type RuleProfile } from '../../../../../../src/web/entities/rule-template/model/rule-profiles-state.ts';
 import { TEMPLATE_AGGREGATE_BYTES, TEMPLATE_RECORD_BYTES } from '../../../../../../src/web/entities/rule-template/lib/bounded-expansion.ts';
-import { EVENT_KIND } from '../../../../../shared/index.ts';
+import { ERROR_CODE, EVENT_KIND } from '../../../../../shared/index.ts';
 
 function template(value: JsonValue, actions = 1): RuleTemplate {
   const parsed = parseRuleTemplate({ templateVersion: 1, id: 'bounded-template', title: 'Bounded',
@@ -22,14 +22,14 @@ test('small template plus shared parameter cannot allocate hundreds of megabytes
   expect(JSON.stringify(source).length).toBeLessThan(16_000);
   const stringify = vi.spyOn(JSON, 'stringify'); let failure: unknown; let serialized: number;
   try { applyRuleTemplate(source, params); } catch (error) { failure = error; } finally { serialized = stringify.mock.calls.length; stringify.mockRestore(); }
-  expect(failure).toMatchObject({ code: 'too_large' });
+  expect(failure).toMatchObject({ code: ERROR_CODE.tooLarge });
   expect(serialized).toBe(0);
 });
 test('inline object text is measured with outer escaping before serialization, retaining valid scalar semantics', () => {
   const raw = { quoted: '"'.repeat(70_000), unicode: '🌹', control: '\n' };
   const stringify = vi.spyOn(JSON, 'stringify'); let failure: unknown; let serialized: number;
   try { substituteRuleParams('value={{ params.raw }}', { raw }); } catch (error) { failure = error; } finally { serialized = stringify.mock.calls.length; stringify.mockRestore(); }
-  expect(failure).toMatchObject({ code: 'too_large' }); expect(serialized).toBe(0);
+  expect(failure).toMatchObject({ code: ERROR_CODE.tooLarge }); expect(serialized).toBe(0);
   const valid = { quoted: '"🌹\n', nested: [1, false, null] };
   expect(substituteRuleParams('value={{ params.raw }}', { raw: valid })).toBe(`value=${JSON.stringify(valid)}`);
 });
@@ -37,7 +37,7 @@ test('sole objects are measured before cloning and raw params are not recursivel
   const clone = vi.spyOn(Object, 'fromEntries'); let failure: unknown; let cloned: number;
   try { substituteRuleParams('{{ params.raw }}', { raw: { message: 'x'.repeat(TEMPLATE_RECORD_BYTES) } }); }
   catch (error) { failure = error; } finally { cloned = clone.mock.calls.length; clone.mockRestore(); }
-  expect(failure).toMatchObject({ code: 'too_large' }); expect(cloned).toBe(0);
+  expect(failure).toMatchObject({ code: ERROR_CODE.tooLarge }); expect(cloned).toBe(0);
   const params = JSON.parse('{"raw":{"__proto__":{"safe":true},"message":"{{ params.later }}"},"later":"must not expand"}');
   const result = substituteRuleParams('{{ params.raw }}', params);
   expect(result).toEqual(params.raw); expect(result).not.toBe(params.raw); expect(Object.hasOwn(result as object, '__proto__')).toBe(true);
@@ -48,7 +48,7 @@ test('profile aggregate is checked before any expanded tree is materialized, eve
   expect(() => applyRuleTemplate(source.templates[0]!.template, source.params)).not.toThrow();
   const clone = vi.spyOn(Object, 'fromEntries'); let failure: unknown; let cloned: number;
   try { instantiateProfile(source); } catch (error) { failure = error; } finally { cloned = clone.mock.calls.length; clone.mockRestore(); }
-  expect(failure).toMatchObject({ code: 'too_large' }); expect(cloned).toBe(0);
+  expect(failure).toMatchObject({ code: ERROR_CODE.tooLarge }); expect(cloned).toBe(0);
 });
 test('UTF-8 and JSON escapes enforce the exact record boundary and the shared aggregate without truncation', () => {
   const exact = `${'🌹'.repeat(65_535)}xx`;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { MAX_IMAGE_BYTES, useBundlesStore } from '../../../../../../src/web/entities/cloud-bundles/model/bundles-store.ts';
-import { RPC } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
 
 const id = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
 
@@ -17,7 +17,7 @@ function host(handler: (method: string, params: unknown) => unknown) {
 describe('bundles store', () => {
   it('refuses an oversized image before any request', async () => {
     const { stores, calls } = host(() => ({}));
-    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
     const bundles = stores.use(() => useBundlesStore());
     const big = new File([new Uint8Array(MAX_IMAGE_BYTES + 1)], 'big.png', { type: 'image/png' });
     expect(await bundles.upload(big)).toBe(false);
@@ -30,7 +30,7 @@ describe('bundles store', () => {
       if (method === 'bundles.assets.upload') return { id, mime: 'image/png', width: 2, height: 2, size: 4 };
       throw new Error(method);
     });
-    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
     const bundles = stores.use(() => useBundlesStore());
     expect(await bundles.upload(new File([new Uint8Array([1, 2, 3, 4])], 'a.png', { type: 'image/png' }))).toBe(true);
     expect(bundles.asset?.id).toBe(id);
@@ -44,7 +44,7 @@ describe('bundles store', () => {
       }
       throw new Error(method);
     });
-    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    await stores.use(() => useCapabilityStore()).refresh(FIXTURE_ID.hostA);
     const bundles = stores.use(() => useBundlesStore());
     await bundles.checkPackage(id);
     expect(bundles.preflight?.canApply).toBe(false);

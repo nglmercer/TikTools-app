@@ -124,7 +124,7 @@ describe('FeedPage', () => {
   it('switches spectator rankings to core like totals and opens the viewer', async () => {
     const { wrapper, emit } = await mountFeed();
     emit(TOPIC.liveConnected, { uniqueId: 'luna', roomId: 'room-42' });
-    emit('live.likes-ranking', {
+    emit(TOPIC.liveLikesRanking, {
       creatorId: 'luna',
       roomId: 'room-42',
       leaders: [
@@ -159,7 +159,7 @@ describe('FeedPage', () => {
     const { wrapper, emit } = await mountFeed(call);
     emit(TOPIC.liveConnected, { uniqueId: 'luna', roomId: 'room-42' });
     // The legacy projection is ignored once the ranking is provisioned.
-    emit('live.likes-ranking', { creatorId: 'luna', roomId: 'room-42', leaders: [{ rank: 1, score: 7, uniqueId: 'old', nickname: 'Old', userId: '1' }] });
+    emit(TOPIC.liveLikesRanking, { creatorId: 'luna', roomId: 'room-42', leaders: [{ rank: 1, score: 7, uniqueId: 'old', nickname: 'Old', userId: '1' }] });
     await flushPromises();
     await nextTick();
 
