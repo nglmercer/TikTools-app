@@ -1184,20 +1184,8 @@ async fn revocation_during_delay_prevents_later_points_in_the_same_live_event() 
         core.run_automation_event(AutomationEvent::owner(input("alice")))
             .await;
     });
-    tokio::time::timeout(std::time::Duration::from_secs(3), async {
-        loop {
-            if f.core()
-                .automation_runs()
-                .iter()
-                .any(|r| r["actionId"] == "begin" && r["status"] == "ok")
-            {
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-        }
-    })
-    .await
-    .expect("event never started approved log action");
+    f.wait_for_ok_run("begin", "event never started approved log action")
+        .await;
     tokio::time::sleep(std::time::Duration::from_millis(40)).await;
     f.core()
         .collaboration()
@@ -1283,20 +1271,8 @@ async fn revoke_and_reapprove_during_delay_never_revives_the_captured_old_run() 
         core.run_automation_event(AutomationEvent::owner(input("alice")))
             .await;
     });
-    tokio::time::timeout(std::time::Duration::from_secs(3), async {
-        loop {
-            if f.core()
-                .automation_runs()
-                .iter()
-                .any(|r| r["actionId"] == "begin" && r["status"] == "ok")
-            {
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-        }
-    })
-    .await
-    .expect("event never entered approved sequence");
+    f.wait_for_ok_run("begin", "event never entered approved sequence")
+        .await;
     tokio::time::sleep(std::time::Duration::from_millis(40)).await;
     f.core()
         .automation_approval_revoke(
@@ -2119,18 +2095,8 @@ async fn reusable_grant_revocation_during_delay_stops_later_effects() {
         core.run_automation_event(AutomationEvent::owner(input("alice")))
             .await;
     });
-    tokio::time::timeout(std::time::Duration::from_secs(3), async {
-        while !f
-            .core()
-            .automation_runs()
-            .iter()
-            .any(|run| run["actionId"] == "reusable-begin" && run["status"] == "ok")
-        {
-            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-        }
-    })
-    .await
-    .expect("reusable event did not start");
+    f.wait_for_ok_run("reusable-begin", "reusable event did not start")
+        .await;
     f.core()
         .collaboration()
         .unwrap()
@@ -2724,13 +2690,7 @@ async fn remote_stop_events_retain_the_operator_and_run_scoped_actions() {
             CompetitionRemoteTransition::Pause,
         )
         .unwrap();
-    tokio::time::timeout(std::time::Duration::from_secs(3), async {
-        while f.points("alice") != 1.0 {
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        }
-    })
-    .await
-    .unwrap();
+    f.wait_for_points("alice", 1.0).await;
     f.core()
         .competition_remote_command(
             auth.clone(),
@@ -2749,11 +2709,5 @@ async fn remote_stop_events_retain_the_operator_and_run_scoped_actions() {
             CompetitionRemoteTransition::Cancel,
         )
         .unwrap();
-    tokio::time::timeout(std::time::Duration::from_secs(3), async {
-        while f.points("alice") != 2.0 {
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        }
-    })
-    .await
-    .unwrap();
+    f.wait_for_points("alice", 2.0).await;
 }

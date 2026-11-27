@@ -147,6 +147,34 @@ impl Fixture {
     pub(crate) fn body(&self, kind: AutomationKind, id: &str) -> Value {
         self.core().automation_get(kind, id).unwrap()
     }
+    /// Waits (up to 3 s) until the automation run log shows `action_id` finished
+    /// `ok`; panics with `what` when it never does.
+    pub(crate) async fn wait_for_ok_run(&self, action_id: &str, what: &str) {
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            while !self
+                .core()
+                .automation_runs()
+                .iter()
+                .any(|run| run["actionId"] == action_id && run["status"] == "ok")
+            {
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect(what);
+    }
+
+    /// Waits (up to 3 s) until `viewer` holds exactly `expected` points.
+    pub(crate) async fn wait_for_points(&self, viewer: &str, expected: f64) {
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            while self.points(viewer) != expected {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("points never reached the expected balance");
+    }
+
     pub(crate) fn points(&self, id: &str) -> f64 {
         self.core()
             .points_viewer(id)
