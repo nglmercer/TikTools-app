@@ -39,11 +39,7 @@ impl SyncCoordinator {
             if captured != review.captured {
                 return Err(SyncCoordError::StaleReview);
             }
-            let context = V1LocalEditContext {
-                origin: review.session.instance_origin(),
-                account_id: review.session.account_id().to_owned(),
-                config_generation: review.config.generation,
-            };
+            let context = V1LocalEditContext::for_session(&review.session, review.config);
             let before = captured
                 .snapshot
                 .state

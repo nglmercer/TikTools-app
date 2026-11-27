@@ -1,8 +1,34 @@
 //! Frozen keep-local intent validation, digests and recognized recovery phases.
 use super::{AbandonPhase, RebasePhase, V1KeepLocalIntent};
-use crate::{SyncCoordError, V1ConflictSourceProof, V1LocalEditContext};
-use cloud_client::{Edit, Entry, Pending, Record, StateSnapshot, SyncState};
+use crate::{
+    protocol_fence::V1Lease, SyncConfig, SyncCoordError, V1ConflictSourceProof,
+    V1LocalEditContext, V1ProductOutbox,
+};
+use cloud_client::{Edit, Entry, Pending, Record, Session, StateSnapshot, SyncState};
 use sha2::{Digest, Sha256};
+
+/// Shared start of every capture: fence the v1 identity, then load the
+/// journalled rebase for `key` and check it belongs to this identity and key.
+/// Returns the context together with the validated intent.
+pub(super) fn load_locked_rebase(
+    lease: &V1Lease,
+    session: &Session,
+    config: SyncConfig,
+    key: &str,
+    outbox: &mut dyn V1ProductOutbox,
+) -> Result<(V1LocalEditContext, V1KeepLocalIntent), SyncCoordError> {
+    let context = V1LocalEditContext::for_session(session, config);
+    lease.ensure_v1(&context.origin, &context.account_id)?;
+    lease.ensure_no_uncertain(&context.origin, &context.account_id)?;
+    let intent = outbox
+        .load_rebase(&context, key)?
+        .ok_or(SyncCoordError::StaleReview)?;
+    intent.validate(&context)?;
+    if intent.key != key {
+        return Err(SyncCoordError::StaleReview);
+    }
+    Ok((context, intent))
+}
 
 impl V1KeepLocalIntent {
     pub(super) fn validate(&self, context: &V1LocalEditContext) -> Result<(), SyncCoordError> {

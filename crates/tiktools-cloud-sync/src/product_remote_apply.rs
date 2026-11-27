@@ -41,11 +41,7 @@ impl SyncCoordinator {
         key: &str,
         outbox: &mut dyn V1ProductOutbox,
     ) -> Result<(u64, Record), SyncCoordError> {
-        let context = V1LocalEditContext {
-            origin: session.instance_origin(),
-            account_id: session.account_id().to_owned(),
-            config_generation: config.generation,
-        };
+        let context = V1LocalEditContext::for_session(session, config);
         lease.ensure_v1(&context.origin, &context.account_id)?;
         lease.ensure_no_uncertain(&context.origin, &context.account_id)?;
         if outbox.has_pending_rebase(&context)? {
@@ -124,11 +120,7 @@ impl SyncCoordinator {
             if generation != review.snapshot_generation || record != review.record {
                 return Err(SyncCoordError::StaleReview);
             }
-            let context = V1LocalEditContext {
-                origin: review.session.instance_origin(),
-                account_id: review.session.account_id().to_owned(),
-                config_generation: review.config.generation,
-            };
+            let context = V1LocalEditContext::for_session(&review.session, review.config);
             operation(&context, &record)
         })
     }

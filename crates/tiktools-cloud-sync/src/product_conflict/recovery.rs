@@ -1,5 +1,5 @@
 //! Fresh review and explicit resumption of an interrupted keep-local intent.
-use super::intent::rebase_phase;
+use super::intent::{load_locked_rebase, rebase_phase};
 use super::{RebasePhase, V1KeepLocalIntent, V1KeepLocalRecoveryReview};
 use crate::{protocol_fence::V1Lease, SyncCoordError, SyncCoordinator, V1ProductOutbox};
 use crate::{SyncConfig, V1ConflictSourceProof, V1LocalEditContext};
@@ -15,20 +15,7 @@ impl SyncCoordinator {
         key: &str,
         outbox: &mut dyn V1ProductOutbox,
     ) -> Result<(V1KeepLocalIntent, V1ConflictSourceProof, RebasePhase), SyncCoordError> {
-        let context = V1LocalEditContext {
-            origin: session.instance_origin(),
-            account_id: session.account_id().to_owned(),
-            config_generation: config.generation,
-        };
-        lease.ensure_v1(&context.origin, &context.account_id)?;
-        lease.ensure_no_uncertain(&context.origin, &context.account_id)?;
-        let intent = outbox
-            .load_rebase(&context, key)?
-            .ok_or(SyncCoordError::StaleReview)?;
-        intent.validate(&context)?;
-        if intent.key != key {
-            return Err(SyncCoordError::StaleReview);
-        }
+        let (context, intent) = load_locked_rebase(lease, session, config, key, outbox)?;
         let proof = outbox
             .rebase_source_proof(&context, &intent)?
             .ok_or(SyncCoordError::StaleReview)?;
@@ -140,11 +127,7 @@ impl SyncCoordinator {
             if current != (review.intent.clone(), review.proof.clone(), review.phase) {
                 return Err(SyncCoordError::StaleReview);
             }
-            let context = V1LocalEditContext {
-                origin: review.session.instance_origin(),
-                account_id: review.session.account_id().to_owned(),
-                config_generation: review.config.generation,
-            };
+            let context = V1LocalEditContext::for_session(&review.session, review.config);
             self.finish_keep_local_locked(&lease, &context, &review.intent, &review.proof, outbox)
         })
     }

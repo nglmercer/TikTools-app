@@ -296,11 +296,7 @@ impl SyncCoordinator {
     ) -> Result<StateSnapshot, SyncCoordError> {
         let _admission = lease.try_admission()?;
         self.with_live_session(session, config, || {
-            let context = V1LocalEditContext {
-                origin: session.instance_origin(),
-                account_id: session.account_id().to_owned(),
-                config_generation: config.generation,
-            };
+            let context = V1LocalEditContext::for_session(session, config);
             lease.ensure_outbox_mode(
                 &context.origin,
                 &context.account_id,
@@ -336,11 +332,7 @@ impl SyncCoordinator {
         require_product_marker: bool,
     ) -> Result<(StateSnapshot, Option<(String, UncertainUpload)>), SyncCoordError> {
         let _admission = lease.try_admission()?;
-        let context = V1LocalEditContext {
-            origin: session.instance_origin(),
-            account_id: session.account_id().to_owned(),
-            config_generation: config.generation,
-        };
+        let context = V1LocalEditContext::for_session(session, config);
         self.with_live_session(session, config, || {
             Ok(lease.ensure_outbox_mode(
                 &context.origin,

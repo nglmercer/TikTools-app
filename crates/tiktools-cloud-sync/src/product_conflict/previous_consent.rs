@@ -15,11 +15,7 @@ impl SyncCoordinator {
         key: &str,
         outbox: &mut dyn V1ProductOutbox,
     ) -> Result<(V1KeepLocalIntent, AbandonPhase), SyncCoordError> {
-        let context = V1LocalEditContext {
-            origin: session.instance_origin(),
-            account_id: session.account_id().to_owned(),
-            config_generation: config.generation,
-        };
+        let context = V1LocalEditContext::for_session(session, config);
         lease.ensure_v1(&context.origin, &context.account_id)?;
         lease.ensure_no_uncertain(&context.origin, &context.account_id)?;
         let intent = outbox
@@ -96,11 +92,7 @@ impl SyncCoordinator {
             if captured != (review.intent.clone(), review.phase) {
                 return Err(SyncCoordError::StaleReview);
             }
-            let context = V1LocalEditContext {
-                origin: review.session.instance_origin(),
-                account_id: review.session.account_id().to_owned(),
-                config_generation: review.config.generation,
-            };
+            let context = V1LocalEditContext::for_session(&review.session, review.config);
             self.restore_conflict_for_abandon(&lease, &context, &review.intent, review.phase)?;
             if !outbox.abandon_rebase_with_previous_consent(&context, &review.intent)? {
                 return Err(SyncCoordError::StaleReview);

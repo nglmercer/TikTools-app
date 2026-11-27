@@ -6,6 +6,8 @@
 
 use std::io::ErrorKind;
 
+use cloud_client::Session;
+
 use crate::{ProtocolFenceError, SyncConfig, SyncCoordError, SyncCoordinator};
 
 /// Nonsecret identity and consent epoch for an atomically recorded local edit.
@@ -14,6 +16,17 @@ pub struct V1LocalEditContext {
     pub origin: String,
     pub account_id: String,
     pub config_generation: u128,
+}
+
+impl V1LocalEditContext {
+    /// Identity of `session` at the consent epoch of `config`.
+    pub(crate) fn for_session(session: &Session, config: SyncConfig) -> Self {
+        Self {
+            origin: session.instance_origin(),
+            account_id: session.account_id().to_owned(),
+            config_generation: config.generation,
+        }
+    }
 }
 
 /// The same identity-bound source evidence is recorded for v2. A distinct

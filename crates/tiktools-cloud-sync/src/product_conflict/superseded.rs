@@ -1,5 +1,5 @@
 //! Review changed source generations without exposing another account's newer edit.
-use super::intent::abandon_phase;
+use super::intent::{abandon_phase, load_locked_rebase};
 use super::{CapturedSupersededRebase, V1SupersededRebaseReview};
 use crate::{protocol_fence::V1Lease, SyncCoordError, SyncCoordinator, V1ProductOutbox};
 use crate::{SyncConfig, V1LocalEditContext};
@@ -15,20 +15,7 @@ impl SyncCoordinator {
         key: &str,
         outbox: &mut dyn V1ProductOutbox,
     ) -> Result<CapturedSupersededRebase, SyncCoordError> {
-        let context = V1LocalEditContext {
-            origin: session.instance_origin(),
-            account_id: session.account_id().to_owned(),
-            config_generation: config.generation,
-        };
-        lease.ensure_v1(&context.origin, &context.account_id)?;
-        lease.ensure_no_uncertain(&context.origin, &context.account_id)?;
-        let intent = outbox
-            .load_rebase(&context, key)?
-            .ok_or(SyncCoordError::StaleReview)?;
-        intent.validate(&context)?;
-        if intent.key != key {
-            return Err(SyncCoordError::StaleReview);
-        }
+        let (context, intent) = load_locked_rebase(lease, session, config, key, outbox)?;
         let generation = outbox
             .superseded_rebase_generation(&context, &intent)?
             .filter(|generation| *generation > intent.source_generation)
@@ -96,11 +83,7 @@ impl SyncCoordinator {
             if captured != review.captured {
                 return Err(SyncCoordError::StaleReview);
             }
-            let context = V1LocalEditContext {
-                origin: review.session.instance_origin(),
-                account_id: review.session.account_id().to_owned(),
-                config_generation: review.config.generation,
-            };
+            let context = V1LocalEditContext::for_session(&review.session, review.config);
             self.restore_conflict_for_abandon(&lease, &context, &captured.intent, captured.phase)?;
             if !outbox.abandon_superseded_rebase(&context, &captured.intent, captured.generation)? {
                 return Err(SyncCoordError::StaleReview);
