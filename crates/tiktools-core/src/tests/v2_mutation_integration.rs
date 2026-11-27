@@ -4,6 +4,7 @@
 //! Product migration does not yet expose the marker/consent creation path,
 //! so this fixture seeds the same reviewed state on disk. The sync crate's
 //! cutover tests independently exercise creation through its real APIs.
+use super::v2_seed::{seed_v2_workspace, V2Seed};
 use super::*;
 use cloud_client::{WorkspaceEdit, WorkspaceKey, WorkspacePendingStatus};
 use tiktools_cloud_auth::{CloudAuth, MemoryTokenStore};
@@ -137,40 +138,14 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     let auth = CloudAuth::new(Some(origin.clone()), sidecar, Arc::new(Store));
     auth.restore().await.unwrap();
     let session = auth.session().await.unwrap();
-    Arc::get_mut(&mut core).unwrap().sync =
-        Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
-    let sync = core.sync.coordinator().unwrap().clone();
-    sync.set_enabled(true).unwrap();
-    let sync_dir = paths.data.join("cloud-sync");
-    let workspace = WorkspaceCoordinator::open(&sync_dir, origin.clone(), "alice".into()).unwrap();
-    workspace.bootstrap(&[], None).unwrap();
-    let store = cloud_client::WorkspaceStore::open(&sync_dir, &origin, "alice").unwrap();
-    let mut snapshot = store.load().unwrap().unwrap();
-    snapshot.state.mark_product_guarded();
-    store
-        .save(Some(snapshot.generation), &snapshot.state)
-        .unwrap();
-    let identity = Sha256Digest::of_bytes(&serde_json::to_vec(&(&origin, "alice")).unwrap());
-    let scope = Sha256Digest::of_bytes(
-        &serde_json::to_vec(&("tiktools-v2-consent", &origin, "alice")).unwrap(),
-    );
-    std::fs::write(
-        sync_dir.join("cloud-sync.json"),
-        serde_json::to_vec(
-            &json!({"version":2,"enabled":true,"generation":42,"scope":scope.as_bytes()}),
-        )
-        .unwrap(),
-    )
-    .unwrap();
-    let protocol_marker = sync_dir.join(format!("protocol-{identity}.json"));
-    std::fs::write(&protocol_marker, serde_json::to_vec(&json!({"formatVersion":3,"origin":origin,"accountId":"alice","mode":"v2","candidateSha256":"a".repeat(64)})).unwrap()).unwrap();
-    let product_marker = sync_dir.join(format!("v1-product-outbox-{identity}.json"));
-    std::fs::write(
-        &product_marker,
-        serde_json::to_vec(&json!({"formatVersion":1,"origin":origin,"accountId":"alice"}))
-            .unwrap(),
-    )
-    .unwrap();
+    let V2Seed {
+        sync,
+        workspace,
+        store,
+        protocol_marker,
+        product_marker,
+        ..
+    } = seed_v2_workspace(&mut core, &paths, &origin, &auth);
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
