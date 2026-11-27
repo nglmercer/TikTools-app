@@ -1,10 +1,16 @@
-import { test, expect, type Page, type Frame } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { resolve, join, sep } from 'node:path';
+import {
+  demoTestId, demoUrl, docLocales, expectFirstChatMessage, frameTestId, readyPanelFrame, selector, trackPageErrors, viewport,
+} from './support/index.ts';
 import { readArticles, metadataErrors } from '../../docs/scripts/content.ts';
-import { docCopy, docLocales, localizedDocumentPath, type DocLocale } from '../../docs/locales.ts';
+import { docCopy, localizedDocumentPath, type DocLocale } from '../../docs/locales.ts';
 import { siteConfig } from '../../scripts/lib/site-config.ts';
+
+/** Longer than the mobile navigation's exit animation, so QA captures never catch a transition. */
+const NAV_SETTLE_MS = 550;
 
 const root = resolve(import.meta.dirname, '../..');
 const site = siteConfig();
@@ -30,15 +36,6 @@ async function localNetworkOnly(page: Page, baseURL: string) {
     else { external.push(url); await route.abort(); }
   });
   return { external, sockets };
-}
-
-async function demoFrame(page: Page): Promise<Frame> {
-  const element = await page.locator('.demo-frame iframe').elementHandle();
-  const frame = await element?.contentFrame();
-  expect(frame, 'The on-demand iframe should own a browsing context').toBeTruthy();
-  await expect(frame!.locator('.app-layout')).toBeVisible();
-  await expect(frame!.locator('#demo-controls')).toBeHidden();
-  return frame!;
 }
 
 test('all six Markdown languages have reviewed equivalents, current hashes and shared heading anchors', async () => {
@@ -94,7 +91,7 @@ test('all localized built pages expose matching lang, canonical, hreflang and si
 });
 
 test('locale switching preserves the equivalent article and stable heading in all six languages', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 960 });
+  await page.setViewportSize(viewport.desktop);
   await page.goto('en/user/preferences/backups.html#restore-and-verify');
   let current: typeof docLocales[number] = 'en';
   for (const locale of [...docLocales.filter((locale) => locale !== 'en'), 'en'] as const) {
@@ -140,7 +137,7 @@ for (const locale of docLocales) {
   });
 
   test(`${locale}: mobile navigation reaches user and developer documentation`, async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
+    await page.setViewportSize(viewport.mobile);
     await page.goto(`${locale}/user/live/feed.html`);
     const menu = page.getByRole('button', { name: docCopy[locale].navigation, exact: true });
     await menu.click();
@@ -165,11 +162,11 @@ for (const locale of docLocales) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (locale === 'es') {
       // QA captures intentionally wait beyond the navigation exit animation.
-      await page.waitForTimeout(550);
+      await page.waitForTimeout(NAV_SETTLE_MS);
       await page.screenshot({ path: '/tmp/tiktools-docs-review-docs-mobile.png' });
       await menu.click();
       await expect(menu).toHaveAttribute('aria-expanded', 'true');
-      await page.waitForTimeout(550);
+      await page.waitForTimeout(NAV_SETTLE_MS);
       await page.screenshot({ path: '/tmp/tiktools-docs-review-docs-mobile-navopen.png' });
     }
   });
@@ -178,14 +175,13 @@ for (const locale of docLocales) {
 test('docs load demo iframes automatically without native IPC or external requests', async ({ page, baseURL }) => {
   const network = await localNetworkOnly(page, baseURL!);
   const requests: string[] = [];
-  const errors: string[] = [];
+  const errors = trackPageErrors(page);
   page.on('request', (request) => requests.push(request.url()));
-  page.on('pageerror', (error) => errors.push(error.message));
-  await page.setViewportSize({ width: 1440, height: 960 });
+  await page.setViewportSize(viewport.desktop);
   await page.goto('es/user/live/feed.html');
   await expect(page.locator('iframe')).toHaveCount(1);
   expect(requests.some((url) => new URL(url).pathname.startsWith(`${site.base}demo/`))).toBe(true);
-  const frame = await demoFrame(page);
+  const frame = await readyPanelFrame(page);
   await expect(frame.locator('html')).toHaveAttribute('lang', 'es');
   expect(new URL(frame.url()).origin).toBe(new URL(baseURL!).origin);
   expect(await frame.evaluate(() => Object.hasOwn(window, 'ipc'))).toBe(false);
@@ -207,7 +203,7 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
     localStorage.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, feed: { searchQuery: 'real-app-query' } }));
     sessionStorage.setItem('real-app-session-sentinel', 'keep-session');
   });
-  const first = await demoFrame(page);
+  const first = await readyPanelFrame(page);
   const firstId = new URL(first.url()).searchParams.get('instance')!;
   const secondURL = new URL(first.url()); secondURL.searchParams.set('instance', `${firstId.slice(0, 50)}-b`);
   await page.evaluate((url) => {
@@ -215,12 +211,12 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
     frame.style.cssText = 'display:block;width:100%;height:650px'; document.body.append(frame);
   }, secondURL.href);
   const second = (await (await page.locator('#isolated-second-demo').elementHandle())!.contentFrame())!;
-  await expect(second.locator('.app-layout')).toBeVisible();
+  await expect(second.locator(selector.appLayout)).toBeVisible();
   const secondId = new URL(second.url()).searchParams.get('instance')!;
   const secondReloadURL = second.url();
   expect(secondId).not.toBe(firstId);
-  const firstSearch = first.locator('.live-feed input[type="search"]');
-  const secondSearch = second.locator('.live-feed input[type="search"]');
+  const firstSearch = first.locator(`${selector.liveFeed} input[type="search"]`);
+  const secondSearch = second.locator(`${selector.liveFeed} input[type="search"]`);
   await expect(firstSearch).toHaveValue(''); await expect(secondSearch).toHaveValue('');
   await firstSearch.fill('only-first-frame'); await secondSearch.fill('only-second-frame');
   await expect.poll(() => page.evaluate((id) => localStorage.getItem(`tiktools.demo.${id}.tiktok-live-view-state`), firstId)).toContain('only-first-frame');
@@ -232,8 +228,8 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
       sessionStorage.setItem(`tiktools.demo.${id}.review-sentinel`, value);
     });
   }, [firstId, secondId]);
-  await page.locator('.demo-frame').getByTestId('frame-reset').click();
-  await expect(page.locator('.demo-frame').getByTestId('frame-reset')).toBeEnabled(); await expect(firstSearch).toHaveValue('');
+  await page.locator('.demo-frame').getByTestId(frameTestId.reset).click();
+  await expect(page.locator('.demo-frame').getByTestId(frameTestId.reset)).toBeEnabled(); await expect(firstSearch).toHaveValue('');
   await expect(secondSearch).toHaveValue('only-second-frame');
   const stored = await page.evaluate(([a, b]) => ({
     appLocale: localStorage.getItem('tiktok-live-locale'), appCreator: localStorage.getItem('tiktok-live-username'),
@@ -249,29 +245,29 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
 
 test('standalone demo remains usable at desktop and mobile sizes', async ({ page, baseURL }, testInfo) => {
   const network = await localNetworkOnly(page, baseURL!);
-  await page.goto('demo/?scenario=feed&locale=es&instance=documentation-screenshots');
-  await expect(page.locator('.live-feed')).toBeVisible();
-  await expect.poll(async () => JSON.parse((await page.getByTestId('demo-metrics').textContent()) || '{}').client?.pending).toBe(0);
-  const before = JSON.parse((await page.getByTestId('demo-metrics').textContent())!);
-  await page.getByTestId('demo-step').click();
-  await expect.poll(async () => JSON.parse((await page.getByTestId('demo-metrics').textContent()) || '{}').host?.ticks).toBe(1);
-  const evidence = { url: page.url(), selector: '.live-feed', matchingPanels: await page.locator('.live-feed').count(), visible: await page.locator('.live-feed').isVisible(), before, after: JSON.parse((await page.getByTestId('demo-metrics').textContent())!), feedText: await page.locator('.live-feed').innerText() };
+  await page.goto(demoUrl({ scenario: 'feed', locale: 'es', instance: 'documentation-screenshots' }));
+  await expect(page.locator(selector.liveFeed)).toBeVisible();
+  await expect.poll(async () => JSON.parse((await page.getByTestId(demoTestId.metrics).textContent()) || '{}').client?.pending).toBe(0);
+  const before = JSON.parse((await page.getByTestId(demoTestId.metrics).textContent())!);
+  await page.getByTestId(demoTestId.step).click();
+  await expect.poll(async () => JSON.parse((await page.getByTestId(demoTestId.metrics).textContent()) || '{}').host?.ticks).toBe(1);
+  const evidence = { url: page.url(), selector: selector.liveFeed, matchingPanels: await page.locator(selector.liveFeed).count(), visible: await page.locator(selector.liveFeed).isVisible(), before, after: JSON.parse((await page.getByTestId(demoTestId.metrics).textContent())!), feedText: await page.locator(selector.liveFeed).innerText() };
   const report = JSON.stringify(evidence, null, 2);
   await writeFile('/tmp/tiktools-docs-review-feed-evidence.json', `${report}\n`);
   await testInfo.attach('demo-feed-step', { body: report, contentType: 'application/json' });
-  await expect(page.locator('.live-feed')).toContainText('Hello TikTools!');
+  await expectFirstChatMessage(page);
   await page.screenshot({ path: '/tmp/tiktools-docs-review-demo-desktop.png' });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByTestId('demo-step').click();
-  await expect(page.getByTestId('demo-reset')).toBeVisible();
+  await page.setViewportSize(viewport.mobile);
+  await page.getByTestId(demoTestId.step).click();
+  await expect(page.getByTestId(demoTestId.reset)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: '/tmp/tiktools-docs-review-demo-mobile.png' });
   expect(network.external).toEqual([]); expect(network.sockets).toEqual([]);
 });
 
 test('existing frontend without native IPC fails explicitly and never falls back to the demo', async ({ page, baseURL }) => {
-  const errors: string[] = []; const requests: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  const errors = trackPageErrors(page);
+  const requests: string[] = [];
   page.on('request', (request) => requests.push(request.url()));
   const origin = new URL(baseURL!).origin;
   const entryURL = new URL('native-entry-review.html', baseURL!).href;
@@ -292,7 +288,7 @@ test('existing frontend without native IPC fails explicitly and never falls back
   await expect.poll(() => errors.some((error) => /native IPC bridge is unavailable/.test(error))).toBe(true);
   expect(await page.evaluate(() => Object.hasOwn(window, 'ipc'))).toBe(false);
   expect(await page.evaluate(() => Object.hasOwn(window, '__TIKTOOLS_E2E_STATE__'))).toBe(false);
-  await expect(page.getByTestId('demo-reset')).toHaveCount(0);
+  await expect(page.getByTestId(demoTestId.reset)).toHaveCount(0);
   expect(requests.some((url) => new URL(url).pathname.startsWith(`${site.base}demo/`))).toBe(false);
 });
 

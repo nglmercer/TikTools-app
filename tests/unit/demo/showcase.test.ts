@@ -1,47 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { createShowcaseDirector, type ShowcaseEnv, type ShowcaseState } from '../../../src/web/demo/showcase/director.ts';
 import { showcaseSteps, type ShowcaseStep } from '../../../src/web/demo/showcase/script.ts';
 import { parseDemoOptions } from '../../../src/web/demo/scenarios.ts';
 import { isDemoFrameState, parseFrameCommand } from '../../../src/web/demo/frame-messages.ts';
+import { createShowcaseHarness } from './support/showcase-harness.ts';
+import { commandMessage, stateMessage } from './support/messages.ts';
 
-/** A hand-driven clock: every sleep waits until the test releases it. */
-function harness(options: { missing?: string[]; late?: string[]; loop?: boolean; autoplay?: boolean } = {}) {
-  let revealed = false;
-  const log: string[] = [];
-  const states: ShowcaseState[] = [];
-  const sleeps: Array<{ ms: number; release(): void; signal: AbortSignal }> = [];
-  const element = (name: string) => ({ name }) as unknown as HTMLElement;
-  const env: ShowcaseEnv = {
-    stage: {
-      focus: async (el, step) => { log.push(`focus:${step.id}:${(el as unknown as { name: string }).name}`); },
-      pointAt: async (el) => { log.push(`point:${(el as unknown as { name: string }).name}`); },
-      click: async () => { log.push('click'); },
-      release: () => { log.push('release'); },
-      clear: () => { log.push('clear'); },
-    },
-    navigate: async (route) => { log.push(`nav:${route}`); },
-    target: async (name) => (options.missing?.includes(name) || (!revealed && options.late?.includes(name)) ? null : element(name)),
-    stepEvent: async () => { log.push('event'); },
-    guide: async (scope, action) => { log.push(`guide:${scope}.${action}`); revealed = true; return true; },
-    sleep: (ms, signal) => new Promise<void>((resolve, reject) => {
-      const onAbort = () => reject(new DOMException('interrupted', 'AbortError'));
-      if (signal.aborted) { onAbort(); return; }
-      signal.addEventListener('abort', onAbort, { once: true });
-      sleeps.push({ ms, signal, release: () => { signal.removeEventListener('abort', onAbort); resolve(); } });
-    }),
-    changed: (state) => { states.push(state); },
-  };
-  const steps: readonly ShowcaseStep[] = showcaseSteps;
-  const director = createShowcaseDirector(steps, env, { loop: options.loop ?? true, autoplay: options.autoplay ?? true });
-  /** Release the oldest pending sleep and let the director run to its next one. */
-  const tick = async () => { sleeps.shift()?.release(); await new Promise((resolve) => setTimeout(resolve, 0)); };
-  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
-  return { director, log, states, sleeps, tick, flush };
-}
+/** The stage log line for a step's spotlight, derived from the script so renamed ids stay in sync. */
+const focusLog = (id: ShowcaseStep['id']) => {
+  const step = showcaseSteps.find((item) => item.id === id)!;
+  return `focus:${step.id}:${step.target}`;
+};
 
 describe('showcase script', () => {
   it('visits the five real views through registered routes and guide targets', () => {
-    expect(showcaseSteps.map((step) => step.id)).toEqual(['feed', 'inspector', 'automations', 'overlays', 'points']);
+    expect(showcaseSteps.map((step) => step.id)).toEqual(['feed', 'inspector', 'automation', 'overlays', 'points']);
     expect(showcaseSteps.map((step) => step.route)).toEqual(['/feed', '/feed', '/automations', '/overlays', '/points']);
     for (const step of showcaseSteps) expect(step.target).toMatch(/^[a-z-]+$/);
   });
@@ -49,10 +21,10 @@ describe('showcase script', () => {
 
 describe('showcase director', () => {
   it('plays the first step: navigate, spotlight, three events, then dwell', async () => {
-    const h = harness();
+    const h = createShowcaseHarness();
     h.director.start();
     await h.flush();
-    expect(h.log.slice(0, 3)).toEqual(['nav:/feed', 'focus:feed:feed-stage', 'event']);
+    expect(h.log.slice(0, 3)).toEqual(['nav:/feed', focusLog('feed'), 'event']);
     for (let n = 0; n < 6; n += 1) await h.tick();
     expect(h.log.filter((entry) => entry === 'event')).toHaveLength(6);
     expect(h.sleeps.at(-1)?.ms).toBe(showcaseSteps[0]!.dwell);
@@ -60,29 +32,29 @@ describe('showcase director', () => {
   });
 
   it('moves the cursor before running a guide action and spotlights the result afterwards', async () => {
-    const h = harness();
+    const h = createShowcaseHarness();
     h.director.start();
     await h.flush();
     h.director.goto(1);
     await h.flush();
     const start = h.log.indexOf('point:feed-inspector-tab-user');
-    expect(h.log.slice(start, start + 4)).toEqual(['point:feed-inspector-tab-user', 'click', 'guide:feed.feed.showViewer', 'focus:inspector:feed-inspector-profile']);
+    expect(h.log.slice(start, start + 4)).toEqual(['point:feed-inspector-tab-user', 'click', 'guide:feed.feed.showViewer', focusLog('inspector')]);
     h.director.dispose();
   });
 
   it('spotlights a target that only exists after the guide action has run', async () => {
-    const h = harness({ late: ['feed-inspector-profile', 'automation-editor'] });
+    const h = createShowcaseHarness({ late: ['feed-inspector-profile', 'automation-editor'] });
     h.director.start();
     await h.flush();
     h.director.goto(1);
     await h.flush();
     expect(h.log).toContain('guide:feed.feed.showViewer');
-    expect(h.log.at(-1)).toBe('focus:inspector:feed-inspector-profile');
+    expect(h.log.at(-1)).toBe(focusLog('inspector'));
     h.director.dispose();
   });
 
   it('advances through every step and loops back to the first', async () => {
-    const h = harness();
+    const h = createShowcaseHarness();
     h.director.start();
     const visited = new Set<number>();
     for (let n = 0; n < 40 && visited.size < 5; n += 1) { visited.add(h.director.state.step); await h.tick(); }
@@ -93,7 +65,7 @@ describe('showcase director', () => {
   });
 
   it('stops and reports done after the last step when not looping (recording)', async () => {
-    const h = harness({ loop: false });
+    const h = createShowcaseHarness({ loop: false });
     h.director.start();
     for (let n = 0; n < 60 && !h.director.state.done; n += 1) await h.tick();
     expect(h.director.state).toMatchObject({ done: true, paused: true, step: 4 });
@@ -102,7 +74,7 @@ describe('showcase director', () => {
   });
 
   it('pauses by aborting the pending sleep and resumes the same step', async () => {
-    const h = harness();
+    const h = createShowcaseHarness();
     h.director.start();
     await h.flush();
     const before = h.director.state.step;
@@ -120,7 +92,7 @@ describe('showcase director', () => {
   });
 
   it('jumps to a step and keeps playing, or shows it once when paused', async () => {
-    const h = harness();
+    const h = createShowcaseHarness();
     h.director.start();
     await h.flush();
     h.director.goto(3);
@@ -130,14 +102,14 @@ describe('showcase director', () => {
     h.director.pause();
     h.director.goto(2);
     await h.flush();
-    expect(h.log.at(-1)).toBe('focus:automations:automation-editor');
+    expect(h.log.at(-1)).toBe(focusLog('automation'));
     for (let n = 0; n < 4; n += 1) await h.tick();
     expect(h.director.state).toMatchObject({ step: 2, paused: true });
     h.director.dispose();
   });
 
   it('ignores invalid jumps', async () => {
-    const h = harness();
+    const h = createShowcaseHarness();
     h.director.start();
     await h.flush();
     for (const bad of [-1, 5, 1.5, Number.NaN]) h.director.goto(bad);
@@ -146,7 +118,7 @@ describe('showcase director', () => {
   });
 
   it('skips a view whose target never renders instead of stalling', async () => {
-    const h = harness({ missing: ['feed-stage'] });
+    const h = createShowcaseHarness({ missing: ['feed-stage'] });
     h.director.start();
     await h.flush();
     expect(h.director.state.step).toBeGreaterThanOrEqual(1);
@@ -155,7 +127,7 @@ describe('showcase director', () => {
   });
 
   it('releases the spotlight only when the next step is on another view', async () => {
-    const h = harness();
+    const h = createShowcaseHarness();
     h.director.start();
     await h.flush();
     h.director.goto(1);
@@ -168,7 +140,7 @@ describe('showcase director', () => {
   });
 
   it('with autoplay off (reduced motion) shows only the first step and waits', async () => {
-    const h = harness({ autoplay: false });
+    const h = createShowcaseHarness({ autoplay: false });
     h.director.start();
     await h.flush();
     for (let n = 0; n < 10; n += 1) await h.tick();
@@ -177,7 +149,7 @@ describe('showcase director', () => {
   });
 
   it('is inert after dispose', async () => {
-    const h = harness();
+    const h = createShowcaseHarness();
     h.director.start();
     await h.flush();
     h.director.dispose();
@@ -198,12 +170,11 @@ describe('showcase options and frame bridge', () => {
   });
 
   it('accepts showcase commands with bounded indices and validates the reported state', () => {
-    const command = { type: 'tiktools.demo.command', instance: 'frame-1' };
-    expect(parseFrameCommand({ ...command, action: 'showcase-play' }, 'frame-1')).toEqual({ action: 'showcase-play' });
-    expect(parseFrameCommand({ ...command, action: 'showcase-pause' }, 'frame-1')).toEqual({ action: 'showcase-pause' });
-    expect(parseFrameCommand({ ...command, action: 'showcase-goto', value: 3 }, 'frame-1')).toEqual({ action: 'showcase-goto', value: 3 });
-    for (const value of [-1, 12, 1.5, '3', null]) expect(parseFrameCommand({ ...command, action: 'showcase-goto', value }, 'frame-1')).toBeNull();
-    const state = { type: 'tiktools.demo.state', instance: 'frame-1', ready: true, paused: false, busy: false, events: 3, status: 'paused', connectionCase: 'normal' };
+    expect(parseFrameCommand(commandMessage('showcase-play'), 'frame-1')).toEqual({ action: 'showcase-play' });
+    expect(parseFrameCommand(commandMessage('showcase-pause'), 'frame-1')).toEqual({ action: 'showcase-pause' });
+    expect(parseFrameCommand(commandMessage('showcase-goto', { value: 3 }), 'frame-1')).toEqual({ action: 'showcase-goto', value: 3 });
+    for (const value of [-1, 12, 1.5, '3', null]) expect(parseFrameCommand(commandMessage('showcase-goto', { value }), 'frame-1')).toBeNull();
+    const state = stateMessage({ paused: false, events: 3 });
     expect(isDemoFrameState({ ...state, showcase: { step: 2, count: 5, paused: false, done: false } })).toBe(true);
     expect(isDemoFrameState(state)).toBe(true);
     for (const showcase of [{ step: 5, count: 5, paused: false, done: false }, { step: 0, count: 99, paused: false, done: false }, { step: 0, count: 5, paused: 'no', done: false }, 'x']) expect(isDemoFrameState({ ...state, showcase })).toBe(false);

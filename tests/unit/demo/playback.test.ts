@@ -1,16 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { createControlClient } from '@/shared/api/control-client.ts';
-import { createDemoHost } from '../../../src/web/demo/runtime/host.ts';
 import { createDemoPlayback, type PlaybackState } from '../../../src/web/demo/playback.ts';
 import { demoTourScenarios, demoTourUrl } from '../../../src/web/demo/tours.ts';
+import { demoParam } from '../../../src/web/demo/contract.ts';
+import { createDemoFixture } from './support/host.ts';
 
+/** Playback controls wired to a connection demo fixture. */
 function fixture() {
-  const host = createDemoHost('connection');
-  const client = createControlClient({ transport: host.transport });
-  client.attach();
+  const demo = createDemoFixture('connection');
   const states: PlaybackState[] = [];
-  const playback = createDemoPlayback(host, client, (state) => states.push(state));
-  return { host, client, playback, states, dispose() { playback.dispose(); client.detach(); host.dispose(); } };
+  const playback = createDemoPlayback(demo.host, demo.client, (state) => states.push(state));
+  return { host: demo.host, client: demo.client, playback, states, dispose() { playback.dispose(); demo.dispose(); } };
 }
 
 describe('demo playback controls', () => {
@@ -73,10 +72,10 @@ it('each selectable walkthrough prepares the matching fixtures and preserves loc
   for (const id of Object.keys(demoTourScenarios) as Array<keyof typeof demoTourScenarios>) {
     const url = new URL(demoTourUrl('https://example.test/sub/demo/?locale=fr&instance=own&scenario=connection&route=/feed#/feed', id));
     expect(url.pathname).toBe('/sub/demo/');
-    expect(url.searchParams.get('scenario')).toBe(demoTourScenarios[id]);
-    expect(url.searchParams.get('tour')).toBe(id);
-    expect(url.searchParams.get('locale')).toBe('fr');
-    expect(url.searchParams.get('instance')).toBe('own');
-    expect(url.searchParams.has('route')).toBe(false);
+    expect(url.searchParams.get(demoParam.scenario)).toBe(demoTourScenarios[id]);
+    expect(url.searchParams.get(demoParam.tour)).toBe(id);
+    expect(url.searchParams.get(demoParam.locale)).toBe('fr');
+    expect(url.searchParams.get(demoParam.instance)).toBe('own');
+    expect(url.searchParams.has(demoParam.route)).toBe(false);
   }
 });

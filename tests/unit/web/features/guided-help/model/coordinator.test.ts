@@ -8,6 +8,7 @@ import { registerGuideActions } from '../../../../../../src/web/features/guided-
 import { readTourProgress, writeTourProgress } from '../../../../../../src/web/features/guided-help/model/progress.ts';
 import { tourRegistry } from '../../../../../../src/web/features/guided-help/model/registry.ts';
 import { tourCatalogs } from '../../../../../../src/web/features/guided-help/catalogs';
+import { mountGuideTargets, removeGuideFixtures } from '../support/dom.ts';
 
 function driverFixture() {
   let config: Config = {};
@@ -37,18 +38,6 @@ function setup() {
   owned.push(coordinator);
   return { ...fixture, coordinator };
 }
-function mountTargets(scope: string, names: readonly string[]) {
-  const root = document.createElement('section');
-  root.dataset.guideScope = scope;
-  root.dataset.testTours = '';
-  for (const name of names) {
-    const button = document.createElement('button');
-    button.dataset.guide = name;
-    root.append(button);
-  }
-  document.body.append(root);
-  return root;
-}
 beforeEach(() => {
   sessionStorage.clear();
   // Happy DOM has no layout engine; production visibility always uses real browser geometry.
@@ -58,14 +47,14 @@ beforeEach(() => {
 });
 afterEach(() => {
   for (const coordinator of owned.splice(0)) coordinator.dispose();
-  document.querySelectorAll('[data-test-tours]').forEach((element) => element.remove());
+  removeGuideFixtures();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
 it('is lazy, restores focus, and records dismissal without completing the guide', async () => {
   const test = setup();
-  const root = mountTargets('points', ['points-rules', 'points-leaderboard']);
+  const root = mountGuideTargets('points', ['points-rules', 'points-leaderboard']);
   const trigger = document.createElement('button'); root.append(trigger);
   expect(test.loadDriver).not.toHaveBeenCalled();
   const session = test.coordinator.startTour('points', { trigger });
@@ -78,7 +67,7 @@ it('is lazy, restores focus, and records dismissal without completing the guide'
 
 it('finishing the guide does not complete an unverified task; reactive host state does', async () => {
   const test = setup();
-  mountTargets('points', ['points-rules', 'points-leaderboard']);
+  mountGuideTargets('points', ['points-rules', 'points-leaderboard']);
   const session = test.coordinator.startTour('points');
   await session.ready;
   test.next();
@@ -98,7 +87,7 @@ it('finishing the guide does not complete an unverified task; reactive host stat
 
 it('cannot mark progress complete through the session API without verified task state', async () => {
   const test = setup();
-  mountTargets('points', ['points-rules']);
+  mountGuideTargets('points', ['points-rules']);
   const session = test.coordinator.startTour('points');
   await session.ready;
   session.stop('completed');
@@ -108,7 +97,7 @@ it('cannot mark progress complete through the session API without verified task 
 
 it('does not treat the Done button or a failing host-state reader as task success', async () => {
   const test = setup();
-  mountTargets('points', ['points-rules', 'points-leaderboard']);
+  mountGuideTargets('points', ['points-rules', 'points-leaderboard']);
   const session = test.coordinator.startTour('points', { taskState: () => { throw new Error('host not ready'); } });
   await session.ready;
   test.next();
@@ -121,7 +110,7 @@ it('does not treat the Done button or a failing host-state reader as task succes
 it('completes an informational walkthrough when its final step finishes without inventing host state', async () => {
   const test = setup();
   const targets = tourRegistry.analytics.steps.map((step) => step.target);
-  mountTargets('analytics', targets);
+  mountGuideTargets('analytics', targets);
   expect(tourRegistry.analytics.task).toBeUndefined();
   const session = test.coordinator.startTour('analytics');
   await flushPromises();
@@ -137,7 +126,7 @@ it('completes an informational walkthrough when its final step finishes without 
 
 it('does not let the session API complete an informational walkthrough before its final step', async () => {
   const test = setup();
-  mountTargets('settings', tourRegistry.settings.steps.map((step) => step.target));
+  mountGuideTargets('settings', tourRegistry.settings.steps.map((step) => step.target));
   const session = test.coordinator.startTour('settings');
   await flushPromises();
   expect(await session.ready).toBe(true);
@@ -148,7 +137,7 @@ it('does not let the session API complete an informational walkthrough before it
 
 it('resumes stable step IDs and ignores progress from another version or malformed storage', async () => {
   const test = setup();
-  mountTargets('points', ['points-rules', 'points-leaderboard']);
+  mountGuideTargets('points', ['points-rules', 'points-leaderboard']);
   writeTourProgress(sessionStorage, 'points', { version: 1, stepId: 'leaderboard', status: 'dismissed' });
   const session = test.coordinator.startTour('points');
   await session.ready;
@@ -170,7 +159,7 @@ it('waits for a route target but terminates and removes timers at the configured
   expect(await session.done).toBe('unavailable');
   expect(test.loadDriver).not.toHaveBeenCalled();
   expect(vi.getTimerCount()).toBe(0);
-  mountTargets('connections', ['connection-form']);
+  mountGuideTargets('connections', ['connection-form']);
   await Promise.resolve();
   expect(test.driver).not.toHaveBeenCalled();
 });
@@ -180,7 +169,7 @@ it('accepts a late target inside the bound and caps excessive waits', async () =
   const test = setup();
   const session = test.coordinator.startTour('connection', { waitMs: 40 });
   await vi.advanceTimersByTimeAsync(10);
-  mountTargets('connections', ['connection-form']);
+  mountGuideTargets('connections', ['connection-form']);
   await vi.advanceTimersByTimeAsync(0);
   expect(await session.ready).toBe(true);
   session.stop();
@@ -198,14 +187,14 @@ it('cleans up a pending target wait on navigation, with no late restart', async 
   await Promise.resolve();
   await router.push('/connections');
   expect(await session.done).toBe('navigation');
-  mountTargets('points', ['points-rules']);
+  mountGuideTargets('points', ['points-rules']);
   await Promise.resolve();
   expect(test.driver).not.toHaveBeenCalled();
 });
 
 it('navigates once to its declared route and destroys an active guide on leaving it', async () => {
   const test = setup();
-  mountTargets('points', ['points-rules']);
+  mountGuideTargets('points', ['points-rules']);
   const router = createRouter({ history: createMemoryHistory(), routes: ['/points', '/connections'].map((path) => ({ path, component: { template: '<div />' } })) });
   await router.push('/connections');
   const session = test.coordinator.startTour('points', { router });
@@ -218,7 +207,7 @@ it('navigates once to its declared route and destroys an active guide on leaving
 
 it('keeps an existing desktop diagnostics panel in place without navigating to the mobile page', async () => {
   const test = setup();
-  const root = mountTargets('diagnostics', ['diagnostics-log', 'diagnostics-actions']);
+  const root = mountGuideTargets('diagnostics', ['diagnostics-log', 'diagnostics-actions']);
   const router = createRouter({ history: createMemoryHistory(), routes: ['/debug', '/connections'].map((path) => ({ path, component: { template: '<div />' } })) });
   await router.push('/connections');
   const push = vi.spyOn(router, 'push');
@@ -236,7 +225,7 @@ it('bounds navigation and lazy import waits and cancels a superseded load', asyn
   let release!: (value: { driver: typeof fixture.driver }) => void;
   const coordinator = createTourCoordinator({ loadDriver: () => new Promise((resolve) => { release = resolve; }) });
   owned.push(coordinator);
-  mountTargets('points', ['points-rules']);
+  mountGuideTargets('points', ['points-rules']);
   const pending = coordinator.startTour('points', { waitMs: 20 });
   await vi.advanceTimersByTimeAsync(0);
   coordinator.dispose();
@@ -268,8 +257,8 @@ it('releases its navigation deadline when a route guard never settles', async ()
 it('keeps targets in its workspace and explicitly skips hidden/denied later steps', async () => {
   vi.useFakeTimers();
   const test = setup();
-  const foreign = mountTargets('plugins', ['plugins-search']);
-  const root = mountTargets('plugins', ['plugin-catalog', 'plugins-search', 'plugins-install']);
+  const foreign = mountGuideTargets('plugins', ['plugins-search']);
+  const root = mountGuideTargets('plugins', ['plugin-catalog', 'plugins-search', 'plugins-install']);
   root.querySelector('[data-guide="plugins-search"]')!.setAttribute('hidden', '');
   const session = test.coordinator.startTour('plugin', { scope: root, capabilities: { supports: () => false }, waitMs: 10 });
   await vi.advanceTimersByTimeAsync(0);
@@ -286,7 +275,7 @@ it('keeps targets in its workspace and explicitly skips hidden/denied later step
 it('waits for visibility of each subsequent step, rather than checking only the first', async () => {
   vi.useFakeTimers();
   const test = setup();
-  const root = mountTargets('points', ['points-rules', 'points-leaderboard']);
+  const root = mountGuideTargets('points', ['points-rules', 'points-leaderboard']);
   const later = root.querySelector<HTMLElement>('[data-guide="points-leaderboard"]')!;
   later.style.display = 'none';
   const session = test.coordinator.startTour('points', { waitMs: 30 });
@@ -304,7 +293,7 @@ it('waits for visibility of each subsequent step, rather than checking only the 
 it('cancels on a required later target deadline and removes all pending work', async () => {
   vi.useFakeTimers();
   const test = setup();
-  mountTargets('points', ['points-rules']);
+  mountGuideTargets('points', ['points-rules']);
   const session = test.coordinator.startTour('points', { waitMs: 20 });
   await vi.advanceTimersByTimeAsync(0);
   await session.ready;
@@ -318,7 +307,7 @@ it('cancels on a required later target deadline and removes all pending work', a
 it('does not highlight zero-opacity ancestors or zero-area targets', async () => {
   vi.useFakeTimers();
   const test = setup();
-  const root = mountTargets('points', ['points-rules', 'points-leaderboard']);
+  const root = mountGuideTargets('points', ['points-rules', 'points-leaderboard']);
   root.style.opacity = '0';
   const invisible = test.coordinator.startTour('points', { waitMs: 10 });
   await vi.advanceTimersByTimeAsync(10);
@@ -336,7 +325,7 @@ it('does not highlight zero-opacity ancestors or zero-area targets', async () =>
 it('detects layout becoming visible without a DOM mutation and clears polling on disposal', async () => {
   vi.useFakeTimers();
   const test = setup();
-  const root = mountTargets('points', ['points-rules']);
+  const root = mountGuideTargets('points', ['points-rules']);
   const rules = root.querySelector<HTMLElement>('[data-guide="points-rules"]')!;
   let laidOut = false;
   vi.spyOn(rules, 'getClientRects').mockImplementation(() => (laidOut ? [new DOMRect(0, 0, 120, 30)] : []) as unknown as DOMRectList);
@@ -353,7 +342,7 @@ it('detects layout becoming visible without a DOM mutation and clears polling on
 it('skips an optional missing step after its own deadline, then highlights the next target', async () => {
   vi.useFakeTimers();
   const test = setup();
-  mountTargets('connections', ['connection-form', 'connection-plugins']);
+  mountGuideTargets('connections', ['connection-form', 'connection-plugins']);
   const session = test.coordinator.startTour('connection', { waitMs: 20 });
   await vi.advanceTimersByTimeAsync(0);
   await session.ready;
@@ -366,7 +355,7 @@ it('skips an optional missing step after its own deadline, then highlights the n
 it('aborts a subsequent step wait when the user navigates away', async () => {
   vi.useFakeTimers();
   const test = setup();
-  mountTargets('points', ['points-rules']);
+  mountGuideTargets('points', ['points-rules']);
   const router = createRouter({ history: createMemoryHistory(), routes: ['/points', '/connections'].map((path) => ({ path, component: { template: '<div />' } })) });
   await router.push('/points');
   const session = test.coordinator.startTour('points', { router, waitMs: 50 });
@@ -382,7 +371,7 @@ it('aborts a subsequent step wait when the user navigates away', async () => {
 
 it('escapes untrusted display text and respects reduced motion without losing keyboard controls', async () => {
   const test = setup();
-  const root = mountTargets('inline', ['inline']);
+  const root = mountGuideTargets('inline', ['inline']);
   vi.stubGlobal('matchMedia', () => ({ matches: true }));
   const session = test.coordinator.startInlineGuide({ id: 'inline', scope: root, steps: () => [{ id: 'one', selector: '[data-guide="inline"]', title: '<img onerror="bad">', description: '<script>bad</script>&' }] });
   await session.ready;
@@ -395,7 +384,7 @@ it('escapes untrusted display text and respects reduced motion without losing ke
 
 it('stops for a modal or removed workspace and never steals focus behind a modal', async () => {
   const test = setup();
-  const root = mountTargets('points', ['points-rules']);
+  const root = mountGuideTargets('points', ['points-rules']);
   const trigger = document.createElement('button'); root.append(trigger);
   const focus = vi.spyOn(trigger, 'focus');
   const session = test.coordinator.startTour('points', { trigger });
@@ -416,7 +405,7 @@ it('replaces the previous guide and tolerates unavailable storage', async () => 
   const fixture = driverFixture();
   const coordinator = createTourCoordinator({ loadDriver: fixture.loadDriver, storage: () => { throw new Error('blocked'); } });
   owned.push(coordinator);
-  mountTargets('points', ['points-rules']);
+  mountGuideTargets('points', ['points-rules']);
   const first = coordinator.startTour('points');
   await first.ready;
   const second = coordinator.startTour('points');
@@ -460,7 +449,7 @@ describe('declared action example requirements', () => {
   it('fails closed when a requirement-bearing tour starts without a satisfying automation snapshot', async () => {
     for (const automationSnapshot of [undefined, { actions: [], actionTypes: [], plugins: [] }] as const) {
       const test = setup();
-      const root = mountTargets('automations', tourRegistry.automationActionHttp.steps.map((step) => step.target));
+      const root = mountGuideTargets('automations', tourRegistry.automationActionHttp.steps.map((step) => step.target));
       const session = test.coordinator.startTour('automationActionHttp', { scope: root, locale: 'en', automationSnapshot });
       await flushPromises();
       expect(await session.ready).toBe(false);
@@ -480,7 +469,7 @@ describe('account and backup tour', () => {
       }
     }
     const test = setup();
-    const root = mountTargets('account', tourRegistry.backup.steps.map((step) => step.target));
+    const root = mountGuideTargets('account', tourRegistry.backup.steps.map((step) => step.target));
     const session = test.coordinator.startTour('backup', { scope: root, locale: 'en', signedIn: true, capabilities: ['cloud.plan.get', 'cloud.backup.createNamed', 'cloud.backup.list'] });
     await flushPromises();
     expect(await session.ready).toBe(true);
@@ -496,7 +485,7 @@ describe('account and backup tour', () => {
   it('refuses account-required tours unless the caller reports a signed-in account', async () => {
     for (const signedIn of [undefined, false, () => false] as const) {
       const test = setup();
-      const root = mountTargets('account', tourRegistry.backup.steps.map((step) => step.target));
+      const root = mountGuideTargets('account', tourRegistry.backup.steps.map((step) => step.target));
       const session = test.coordinator.startTour('backup', { scope: root, locale: 'en', signedIn, capabilities: ['cloud.plan.get', 'cloud.backup.createNamed', 'cloud.backup.list'] });
       await flushPromises();
       expect(await session.ready).toBe(false);
@@ -508,7 +497,7 @@ describe('account and backup tour', () => {
 
   it('keeps going when the feed stage target is missing instead of closing the tour', async () => {
     const test = setup();
-    const root = mountTargets('feed', ['feed-view', 'feed-filters', 'feed-controls']);
+    const root = mountGuideTargets('feed', ['feed-view', 'feed-filters', 'feed-controls']);
     const session = test.coordinator.startTour('feed', { scope: root, locale: 'en' });
     await flushPromises();
     expect(await session.ready).toBe(true);
@@ -525,7 +514,7 @@ describe('account and backup tour', () => {
 it('presses the prepare trigger when an interaction-gated target is missing, instead of skipping the step', async () => {
   vi.useFakeTimers();
   const test = setup();
-  const root = mountTargets('automations', ['automation-profiles', 'automation-tab-events', 'automation-events', 'automation-runs']);
+  const root = mountGuideTargets('automations', ['automation-profiles', 'automation-tab-events', 'automation-events', 'automation-runs']);
   const table = root.querySelector('[data-guide="automation-events"]')!;
   const body = document.createElement('tbody');
   const row = document.createElement('tr');
@@ -556,7 +545,7 @@ it('presses the prepare trigger when an interaction-gated target is missing, ins
 it('prefers a semantic editor operation and suppresses the selector fallback while that owner exists', async () => {
   vi.useFakeTimers();
   const test = setup();
-  const root = mountTargets('automations', ['automation-profiles', 'automation-tab-events', 'automation-events', 'automation-runs']);
+  const root = mountGuideTargets('automations', ['automation-profiles', 'automation-tab-events', 'automation-events', 'automation-runs']);
   const table = root.querySelector('[data-guide="automation-events"]')!;
   const body = document.createElement('tbody');
   const row = document.createElement('tr');
@@ -592,7 +581,7 @@ it('prefers a semantic editor operation and suppresses the selector fallback whi
 it('does not press the prepare trigger when the target already exists', async () => {
   vi.useFakeTimers();
   const test = setup();
-  const root = mountTargets('automations', tourRegistry.automationEvents.steps.map((step) => step.target));
+  const root = mountGuideTargets('automations', tourRegistry.automationEvents.steps.map((step) => step.target));
   const table = root.querySelector('[data-guide="automation-events"]')!;
   const body = document.createElement('tbody');
   const row = document.createElement('tr');
@@ -614,7 +603,7 @@ it('does not press the prepare trigger when the target already exists', async ()
 it('backward navigation presses chained prepare triggers until the target returns', async () => {
   vi.useFakeTimers();
   const test = setup();
-  const root = mountTargets('automations', ['automation-profiles', 'automation-tab-events', 'automation-editor', 'automation-runs']);
+  const root = mountGuideTargets('automations', ['automation-profiles', 'automation-tab-events', 'automation-editor', 'automation-runs']);
   // Editor-open state: the library table is gone and the close button exists.
   const close = document.createElement('button');
   close.dataset.guide = 'automation-editor-close';

@@ -1,18 +1,16 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { BehaviorSnapshot, LiveAction } from '../../../../src/automation/behavior/types.ts';
-import { callWithMeta, createControlClient } from '@/shared/api/control-client.ts';
-import { createDemoHost } from '../../../../src/web/demo/runtime/host.ts';
+import { callWithMeta } from '@/shared/api/control-client.ts';
 import { createDemoTransport, demoMethod, objectParams } from '../../../../src/web/demo/runtime/transport.ts';
+import { createDemoFixture } from '../support/host.ts';
 
 const MiB = 1024 * 1024;
 const cleanup: Array<() => void> = [];
 afterEach(() => { for (const dispose of cleanup.splice(0).reverse()) dispose(); });
 
 function hostHarness() {
-  const host = createDemoHost('automation');
-  const client = createControlClient({ transport: host.transport, timeoutMs: 1000 });
-  client.attach();
-  cleanup.push(() => { client.detach(); host.dispose(); });
+  const { host, client, dispose } = createDemoFixture('automation', { timeoutMs: 1000 });
+  cleanup.push(dispose);
   return { host, client };
 }
 

@@ -4,6 +4,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import GuideButton from '../../../../../../src/web/features/guided-help/ui/GuideButton.vue';
 import { activateLocale } from '@/shared/i18n/i18n.ts';
 import { tourCatalogs } from '../../../../../../src/web/features/guided-help/catalogs';
+import { mountGuideScope, mountGuideTargets, removeGuideFixtures } from '../support/dom.ts';
 
 type TestConfig = Record<string, unknown> & { onDestroyed?: () => void; allowKeyboardControl?: boolean };
 const fake = vi.hoisted(() => {
@@ -19,15 +20,12 @@ beforeEach(() => {
     return (this.isConnected ? [new DOMRect(0, 0, 120, 30)] : []) as unknown as DOMRectList;
   });
 });
-afterEach(() => { document.querySelectorAll('[data-test-guide]').forEach(element => element.remove()); });
+afterEach(() => { removeGuideFixtures(); });
 afterEach(async () => { await activateLocale('en'); });
 
 for (const locale of ['zh', 'ja'] as const) it(`uses the ${locale} catalog for native guide labels and Driver controls`, async () => {
   await activateLocale(locale);
-  const root = document.createElement('section');
-  root.setAttribute('data-guide-scope', 'points'); root.setAttribute('data-test-guide', '');
-  root.innerHTML = '<section data-guide="points-rules"></section><section data-guide="points-leaderboard"></section>';
-  document.body.append(root);
+  const root = mountGuideTargets('points', ['points-rules', 'points-leaderboard'], 'section');
   const wrapper = mountWithPlugins(GuideButton, { attachTo: root, props: { tour: 'points', taskState: { 'points.reviewed': false } } });
   expect(wrapper.get('button').attributes('aria-label')).toContain(tourCatalogs[locale].points.rules.title);
   await wrapper.get('button').trigger('click'); await vi.dynamicImportSettled(); await flushPromises();
@@ -36,10 +34,7 @@ for (const locale of ['zh', 'ja'] as const) it(`uses the ${locale} catalog for n
 });
 
 async function mountGuide() {
-  const root = document.createElement('section');
-  root.setAttribute('data-guide-scope', 'test'); root.setAttribute('data-test-guide', '');
-  root.innerHTML = '<button id="one">First</button><button id="two">Second</button><button id="disabled" disabled>Disabled</button>';
-  document.body.append(root);
+  const root = mountGuideScope('test', '<button id="one">First</button><button id="two">Second</button><button id="disabled" disabled>Disabled</button>');
   const wrapper = mountWithPlugins(GuideButton, { attachTo: root, props: { id: 'test-v1', steps: [{ id: 'one', selector: '#one', title: 'First', description: '<safe>' }, { id: 'disabled', selector: '#disabled', title: 'Unavailable', description: '' }, { id: 'absent', selector: '#absent', title: 'Absent', description: '' }] } });
   return { wrapper, root };
 }
@@ -73,10 +68,7 @@ it('closes the tour when a native dialog opens so it cannot trap focus behind th
   expect(fake.engine.destroy).toHaveBeenCalled();
 });
 it('starts an explicit versioned tour without requiring legacy steps and completes only from task state', async () => {
-  const root = document.createElement('section');
-  root.setAttribute('data-guide-scope', 'points'); root.setAttribute('data-test-guide', '');
-  root.innerHTML = '<section data-guide="points-rules"></section><section data-guide="points-leaderboard"></section>';
-  document.body.append(root);
+  const root = mountGuideTargets('points', ['points-rules', 'points-leaderboard'], 'section');
   const wrapper = mountWithPlugins(GuideButton, { attachTo: root, props: { tour: 'points', taskState: { 'points.reviewed': false } } });
   expect(fake.driver).not.toHaveBeenCalled();
   expect(wrapper.get('button').attributes('data-guide-tour')).toBe('points');

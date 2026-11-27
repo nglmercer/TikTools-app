@@ -8,6 +8,13 @@ import { tutorialEntries, tutorialTags } from '../../../../../../src/web/feature
 import { tourCategory } from '../../../../../../src/web/features/guided-help/model/tutorial-taxonomy.ts';
 import { automationActionExampleAvailable } from '../../../../../../src/web/features/guided-help/model/tour-requirements.ts';
 
+/** Account-only tours: they need a signed-in workspace, so they are never offered by the demo. */
+const ACCOUNT_TOUR_IDS = ['backup', 'backupRestore', 'cloudOverlays'] as const;
+/** Tours the public demo must not expose: the account-only ones plus the internal rankings view. */
+const NON_DEMO_TOUR_IDS = [...ACCOUNT_TOUR_IDS, 'rankings'] as const;
+/** Generic action editors, exempt from the specialized-tour example requirement. */
+const GENERIC_ACTION_TOUR_IDS = ['automationActions', 'automationActionVars'];
+
 describe('guide contract', () => {
   it('uses lifecycle metadata as the only public catalog boundary', () => {
     const publicIds = tourModules.filter((module) => !('lifecycle' in module) || module.lifecycle !== 'internal').map((module) => module.id);
@@ -36,14 +43,14 @@ describe('guide contract', () => {
       .map((module) => module.id)
       .sort();
     expect(Object.keys(demoTourScenarios).sort()).toEqual(expected);
-    for (const id of ['backup', 'backupRestore', 'cloudOverlays', 'rankings']) {
+    for (const id of NON_DEMO_TOUR_IDS) {
       expect(Object.hasOwn(demoTourScenarios, id), id).toBe(false);
     }
   });
 
 
   it('declares account prerequisites in the canonical registry', () => {
-    for (const id of ['backup', 'backupRestore', 'cloudOverlays'] as const) {
+    for (const id of ACCOUNT_TOUR_IDS) {
       expect(tourRegistry[id].availability?.account).toBe('signed-in');
     }
   });
@@ -65,7 +72,7 @@ describe('guide contract', () => {
 
 
   it('requires a declared type or example for every specialized action-editor tour', () => {
-    const generic = new Set(['automationActions', 'automationActionVars']);
+    const generic = new Set(GENERIC_ACTION_TOUR_IDS);
     for (const module of tourModules.filter((module) => module.shape === 'action' && !generic.has(module.id))) {
       const requirements = tourRegistry[module.id].requirements;
       expect(requirements?.automationActionExample ?? requirements?.automationActionType, module.id).toBeTruthy();
