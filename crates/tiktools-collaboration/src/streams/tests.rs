@@ -459,26 +459,7 @@ fn immutable_pages_hold_the_watermark_and_wait_for_complete_baseline() {
 
 #[test]
 fn impossible_snapshot_rate_budget_fails_before_returning_a_page() {
-    let hub = StreamHub::default();
-    let user = identity();
-    let limits = RemoteLimits {
-        requests_per_second: 1,
-        request_burst: 1,
-        ..RemoteLimits::default()
-    };
-    let sub = hub
-        .subscribe(
-            &user,
-            "conn",
-            "instance-a",
-            SubscribeParams {
-                domains: [StreamDomain::Workflows].into(),
-                feed: false,
-                points_limit: None,
-            },
-            &limits,
-        )
-        .unwrap();
+    let (hub, user, sub) = workflow_subscription();
     let records = |count| {
         (0..count)
             .map(|i| {
@@ -567,8 +548,9 @@ fn snapshot_requires_pages_in_order_but_permits_retransmission() {
     assert_eq!(hub.next(&user, "conn").unwrap().unwrap().sequence, "1");
 }
 
-#[test]
-fn frame_aware_packing_fits_the_largest_escaped_rpc_id() {
+/// A hub with one workflow-only subscription for the test identity, rate
+/// limited to one request per second so snapshot budgets are easy to exhaust.
+fn workflow_subscription() -> (StreamHub, Authenticated, SubscribeResult) {
     let hub = StreamHub::default();
     let user = identity();
     let limits = RemoteLimits {
@@ -589,6 +571,12 @@ fn frame_aware_packing_fits_the_largest_escaped_rpc_id() {
             &limits,
         )
         .unwrap();
+    (hub, user, sub)
+}
+
+#[test]
+fn frame_aware_packing_fits_the_largest_escaped_rpc_id() {
+    let (hub, user, sub) = workflow_subscription();
     let records = (0..32)
         .map(|i| {
             let id = format!("wf-{i:02}");
