@@ -1281,6 +1281,58 @@ async fn revoke_and_reapprove_during_delay_never_revives_the_captured_old_run() 
     );
 }
 
+/// Feeds one native chat event from `alice` (message id `id`, connection
+/// generation `generation`) into the core and returns how many events had
+/// completed before it, to pass to [`wait_done`].
+#[cfg(feature = "native-tiktok")]
+fn dispatch_alice_chat(core: &Arc<AppCore>, id: u64, generation: u64) -> u64 {
+    use std::sync::atomic::Ordering;
+    use tiktools_tiktok::events::{CanonicalLiveEvent, ChatEvent, EventMetadata, EventUser};
+    let before = core
+        .automation_state
+        .events_completed
+        .load(Ordering::Relaxed);
+    let native = crate::NativeLiveEvent {
+        base: CanonicalLiveEvent::Chat(ChatEvent {
+            user: EventUser {
+                unique_id: "alice".into(),
+                nickname: "Alice".into(),
+                ..Default::default()
+            },
+            comment: "hello".into(),
+            ..Default::default()
+        }),
+        metadata: EventMetadata {
+            method: "WebcastChatMessage".into(),
+            msg_id: id,
+            is_history: false,
+        },
+        gift: None,
+    };
+    assert!(core
+        .prepare_live_event_with_generation(native, Some(generation))
+        .is_some());
+    before
+}
+
+/// Waits (up to 5 s) until the core has completed more events than `before`.
+#[cfg(feature = "native-tiktok")]
+async fn wait_done(core: &Arc<AppCore>, before: u64) {
+    use std::sync::atomic::Ordering;
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while core
+            .automation_state
+            .events_completed
+            .load(Ordering::Relaxed)
+            <= before
+        {
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("native event dispatch did not finish");
+}
+
 mod external;
 mod scoped_flow;
 
@@ -1427,8 +1479,6 @@ async fn reusable_multi_author_event_chain_requires_both_current_topic_grants() 
 #[cfg(feature = "native-tiktok")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn native_ingress_drives_reusable_internal_event_chain_until_topic_revoked() {
-    use std::sync::atomic::Ordering;
-    use tiktools_tiktok::events::{CanonicalLiveEvent, ChatEvent, EventMetadata, EventUser};
     let f = Fixture::new();
     let mut permitted = grant();
     permitted
@@ -1476,47 +1526,7 @@ async fn native_ingress_drives_reusable_internal_event_chain_until_topic_revoked
             connection_id: "connection-17".into(),
             creator_verified: true,
         });
-    let dispatch = |id| {
-        let before = core
-            .automation_state
-            .events_completed
-            .load(Ordering::Relaxed);
-        let native = crate::NativeLiveEvent {
-            base: CanonicalLiveEvent::Chat(ChatEvent {
-                user: EventUser {
-                    unique_id: "alice".into(),
-                    nickname: "Alice".into(),
-                    ..Default::default()
-                },
-                comment: "hello".into(),
-                ..Default::default()
-            }),
-            metadata: EventMetadata {
-                method: "WebcastChatMessage".into(),
-                msg_id: id,
-                is_history: false,
-            },
-            gift: None,
-        };
-        assert!(core
-            .prepare_live_event_with_generation(native, Some(17))
-            .is_some());
-        before
-    };
-    async fn wait_done(core: &Arc<AppCore>, before: u64) {
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            while core
-                .automation_state
-                .events_completed
-                .load(Ordering::Relaxed)
-                <= before
-            {
-                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-            }
-        })
-        .await
-        .expect("native event dispatch did not finish");
-    }
+    let dispatch = |id| dispatch_alice_chat(&core, id, 17);
     wait_done(&core, dispatch(1)).await;
     assert_eq!(
         f.points("alice"),
@@ -1858,8 +1868,6 @@ async fn reusable_grant_creates_and_edits_active_automation_atomically() {
 #[cfg(feature = "native-tiktok")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn native_live_ingress_applies_reusable_grants_only_for_verified_generation() {
-    use std::sync::atomic::Ordering;
-    use tiktools_tiktok::events::{CanonicalLiveEvent, ChatEvent, EventMetadata, EventUser};
     let f = Fixture::new();
     let mut permitted = grant();
     permitted.capabilities.insert(Capability::AutomationToggle);
@@ -1883,48 +1891,8 @@ async fn native_live_ingress_applies_reusable_grants_only_for_verified_generatio
             )
             .unwrap();
     }
-    let native = |id| crate::NativeLiveEvent {
-        base: CanonicalLiveEvent::Chat(ChatEvent {
-            user: EventUser {
-                unique_id: "alice".into(),
-                nickname: "Alice".into(),
-                ..Default::default()
-            },
-            comment: "hello".into(),
-            ..Default::default()
-        }),
-        metadata: EventMetadata {
-            method: "WebcastChatMessage".into(),
-            msg_id: id,
-            is_history: false,
-        },
-        gift: None,
-    };
     let core = f.core().clone();
-    let dispatch = |id, generation| {
-        let before = core
-            .automation_state
-            .events_completed
-            .load(Ordering::Relaxed);
-        assert!(core
-            .prepare_live_event_with_generation(native(id), Some(generation))
-            .is_some());
-        before
-    };
-    async fn wait_done(core: &Arc<AppCore>, before: u64) {
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            while core
-                .automation_state
-                .events_completed
-                .load(Ordering::Relaxed)
-                <= before
-            {
-                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-            }
-        })
-        .await
-        .expect("native event dispatch did not finish");
-    }
+    let dispatch = |id, generation| dispatch_alice_chat(&core, id, generation);
     *crate::recover_rwlock_write(&core.connection_context, "test connection") =
         Some(crate::LiveContext {
             unique_id: "creator".into(),
