@@ -1,8 +1,8 @@
 //! Frozen keep-local intent validation, digests and recognized recovery phases.
 use super::{AbandonPhase, RebasePhase, V1KeepLocalIntent};
 use crate::{
-    protocol_fence::V1Lease, SyncConfig, SyncCoordError, V1ConflictSourceProof,
-    V1LocalEditContext, V1ProductOutbox,
+    protocol_fence::V1Lease, SyncConfig, SyncCoordError, V1ConflictSourceProof, V1LocalEditContext,
+    V1ProductOutbox,
 };
 use cloud_client::{Edit, Entry, Pending, Record, Session, StateSnapshot, SyncState};
 use sha2::{Digest, Sha256};

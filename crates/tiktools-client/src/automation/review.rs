@@ -1,10 +1,10 @@
 //! A review must bind the displayed graph to its complete version envelope.
 use super::*;
-use tiktools_control_api::wire::{self, canonical_id};
 use std::collections::BTreeSet;
 use tiktools_control_api::modules::automation::{
     AutomationReviewAuthority, AutomationReviewProvenance,
 };
+use tiktools_control_api::wire::{self, canonical_id};
 
 const MAX_DEPENDENCIES: usize = 512;
 const DEFINITION_BYTES: usize = 256 * 1024;

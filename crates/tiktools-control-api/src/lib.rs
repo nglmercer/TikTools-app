@@ -36,11 +36,11 @@ pub use context::{RemoteCapability, RemoteSession, RequestContext};
 pub use error::ApiError;
 pub use metadata::{CallResult, RequestMetadata, ResponseMetadata};
 pub use registry::MethodMeta;
-pub use tiktools_core::wire;
 pub use request::{RpcId, RpcRequest};
 pub use response::RpcResponse;
 pub use router::ControlRouter;
 pub use tiktools_core::control::StoredBackupView;
+pub use tiktools_core::wire;
 pub use transport::{
     owner_params_bytes, owner_request_bytes, run_ipc, run_ipc_shared, run_ipc_shared_with_ready,
     run_stdio, run_stdio_shared, IPC_NAME, MAX_OWNER_LIBRARY_PARAMS_BYTES,

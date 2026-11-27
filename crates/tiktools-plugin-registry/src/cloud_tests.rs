@@ -1,10 +1,7 @@
 use std::{
     fs,
     path::PathBuf,
-    sync::{
-        atomic::Ordering,
-        Arc, RwLock,
-    },
+    sync::{atomic::Ordering, Arc, RwLock},
 };
 
 use tiktools_plugin_api::HostCompat;

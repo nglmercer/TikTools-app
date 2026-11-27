@@ -1,6 +1,6 @@
 //! Metadata-only owner journal. Business results remain in the shared ledger.
-use super::owner_journal_values::{id, revision, scope};
 use super::owner_journal_values::{self, Resolution};
+use super::owner_journal_values::{id, revision, scope};
 use super::{commands, DatabaseError, DatabaseManager};
 use crate::{
     collaboration::{CommandRequest, ResourceKind},
@@ -260,8 +260,7 @@ impl DatabaseManager {
                 if outcome.method != "automation.adopt"
                     || outcome.host_instance_id != intent.host_instance_id
                     || outcome.command.command_id != intent.command_id
-                    || outcome.command.state
-                        != crate::collaboration::CommandState::Succeeded
+                    || outcome.command.state != crate::collaboration::CommandState::Succeeded
                     || resource.kind != ResourceKind::Automation
                     || resource.scope != scope(intent.kind)
                     || resource.id != intent.id

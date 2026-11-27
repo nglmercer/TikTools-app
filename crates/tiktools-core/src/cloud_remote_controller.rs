@@ -47,7 +47,6 @@ pub struct CommandOutcome {
     pub result: Option<Value>,
 }
 
-
 fn valid_operation(value: &str) -> bool {
     (1..=64).contains(&value.len()) && value.bytes().all(|b| b.is_ascii_lowercase() || b == b'.')
 }

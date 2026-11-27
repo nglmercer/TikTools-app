@@ -1,9 +1,9 @@
 //! Bounded metadata-only native approval journal. Complete definitions remain
 //! solely in the business database; recovery never dispatches an operation.
+use super::owner_journal_values::{self, Resolution};
 use super::owner_journal_values::{
     digest, id, revision, scope, text_columns_within, CONTROL_COMMAND_TEXT_LIMITS,
 };
-use super::owner_journal_values::{self, Resolution};
 use super::{commands, DatabaseError, DatabaseManager};
 use crate::{
     collaboration::{CommandRequest, ResourceKind, ResourceVersion},

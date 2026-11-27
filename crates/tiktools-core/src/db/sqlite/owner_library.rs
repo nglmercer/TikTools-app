@@ -1,6 +1,6 @@
 //! Metadata-only native library intents. No source is retained or replayed.
-use super::owner_journal_values::{revision, text_columns_within};
 use super::owner_journal_values::{self, Resolution};
+use super::owner_journal_values::{revision, text_columns_within};
 use super::{DatabaseError, DatabaseManager};
 use crate::{
     collaboration::{CommandOutcome, CommandRequest, CommandState, ResourceKind},

@@ -1,8 +1,6 @@
 #![cfg(feature = "persistence")]
 use serde_json::{json, Value};
-use tiktools_control_api::{
-    RemoteCapability, RemoteSession, RequestContext, RpcResponse,
-};
+use tiktools_control_api::{RemoteCapability, RemoteSession, RequestContext, RpcResponse};
 use tiktools_core::control::AutomationKind;
 mod support;
 use support::Fixture;

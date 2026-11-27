@@ -2,10 +2,10 @@
 //! and library): identifiers, revisions, digests, scope names and the byte
 //! bounds of text columns read back from `control_commands`.
 
+use super::DatabaseError;
 use crate::control::AutomationKind;
 use crate::wire;
-use super::DatabaseError;
-use rusqlite::{types::ValueRef, Row, Connection};
+use rusqlite::{types::ValueRef, Connection, Row};
 
 /// Byte bounds for the text columns of a `control_commands` row, in column
 /// order: payload hash, session, method, resource kind, resource scope,

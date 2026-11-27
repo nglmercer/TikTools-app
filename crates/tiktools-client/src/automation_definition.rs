@@ -2,7 +2,6 @@
 //! repeats an operation or installs historical source into a current editor.
 use crate::{CallResult, ClientError, TikToolsClient};
 use serde_json::Value;
-use tiktools_control_api::wire::{self, canonical_id as canonical, digest};
 use std::collections::BTreeSet;
 use tiktools_control_api::modules::automation_definition::OwnerDefinitionEmpty;
 pub use tiktools_control_api::modules::automation_definition::{
@@ -11,6 +10,7 @@ pub use tiktools_control_api::modules::automation_definition::{
     OwnerDefinitionReviewUnknown, OwnerDefinitionState, OwnerDefinitionSubmission,
     OwnerDefinitionSubmit,
 };
+use tiktools_control_api::wire::{self, canonical_id as canonical, digest};
 
 const GET: &str = "automation.definition.get";
 const SUBMIT: &str = "automation.definition.submit";

@@ -44,8 +44,8 @@ impl DatabaseManager {
                 .map_err(DatabaseError::from)
                 .map_err(inventory_db_error)?;
             crate::db::sqlite::apply_synchronous(&db)
-            .map_err(DatabaseError::from)
-            .map_err(inventory_db_error)?;
+                .map_err(DatabaseError::from)
+                .map_err(inventory_db_error)?;
             let tx = db
                 .transaction_with_behavior(TransactionBehavior::Immediate)
                 .map_err(DatabaseError::from)

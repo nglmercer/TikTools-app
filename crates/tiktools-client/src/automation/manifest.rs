@@ -1,8 +1,8 @@
 //! Owner manifest previews retain the exact complete version envelope. Digests
 //! are opaque host bindings, never execution tokens or candidate reconstruction.
 use super::*;
-use tiktools_control_api::wire::{self, canonical_id as canonical};
 use std::collections::BTreeSet;
+use tiktools_control_api::wire::{self, canonical_id as canonical};
 
 const BYTES: usize = 4 * 1024 * 1024;
 const DEPENDENCIES: usize = 512;

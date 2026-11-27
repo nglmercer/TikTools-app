@@ -1,9 +1,9 @@
 //! Native metadata-only definition intents. Recovery reads the immutable
 //! original business ledger and never dispatches a saved mutation again.
+use super::owner_journal_values::{self, Resolution};
 use super::owner_journal_values::{
     digest, id, revision, scope, text_columns_within, CONTROL_COMMAND_TEXT_LIMITS,
 };
-use super::owner_journal_values::{self, Resolution};
 use super::{commands, DatabaseError, DatabaseManager};
 use crate::{
     collaboration::{CommandOutcome, CommandRequest, CommandState, ResourceKind},
