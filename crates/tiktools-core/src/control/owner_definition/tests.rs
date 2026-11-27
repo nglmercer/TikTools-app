@@ -1,38 +1,15 @@
 use super::*;
+use crate::control::test_support::{open_core, paths};
 use crate::{
     collaboration::*,
     control::{AutomationMutation, CommandCaller, OwnerAdoptionSubmit, OwnerApprovalSubmit},
     paths::AppPaths,
-    HostEmitter, NoopMediaHost,
 };
 use rusqlite::Connection;
 use serde_json::json;
 use std::{path::PathBuf, sync::Arc};
 
 const SOURCE: &str = "private-owner-definition-source";
-struct Emitter;
-impl HostEmitter for Emitter {
-    fn emit(&self, _: crate::ipc::messages::HostMessage) {}
-}
-fn paths(root: PathBuf) -> AppPaths {
-    AppPaths {
-        data: root.join("data"),
-        plugins: root.join("plugins"),
-        plugin_data: root.join("plugin-data"),
-        builtin_plugins: root.join("absent"),
-        development_plugins: None,
-        logs: root.join("logs"),
-        temp: root.join("temp"),
-        root,
-    }
-}
-fn open(paths: &AppPaths) -> Arc<AppCore> {
-    Arc::new(AppCore::with_paths(
-        Arc::new(Emitter),
-        Arc::new(NoopMediaHost),
-        paths.clone(),
-    ))
-}
 struct Fixture {
     core: Option<Arc<AppCore>>,
     paths: AppPaths,
@@ -45,7 +22,7 @@ impl Fixture {
             fastrand::u64(..)
         )));
         Self {
-            core: Some(open(&paths)),
+            core: Some(open_core(&paths)),
             paths,
         }
     }
@@ -57,7 +34,7 @@ impl Fixture {
     }
     fn reopen(&mut self) {
         drop(self.core.take());
-        self.core = Some(open(&self.paths));
+        self.core = Some(open_core(&self.paths));
     }
     fn seed(&self, kind: AutomationKind) {
         self.core()
@@ -606,8 +583,8 @@ async fn native_owner_edits_and_enablement_preserve_delegated_provenance_and_qua
 #[ignore = "subprocess-only native definition crash fixture"]
 fn crash_child() {
     let root = PathBuf::from(std::env::var_os("TIKTOOLS_OWNER_DEFINITION_ROOT").unwrap());
-    let paths = paths(root);
-    let core = open(&paths);
+    let paths = paths(&root);
+    let core = open_core(&paths);
     let kind = if std::env::var("TIKTOOLS_OWNER_DEFINITION_KIND").unwrap() == "action" {
         AutomationKind::Action
     } else {
@@ -673,7 +650,7 @@ fn real_process_death_matrix_case(
             "{kind:?}/{operation:?}/{stage}: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        f.core = Some(open(&f.paths));
+        f.core = Some(open_core(&f.paths));
         let before = if operation == OwnerDefinitionOperation::Create {
             0
         } else {

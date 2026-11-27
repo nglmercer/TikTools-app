@@ -1,32 +1,10 @@
 use super::*;
-use crate::{paths::AppPaths, AppCore, HostEmitter, NoopMediaHost};
+use crate::control::test_support::{open_core, paths};
+use crate::{paths::AppPaths, AppCore};
 use rusqlite::Connection;
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
 const SOURCE: &str = "private-native-library-source";
-struct Emitter;
-impl HostEmitter for Emitter {
-    fn emit(&self, _: crate::ipc::messages::HostMessage) {}
-}
-fn paths(root: PathBuf) -> AppPaths {
-    AppPaths {
-        data: root.join("data"),
-        plugins: root.join("plugins"),
-        plugin_data: root.join("plugin-data"),
-        builtin_plugins: root.join("absent"),
-        development_plugins: None,
-        logs: root.join("logs"),
-        temp: root.join("temp"),
-        root,
-    }
-}
-fn open(paths: &AppPaths) -> Arc<AppCore> {
-    Arc::new(AppCore::with_paths(
-        Arc::new(Emitter),
-        Arc::new(NoopMediaHost),
-        paths.clone(),
-    ))
-}
 struct Fixture {
     core: Option<Arc<AppCore>>,
     paths: AppPaths,
@@ -39,7 +17,7 @@ impl Fixture {
             fastrand::u64(..)
         )));
         Self {
-            core: Some(open(&paths)),
+            core: Some(open_core(&paths)),
             paths,
         }
     }
@@ -59,7 +37,7 @@ impl Fixture {
     }
     fn reopen(&mut self) {
         drop(self.core.take());
-        self.core = Some(open(&self.paths));
+        self.core = Some(open_core(&self.paths));
     }
     fn seed(&self) {
         self.core()
@@ -593,8 +571,8 @@ fn restarting_the_host_rejects_an_old_library_review_without_creating_an_intent(
 #[ignore = "only invoked by the native library process-death parent"]
 fn crash_child() {
     let root = std::env::var_os("TIKTOOLS_OWNER_LIBRARY_ROOT").expect("isolated child root");
-    let paths = paths(root.into());
-    let core = open(&paths);
+    let paths = paths(std::path::Path::new(&root));
+    let core = open_core(&paths);
     let operation: OwnerLibraryOperation = serde_json::from_value(json!(std::env::var(
         "TIKTOOLS_OWNER_LIBRARY_OPERATION"
     )
@@ -647,7 +625,7 @@ fn actual_process_termination_matrix_case(
             "{operation:?}/{stage}: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        f.core = Some(open(&f.paths));
+        f.core = Some(open_core(&f.paths));
         let mut newer = None;
         if committed {
             // A newer owner write (including recreation after profile

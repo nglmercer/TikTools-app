@@ -1,41 +1,16 @@
 use super::*;
+use crate::control::test_support::{open_core, paths};
 use crate::{
     collaboration::*,
     control::{AutomationMutation, CommandCaller},
     paths::AppPaths,
-    AppCore, HostEmitter, NoopMediaHost,
+    AppCore,
 };
 use rusqlite::{params, Connection};
 use serde_json::{json, Value};
 use std::sync::Arc;
 
 const SOURCE: &str = "private-proposal-source-marker";
-
-struct Emitter;
-impl HostEmitter for Emitter {
-    fn emit(&self, _: crate::ipc::messages::HostMessage) {}
-}
-
-fn paths(root: &std::path::Path) -> AppPaths {
-    AppPaths {
-        data: root.join("data"),
-        plugins: root.join("plugins"),
-        plugin_data: root.join("plugin-data"),
-        builtin_plugins: root.join("absent"),
-        development_plugins: None,
-        logs: root.join("logs"),
-        temp: root.join("temp"),
-        root: root.into(),
-    }
-}
-
-fn open_core(paths: &AppPaths) -> Arc<AppCore> {
-    Arc::new(AppCore::with_paths(
-        Arc::new(Emitter),
-        Arc::new(NoopMediaHost),
-        paths.clone(),
-    ))
-}
 
 fn author(core: &AppCore) -> Authorization {
     let service = core.collaboration().unwrap();
