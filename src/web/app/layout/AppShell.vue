@@ -3,7 +3,7 @@ import { useDiagnostics } from '../model/use-diagnostics.ts';
 import { diagnosticLog, diagnosticView } from '@/shared/diagnostics/log.ts';
 import { useDiagnosticNavigation } from '@/shared/diagnostics/navigation.ts';
 import { storeToRefs } from 'pinia';
-import { computed, defineAsyncComponent, useTemplateRef } from 'vue';
+import { computed, defineAsyncComponent, ref, useTemplateRef, watch } from 'vue';
 
 // The panel and its code load only when Diagnostics is opened; closing unmounts it but never clears the log.
 const DiagnosticsPanel = defineAsyncComponent(() => import('@/shared/diagnostics/DiagnosticsPanel.vue'));
@@ -26,6 +26,7 @@ import AppStatusBar from '@/widgets/app-status-bar/ui/AppStatusBar.vue';
 import { mergePluginNavigationPages } from '../../../automation/plugins/declarative.ts';
 import { useAppRuntime } from '../model/use-app-runtime.ts';
 import { tabLocation } from '../router/tab-routes.ts';
+import { screenDirection, type ScreenDirection } from '../model/screen-motion.ts';
 
 import { useShellInteractions } from '../model/use-shell-interactions.ts';
 import { useShellNavigation } from '../model/use-shell-navigation.ts';
@@ -58,6 +59,10 @@ const pluginNavigationPages = computed(() => mergePluginNavigationPages(pluginPa
 const { route, router, routeTab, sections, menuPages, navigate } = useShellNavigation(pluginNavigationPages, {
   activeTab, open: navigation.open,
 }, drawerOpen);
+
+// Set synchronously, before the router view re-renders, so the entering screen already travels the right way.
+const direction = ref<ScreenDirection>('forward');
+watch(routeTab, (next, previous) => { direction.value = screenDirection(previous, next); }, { flush: 'sync' });
 // vite-plugin-vue infers each page component's name from its filename, so
 // keep-alive can match them without a manual `name` option.
 const cachedTabPages = [
@@ -143,6 +148,7 @@ if (desktopShell) {
       <main
         :ref="interactions.contentRef"
         class="app-layout__content"
+        :data-direction="direction"
       >
         <div
           v-if="pullDistance > 0"
@@ -163,9 +169,14 @@ if (desktopShell) {
                every tab switch. Plugin/debug pages are excluded — a single
                component type serves many parameterised routes, and detached
                live views should not keep consuming a plugin's render loop. -->
-          <KeepAlive :include="cachedTabPages">
-            <component :is="Component" />
-          </KeepAlive>
+          <Transition
+            name="screen"
+            mode="out-in"
+          >
+            <KeepAlive :include="cachedTabPages">
+              <component :is="Component" />
+            </KeepAlive>
+          </Transition>
         </RouterView>
       </main>
     </div>
@@ -200,3 +211,4 @@ if (desktopShell) {
 </template>
 
 <style src="./app-shell.css"></style>
+<style src="./screen-transition.css"></style>

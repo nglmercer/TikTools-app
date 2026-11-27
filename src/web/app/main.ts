@@ -8,6 +8,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/local-browser.css';
 import './styles/responsive.css';
+import './styles/motion.css';
 
 declare global {
   interface Window {

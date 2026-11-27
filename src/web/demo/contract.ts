@@ -15,7 +15,7 @@ export const frameOnlyParams: readonly DemoParam[] = [demoParam.embed, demoParam
 export const frameMessageType = { state: 'tiktools.demo.state', command: 'tiktools.demo.command' } as const;
 
 /** `document.documentElement.dataset` keys written by the demo. */
-export const demoRootData = { panel: 'demoPanel', frame: 'demoFrame', showcase: 'demoShowcase', showcaseEntering: 'showcaseEntering', showcaseDone: 'showcaseDone' } as const;
+export const demoRootData = { panel: 'demoPanel', frame: 'demoFrame', showcase: 'demoShowcase', showcaseDone: 'showcaseDone' } as const;
 /** Values of `data-demo-showcase`. */
 export const showcaseMode = { live: 'true', record: 'record' } as const;
 

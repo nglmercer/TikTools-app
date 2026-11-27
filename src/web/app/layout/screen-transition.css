@@ -1,0 +1,38 @@
+/*
+ * Screen change: the old screen fades out quickly, the new one fades in while it settles 8px into place, from
+ * below when moving down the sidebar and from above when moving up. Only opacity and transform animate, so it
+ * stays on the compositor. `prefers-reduced-motion` zeroes the durations and the shift through the tokens.
+ */
+.app-layout__content {
+  --screen-shift: var(--motion-shift);
+}
+
+.app-layout__content[data-direction='back'] {
+  --screen-shift: calc(var(--motion-shift) * -1);
+}
+
+.screen-enter-active {
+  transition:
+    opacity var(--duration-normal) var(--ease-out),
+    transform var(--duration-slow) var(--ease-out);
+}
+
+.screen-leave-active {
+  transition: opacity var(--duration-fast) var(--ease-in);
+}
+
+.screen-enter-from {
+  opacity: 0;
+  transform: translateY(var(--screen-shift));
+}
+
+.screen-leave-to {
+  opacity: 0;
+}
+
+/* The narrow layout scrolls inside the content box: a travelling page would extend it, so only fade there. */
+@media (width < 900px) {
+  .screen-enter-from {
+    transform: none;
+  }
+}

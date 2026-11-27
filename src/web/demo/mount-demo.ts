@@ -11,6 +11,7 @@ import { demoParam, demoTiming, frameMessageType } from './contract.ts';
 import '@/app/styles/tokens.css';
 import '@/app/styles/base.css';
 import '@/app/styles/responsive.css';
+import '@/app/styles/motion.css';
 import { startTour, stopTour, type GuideSession } from '@/features/guided-help/index.ts';
 import { guideCatalogContextKey } from '@/features/guided-help/model/catalog-context.ts';
 import { configureAppClock } from '@/shared/lib/app-clock.ts';
@@ -146,7 +147,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   if (options.tour) launchTour(options.tour);
   if (options.showcase && workspaceRouter) {
     showcase = mountShowcase({
-      router: workspaceRouter, record: options.record, pace: options.pace, viewTransitions: !options.framed,
+      router: workspaceRouter, record: options.record, pace: options.pace,
       stepEvent: () => playback.step(),
       locale: options.locale,
       changed(state) { showcaseState = state; publishFrameState(); },

@@ -110,6 +110,12 @@
 
   --duration-fast: 80ms;
   --duration-normal: 160ms;
+  --duration-slow: 240ms;
+  /* Entrances decelerate (ease-out); exits accelerate (ease-in). Never linear for movement. */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  /* How far a screen, panel or popup travels while it fades in. */
+  --motion-shift: 8px;
 
   --z-floating: 100;
   --z-dropdown: 600;
@@ -202,5 +208,5 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  :root { --duration-fast: 0ms; --duration-normal: 0ms; }
+  :root { --duration-fast: 0ms; --duration-normal: 0ms; --duration-slow: 0ms; --motion-shift: 0px; }
 }

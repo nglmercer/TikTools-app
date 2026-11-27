@@ -71,8 +71,9 @@
   `bun scripts/task.ts site record-intro` (needs `bunx playwright install chromium --only-shell` and
   `ffmpeg`). It writes `dist/intro-video/{intro.mp4,intro.webp,poster.png}`; copy `intro.webp` to
   `assets/` for the README and attach `intro.mp4` to the release.
-- View Transitions are off in framed demos: `startViewTransition` inside the scaled docs iframe
-  crashed headless Chromium. Framed views use a CSS fade-in instead.
+- The showcase has no animation of its own for view changes: the app's screen transition (below) plays when the
+  director navigates. Do not reintroduce `document.startViewTransition`: it crashed headless Chromium inside the
+  scaled docs iframe and is missing from older WebKitGTK.
 
 ## Site e2e speed
 
@@ -149,3 +150,19 @@
   - fix the fixture type once (a generic `onTopic<T>`, `emit(topic, data: unknown)`) instead of every call site;
   - replace `value!` with `defined(value, 'what it is')` from `tests/shared` (throws a readable error when missing);
     inside `page.evaluate` use a guard that throws, because page code cannot import.
+
+## Motion
+
+- Tokens live in `src/web/app/styles/tokens.css`: `--duration-fast|normal|slow`, `--ease-out|in`, `--motion-shift`.
+  `prefers-reduced-motion` sets every duration and the shift to 0, so CSS and `shared/lib/motion.ts` (which reads the
+  tokens for Web Animations) switch off together. Do not hardcode durations in components.
+- Screen changes: `AppShell.vue` wraps the kept-alive route view in `<Transition name="screen" mode="out-in">`
+  (`layout/screen-transition.css`). New screens fade and settle 8px, from below when moving down the sidebar and from
+  above when moving up (`app/model/screen-motion.ts`). Only opacity and transform animate. A page needs ONE root element.
+- Sub-tabs: `BaseTabs` slides one accent line under the selected tab and fades the new panel in with
+  `shared/lib/motion.ts#enter`, without remounting the slot (state survives).
+- Floating UI (menus, listboxes, tooltips, floating panels, toasts): `app/styles/motion.css`. It animates the individual
+  `translate` property, because many of these are positioned through an inline `transform`.
+- Specs: `playwright.config.ts` runs with `reducedMotion: 'reduce'` so end-state assertions stay instant; a spec that
+  tests motion opts in with `test.use({ reducedMotion: 'no-preference' })` (see `tests/e2e/motion.spec.ts`).
+

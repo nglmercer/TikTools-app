@@ -1,0 +1,30 @@
+/*
+ * Entrances for floating UI. Menus, listboxes, tooltips, floating panels and notifications fade in and settle a
+ * few pixels. They use the individual `translate` property, not `transform`, because several of them are
+ * positioned through an inline `transform` that an animation on `transform` would override mid-flight.
+ * Durations and the shift come from the tokens, so `prefers-reduced-motion` removes the movement and the fade.
+ */
+@keyframes popup-in {
+  from {
+    opacity: 0;
+    translate: 0 calc(var(--motion-shift) * -0.5);
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    translate: 0 var(--motion-shift);
+  }
+}
+
+.menu-list,
+.base-combo-box__listbox,
+.base-tooltip:not([hidden]) {
+  animation: popup-in var(--duration-fast) var(--ease-out);
+}
+
+.base-floating-panel,
+.base-notification {
+  animation: toast-in var(--duration-normal) var(--ease-out);
+}

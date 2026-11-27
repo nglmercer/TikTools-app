@@ -1,5 +1,6 @@
 <script setup lang="ts" generic="T extends string | number">
-import { computed, nextTick, ref, useId } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
+import { enter } from '@/shared/lib/motion.ts';
 import { firstEnabledIndex, lastEnabledIndex, stepEnabledIndex } from '@/shared/lib/list-navigation.ts';
 import type { TabOption } from './tab-types.ts';
 
@@ -22,6 +23,36 @@ const tabElements = ref<HTMLElement[]>([]);
 const selectedIndex = computed(() => props.tabs.findIndex((tab) => tab.value === model.value));
 const tabId = (index: number): string => `${id}-tab-${index}`;
 const panelId = `${id}-panel`;
+
+// The accent line under the selected tab is one element that slides between tabs, so a change reads as movement.
+const listElement = ref<HTMLElement | null>(null);
+const panelElement = ref<HTMLElement | null>(null);
+const indicator = ref<{ x: number; y: number; width: number } | null>(null);
+const indicatorAnimated = ref(false);
+let resizeObserver: ResizeObserver | undefined;
+
+function measureIndicator(): void {
+  const tab = tabElements.value[selectedIndex.value];
+  indicator.value = tab && tab.offsetWidth > 0 ? { x: tab.offsetLeft, y: tab.offsetTop + tab.offsetHeight - 1, width: tab.offsetWidth } : null;
+}
+
+onMounted(() => {
+  measureIndicator();
+  // Turn the slide on only after the first placement, so the line does not travel in from the corner.
+  requestAnimationFrame(() => { indicatorAnimated.value = true; });
+  if (typeof ResizeObserver === 'function' && listElement.value) {
+    resizeObserver = new ResizeObserver(measureIndicator);
+    resizeObserver.observe(listElement.value);
+  }
+});
+onBeforeUnmount(() => resizeObserver?.disconnect());
+watch(selectedIndex, async () => {
+  await nextTick();
+  measureIndicator();
+  // Fade the new content in without remounting it, so the panel keeps the state it already had.
+  if (panelElement.value) enter(panelElement.value, { shift: 4 });
+});
+watch(() => props.tabs.length, () => nextTick(measureIndicator));
 
 function select(index: number): void {
   const tab = props.tabs[index];
@@ -52,7 +83,9 @@ function onKeydown(event: KeyboardEvent): void {
       :class="{ 'base-tabs__bar--solo': !$slots.bar, 'base-tabs__bar--list-end': listEnd }"
     >
       <div
+        ref="listElement"
         class="base-tabs__list"
+        :data-indicator="indicator ? (indicatorAnimated ? 'animated' : 'placed') : undefined"
         role="tablist"
         :aria-label="label"
         @keydown="onKeydown"
@@ -83,11 +116,18 @@ function onKeydown(event: KeyboardEvent): void {
             class="base-tabs__badge"
           >{{ tab.badge }}</span>
         </button>
+        <span
+          v-if="indicator"
+          class="base-tabs__indicator"
+          aria-hidden="true"
+          :style="{ transform: `translate(${indicator.x}px, ${indicator.y}px)`, width: `${indicator.width}px` }"
+        />
       </div>
       <slot name="bar" />
     </div>
     <div
       :id="panelId"
+      ref="panelElement"
       class="base-tabs__panel"
       role="tabpanel"
       tabindex="0"
@@ -115,9 +155,30 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 .base-tabs__list {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
+}
+
+/* One accent line that slides under the selected tab; the per-tab line below is the fallback before it is measured. */
+.base-tabs__indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  background: var(--color-accent);
+  pointer-events: none;
+}
+
+.base-tabs__list[data-indicator='animated'] > .base-tabs__indicator {
+  transition:
+    transform var(--duration-slow) var(--ease-out),
+    width var(--duration-slow) var(--ease-out);
+}
+
+.base-tabs__list[data-indicator] > .base-tabs__tab[aria-selected='true']::after {
+  display: none;
 }
 
 .base-tabs__bar--solo > .base-tabs__list {
@@ -146,6 +207,9 @@ function onKeydown(event: KeyboardEvent): void {
   cursor: pointer;
   outline: none;
   transform: none;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .base-tabs__tab:hover {
