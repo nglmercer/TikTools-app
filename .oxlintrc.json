@@ -21,7 +21,10 @@
   "overrides": [
     {
       "files": ["tests/**/*.ts", "src/**/testing/**/*.ts"],
-      "rules": { "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }] }
+      "rules": {
+        "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }],
+        "typescript/no-non-null-assertion": "error"
+      }
     }
   ],
   "ignorePatterns": [

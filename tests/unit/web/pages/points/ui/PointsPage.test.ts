@@ -10,7 +10,7 @@ import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testin
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import type { ConnectionStatus } from '@/types.ts';
 import PointsPage from '../../../../../../src/web/pages/points/ui/PointsPage.vue';
-import { RPC } from '../../../../../shared/index.ts';
+import { RPC, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -52,11 +52,11 @@ async function mountPage(status: ConnectionStatus = 'idle') {
 }
 
 function button(wrapper: Awaited<ReturnType<typeof mountPage>>['wrapper'], label: string) {
-  return wrapper.findAll('button').find((entry) => entry.text() === label)!;
+  return defined(wrapper.findAll('button').find((entry) => entry.text() === label));
 }
 
 function documentButton(label: string): HTMLButtonElement {
-  return Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((entry) => entry.textContent?.trim() === label)!;
+  return defined(Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((entry) => entry.textContent?.trim() === label));
 }
 
 describe('PointsPage', () => {
@@ -64,9 +64,9 @@ describe('PointsPage', () => {
     const { wrapper } = await mountPage();
     const rows = wrapper.findAll('.leaderboard-table tbody tr');
     expect(rows).toHaveLength(2);
-    expect(rows[0]!.text()).toContain('#1');
-    expect(rows[0]!.text()).toContain('@luna');
-    expect(rows[0]!.text()).toContain(t('points.leaderboard.subscriber'));
+    expect(defined(rows[0]).text()).toContain('#1');
+    expect(defined(rows[0]).text()).toContain('@luna');
+    expect(defined(rows[0]).text()).toContain(t('points.leaderboard.subscriber'));
     expect(wrapper.findAll('th').map((th) => th.text())).toContain(t('navigation.points'));
     expect(wrapper.text()).toContain('2 viewers');
   });
@@ -111,8 +111,8 @@ describe('PointsPage', () => {
     const { wrapper, calls } = await mountPage();
     await wrapper.get('button[aria-label="Actions for @mango"]').trigger('click');
     await nextTick();
-    Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
-      .find((item) => item.textContent?.includes(t('points.adjust.confirmDeduct')))!
+    defined(Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+      .find((item) => item.textContent?.includes(t('points.adjust.confirmDeduct'))))
       .click();
     await flushPromises();
     expect(document.querySelector('dialog h2')?.textContent).toContain('@mango');

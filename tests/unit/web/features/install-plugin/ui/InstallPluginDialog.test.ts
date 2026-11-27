@@ -6,6 +6,7 @@ import { usePackagesStore } from '@/entities/plugin-package/model/packages-store
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import InstallPluginDialog from '../../../../../../src/web/features/install-plugin/ui/InstallPluginDialog.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -24,7 +25,7 @@ it('requires fresh consent for a changed preview and prevents confirming incompa
   const packages = stores.use(usePackagesStore);
   packages.review = { open: true, mode: 'update', loading: false, submitting: false, spec: { kind: 'file', path: '/demo.plugin' }, preview, error: null };
   const wrapper = mountWithPlugins(InstallPluginDialog, { global: { plugins: stores.plugins } });
-  const confirm = () => wrapper.findAll('button').find((button) => button.text() === 'Update')!;
+  const confirm = () => defined(wrapper.findAll('button').find((button) => button.text() === 'Update'));
   expect(wrapper.get('.install-dialog__name').text()).toContain('Demo');
   expect(wrapper.get('.install-dialog__added').text()).toContain(t('packages.access.audio_output'));
   expect(wrapper.get('.install-dialog__removed').text()).toContain('old.permission');

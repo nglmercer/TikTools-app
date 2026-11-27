@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ref } from 'vue';
 import BaseDateRange from '../../../../../../src/web/shared/ui/date-range/BaseDateRange.vue';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 function mountRange() {
   const start = ref('2026-11-20');
@@ -23,15 +24,15 @@ describe('BaseDateRange', () => {
   it('cross-constrains the fields so start never passes end', () => {
     const { wrapper } = mountRange();
     const [from, to] = wrapper.findAll('input');
-    expect(from!.attributes('max')).toBe('2026-11-26');
-    expect(to!.attributes('min')).toBe('2026-11-20');
+    expect(defined(from).attributes('max')).toBe('2026-11-26');
+    expect(defined(to).attributes('min')).toBe('2026-11-20');
   });
 
   it('updates the models when the fields change', async () => {
     const { wrapper, start, end } = mountRange();
     const [from, to] = wrapper.findAll('input');
-    await from!.setValue('2026-11-01');
-    await to!.setValue('2026-11-30');
+    await defined(from).setValue('2026-11-01');
+    await defined(to).setValue('2026-11-30');
     expect(start.value).toBe('2026-11-01');
     expect(end.value).toBe('2026-11-30');
   });

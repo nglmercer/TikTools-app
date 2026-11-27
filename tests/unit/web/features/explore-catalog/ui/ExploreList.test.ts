@@ -8,7 +8,7 @@ import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import ExploreList from '../../../../../../src/web/features/explore-catalog/ui/ExploreList.vue';
-import { FIXTURE_ID, PLUGIN_ID, RPC } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, PLUGIN_ID, RPC, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -71,16 +71,16 @@ describe('ExploreList', () => {
     expect(calls.find((call) => call.method === RPC.catalogItems)?.params).toMatchObject({ limit: 25 });
     expect(rowTitles(wrapper)).toEqual(['Acme TTS', t('overlays.kinds.gift.name'), 'Starter pack']);
     const [plugin, template, profile] = wrapper.findAll('.explore-list__row');
-    expect(plugin!.get('[role="img"]').attributes('aria-label')).toBe('Plugin');
-    expect(template!.get('[role="img"]').attributes('aria-label')).toBe('Template');
-    expect(profile!.get('[role="img"]').attributes('aria-label')).toBe('Profile');
-    expect(plugin!.text()).toContain('1.2.0');
-    expect(plugin!.find('button[aria-label="Install Acme TTS"]').exists()).toBe(true);
-    expect(template!.find('button[aria-label="Import template Gift alert"]').exists()).toBe(true);
-    expect(profile!.find('button[aria-label="Import profile Starter pack"]').exists()).toBe(true);
+    expect(defined(plugin).get('[role="img"]').attributes('aria-label')).toBe('Plugin');
+    expect(defined(template).get('[role="img"]').attributes('aria-label')).toBe('Template');
+    expect(defined(profile).get('[role="img"]').attributes('aria-label')).toBe('Profile');
+    expect(defined(plugin).text()).toContain('1.2.0');
+    expect(defined(plugin).find('button[aria-label="Install Acme TTS"]').exists()).toBe(true);
+    expect(defined(template).find('button[aria-label="Import template Gift alert"]').exists()).toBe(true);
+    expect(defined(profile).find('button[aria-label="Import profile Starter pack"]').exists()).toBe(true);
     // Only a plugin opens a details view; a template or a profile is imported.
-    expect(plugin!.find('button.explore-list__open').exists()).toBe(true);
-    expect(template!.find('button.explore-list__open').exists()).toBe(false);
+    expect(defined(plugin).find('button.explore-list__open').exists()).toBe(true);
+    expect(defined(template).find('button.explore-list__open').exists()).toBe(false);
   });
 
   it('opens a plugin and tells whether it is installed; the install icon starts the signed package review', async () => {
@@ -92,12 +92,12 @@ describe('ExploreList', () => {
       ['acme.have'],
     );
     const [fresh, have] = wrapper.findAll('.explore-list__row');
-    expect(have!.find('button[aria-label^="Install"]').exists()).toBe(false);
-    expect(have!.find('[role="img"][aria-label="Installed"]').exists()).toBe(true);
-    await fresh!.get('button.explore-list__open').trigger('click');
-    await have!.get('button.explore-list__open').trigger('click');
+    expect(defined(have).find('button[aria-label^="Install"]').exists()).toBe(false);
+    expect(defined(have).find('[role="img"][aria-label="Installed"]').exists()).toBe(true);
+    await defined(fresh).get('button.explore-list__open').trigger('click');
+    await defined(have).get('button.explore-list__open').trigger('click');
     expect(wrapper.emitted('openPlugin')).toEqual([[PLUGIN_ID.acmeTts, false], ['acme.have', true]]);
-    await fresh!.get('button[aria-label="Install Acme TTS"]').trigger('click');
+    await defined(fresh).get('button[aria-label="Install Acme TTS"]').trigger('click');
     await flushPromises();
     expect(calls.at(-1)).toEqual({ method: RPC.pluginsPackagesInspect, params: { spec: { kind: 'registry', id: PLUGIN_ID.acmeTts } } });
   });

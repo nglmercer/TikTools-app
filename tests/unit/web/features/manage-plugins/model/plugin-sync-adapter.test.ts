@@ -6,7 +6,7 @@ import { createFakeControlClient } from '@/shared/lib/testing/fake-control-clien
 import { pluginStatus } from '../../../../support/automation.ts';
 import { propertyOf } from '../../../../support/json.ts';
 import { createPluginSyncAdapter } from '../../../../../../src/web/features/manage-plugins/model/plugin-sync-adapter.ts';
-import { RPC } from '../../../../../shared/index.ts';
+import { RPC, defined } from '../../../../../shared/index.ts';
 
 const absent: WorkspaceValue = { state: 'absent', revision: null, value: null, version: null, enabled: null };
 const present = (version: string, enabled: boolean, revision = 1): WorkspaceValue => ({
@@ -78,8 +78,8 @@ describe('plugin sync adapter', () => {
     const { adapter } = setup([entry({ remote: present('1.0.0', true), pending })], [plugin('alpha', '1.0.0', false)]);
     const [change] = await adapter.list();
     expect(change).toMatchObject({ id: 'plugin-selections/alpha', kind: 'plugin', name: 'ALPHA', status: 'modified', side: 'local' });
-    expect(propertyOf(change!.before, 'enabled')).toBe(true);
-    expect(propertyOf(change!.after, 'enabled')).toBe(false);
+    expect(propertyOf(defined(change).before, 'enabled')).toBe(true);
+    expect(propertyOf(defined(change).after, 'enabled')).toBe(false);
   });
 
   it('lists an unconfirmed or conflicting edit as a conflict with base, local and Cloud', async () => {
@@ -87,8 +87,8 @@ describe('plugin sync adapter', () => {
     const { adapter } = setup([entry({ remote: present('2.0.0', true, 2), pending })], [plugin('alpha', '1.0.0', false)]);
     const [change] = await adapter.list();
     expect(change).toMatchObject({ status: 'conflict', side: 'conflict' });
-    expect(propertyOf(change!.base, 'version')).toBe('1.0.0');
-    expect(propertyOf(change!.remote, 'version')).toBe('2.0.0');
+    expect(propertyOf(defined(change).base, 'version')).toBe('1.0.0');
+    expect(propertyOf(defined(change).remote, 'version')).toBe('2.0.0');
   });
 
   it('lists a staged settings edit and a staged delete', async () => {
@@ -204,31 +204,31 @@ describe('plugin sync adapter', () => {
 
   it('syncs only plugins and refreshes the status', async () => {
     const { adapter, calls, refreshed } = setup([], []);
-    await adapter.sync!();
+    await defined(adapter.sync)();
     expect(calls.map((call) => [call.method, call.params])).toEqual([[RPC.syncV2Section, { section: 'plugins' }]]);
     expect(refreshed()).toBe(1);
   });
 
   it('never falls back to a whole workspace send on older hosts', async () => {
     const { adapter, calls } = setup([], [], { supports: false });
-    await expect(adapter.sync!()).rejects.toThrow('syncChanges.unsupported');
+    await expect(defined(adapter.sync)()).rejects.toThrow('syncChanges.unsupported');
     expect(calls).toEqual([]);
   });
 
   it('resolves a conflict by reviewing it first, mapping the choice to the v2 resolution', async () => {
     const { adapter, calls } = setup([], []);
-    await adapter.resolve!('plugin-selections/alpha', { choice: 'cloud' });
+    await defined(adapter.resolve)('plugin-selections/alpha', { choice: 'cloud' });
     expect(calls.map((call) => [call.method, call.params])).toEqual([
       ['sync.v2.conflict.review', { collection: 'plugin-selections', key: 'alpha' }],
       ['sync.v2.conflict.resolve', { handle: 'h'.repeat(64), choice: 'takeCloud' }],
     ]);
-    await adapter.resolve!('plugin-selections/alpha', { choice: 'local' });
-    expect(calls.at(-1)!.params).toMatchObject({ choice: 'keepLocal' });
+    await defined(adapter.resolve)('plugin-selections/alpha', { choice: 'local' });
+    expect(defined(calls.at(-1)).params).toMatchObject({ choice: 'keepLocal' });
   });
 
   it('refuses a field-level merge it cannot stage', async () => {
     const { adapter, calls } = setup([], []);
-    await expect(adapter.resolve!('plugin-selections/alpha', { choice: 'merged', value: {} })).rejects.toThrow();
+    await expect(defined(adapter.resolve)('plugin-selections/alpha', { choice: 'merged', value: {} })).rejects.toThrow();
     expect(calls).toEqual([]);
   });
 });

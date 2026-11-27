@@ -16,7 +16,7 @@ import { libraryPreview } from '../../../../../../src/web/entities/rule-template
 import { useRuleProfiles } from '../../../../../../src/web/entities/rule-template/model/rule-profiles-state.ts';
 import { useRuleTemplates } from '../../../../../../src/web/entities/rule-template/model/rule-templates-state.ts';
 import { applyRuleTemplate, parseRuleTemplate } from '../../../../../../src/web/entities/rule-template/lib/rule-templates.ts';
-import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, FIXTURE_ID, LIBRARY_OPERATION, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, FIXTURE_ID, LIBRARY_OPERATION, RPC, defined } from '../../../../../shared/index.ts';
 import { isRecord } from '../../../../support/json.ts';
 
 interface EnablementChange {
@@ -72,8 +72,8 @@ function fixture() {
     if (method === RPC.automationSnapshot) {
       options?.onMetadata?.({
         resourceVersions: [
-          ...source.actions.map((r) => ({ kind: 'automation', scope: 'action', id: r.id, revision: revisions.get(`action:${r.id}`)! })),
-          ...source.events.map((r) => ({ kind: 'automation', scope: 'event', id: r.id, revision: revisions.get(`event:${r.id}`)! })),
+          ...source.actions.map((r) => ({ kind: 'automation', scope: 'action', id: r.id, revision: defined(revisions.get(`action:${r.id}`)) })),
+          ...source.events.map((r) => ({ kind: 'automation', scope: 'event', id: r.id, revision: defined(revisions.get(`event:${r.id}`)) })),
         ],
       });
       return structuredClone(source);
@@ -85,9 +85,9 @@ function fixture() {
       if (!Array.isArray(updates) || !updates.every(isEnablementChange)) throw new Error('expected a list of enablement changes');
       const changes: EnablementChange[] = updates;
       for (const change of changes) {
-        const row = (change.kind === 'action' ? source.actions : source.events).find((row) => row.id === change.id)!;
+        const row = defined((change.kind === 'action' ? source.actions : source.events).find((row) => row.id === change.id));
         row.enabled = change.enabled;
-        revisions.set(`${change.kind}:${change.id}`, String(BigInt(revisions.get(`${change.kind}:${change.id}`)!) + 1n));
+        revisions.set(`${change.kind}:${change.id}`, String(BigInt(defined(revisions.get(`${change.kind}:${change.id}`))) + 1n));
       }
       return { updated: changes.length, missing: [] };
     }
@@ -134,17 +134,17 @@ test('manual template application reviews and preserves enabled values through c
     actions: [{ name: 'Log', typeId: ACTION_TYPE.coreLog, config: { message: 'hello' } }], event: { name: 'Chat', trigger: EVENT_KIND.tiktokChat } });
   if (!parsed.ok) throw new Error(parsed.errors.join(', '));
   const entry = applyRuleTemplate(parsed.template, {});
-  expect(entry.actions[0]!.enabled).toBe(true);
+  expect(defined(entry.actions[0]).enabled).toBe(true);
   expect(entry.event.enabled).toBe(true);
   const f = fixture();
   const context = await f.journal.refreshSnapshot();
   const pending = f.journal.request({ operation: LIBRARY_OPERATION.applyTemplate, entry, profileId: 'a' }, context);
-  expect(f.source.actions.some((row) => row.id === entry.actions[0]!.id)).toBe(false);
-  expect(libraryPreview(context, f.journal.draft.value!.mutation).every((row) => row.after?.enabled)).toBe(true);
+  expect(f.source.actions.some((row) => row.id === defined(entry.actions[0]).id)).toBe(false);
+  expect(libraryPreview(context, defined(f.journal.draft.value).mutation).every((row) => row.after?.enabled)).toBe(true);
   await f.journal.confirm();
   await pending;
   const saved = await f.journal.refreshSnapshot();
-  expect(saved.definitions.actions.find((row) => row.id === entry.actions[0]!.id)?.enabled).toBe(true);
+  expect(saved.definitions.actions.find((row) => row.id === defined(entry.actions[0]).id)?.enabled).toBe(true);
   expect(saved.definitions.events.find((row) => row.id === entry.event.id)?.enabled).toBe(true);
 });
 
@@ -244,7 +244,7 @@ describe('atomic Owner library transition gateway', () => {
     try {
       const context = await f.journal.refreshSnapshot();
       const pending = f.journal.request(candidate, context).catch((failure: unknown) => failure);
-      candidate.entry.actions[0]!.name = 'Newer local input';
+      defined(candidate.entry.actions[0]).name = 'Newer local input';
       candidate.entry.event.id = 'evt-later';
       f.native.library.loseNextReply();
       await f.journal.confirm();
@@ -357,7 +357,7 @@ describe('atomic Owner library transition gateway', () => {
     const f = fixture();
     await apply(f, { operation: LIBRARY_OPERATION.createProfile, id: 'c', name: 'C', description: '' });
     const stored = f.native.library.state();
-    f.native.library.setState({ ...stored, pending: { ...stored.recent[0]!.intent, commandId: `owner-library-${'f'.repeat(32)}` } });
+    f.native.library.setState({ ...stored, pending: { ...defined(stored.recent[0]).intent, commandId: `owner-library-${'f'.repeat(32)}` } });
     await expect(
       definitionJournal(f.client).submit(
         { operation: 'update', kind: 'action', id: 'old-action', expectedRevision: '1', record: action() },
@@ -462,7 +462,7 @@ test('legacy Unicode record IDs use scalar ordering in snapshot definitions and 
   expect(snapshot.resourceVersions.filter((version) => version.scope === 'action').map((version) => version.id)).toEqual(['\uE000', '\u{10000}']);
   expect(parseLibrarySnapshot(snapshot).definitions.actions.map((record) => record.id)).toEqual(['\u{10000}', '\uE000']);
   const wrongOrder = structuredClone(snapshot);
-  [wrongOrder.resourceVersions[0], wrongOrder.resourceVersions[1]] = [wrongOrder.resourceVersions[1]!, wrongOrder.resourceVersions[0]!];
+  [wrongOrder.resourceVersions[0], wrongOrder.resourceVersions[1]] = [defined(wrongOrder.resourceVersions[1]), defined(wrongOrder.resourceVersions[0])];
   expect(() => parseLibrarySnapshot(wrongOrder)).toThrow();
   const mutation: LibraryMutation = {
     operation: LIBRARY_OPERATION.applyTemplate,

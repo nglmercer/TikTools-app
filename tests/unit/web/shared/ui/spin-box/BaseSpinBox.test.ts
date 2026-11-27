@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import BaseSpinBox from '../../../../../../src/web/shared/ui/spin-box/BaseSpinBox.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 function mountSpinBox(props: Record<string, unknown> = {}) {
   const wrapper = mountWithPlugins(BaseSpinBox, {
@@ -55,15 +56,15 @@ describe('BaseSpinBox', () => {
   it('disables the arrow at the range limit', () => {
     const wrapper = mountSpinBox({ max: 300 });
     const [increase, decrease] = wrapper.findAll('button');
-    expect(increase!.attributes('disabled')).toBeDefined();
-    expect(decrease!.attributes('disabled')).toBeUndefined();
-    expect(increase!.attributes('aria-label')).toBe('Increase');
+    expect(defined(increase).attributes('disabled')).toBeDefined();
+    expect(defined(decrease).attributes('disabled')).toBeUndefined();
+    expect(defined(increase).attributes('aria-label')).toBe('Increase');
   });
 
   it('steps once per arrow press', async () => {
     const wrapper = mountSpinBox();
-    await wrapper.findAll('button')[1]!.trigger('pointerdown');
-    await wrapper.findAll('button')[1]!.trigger('pointerup');
+    await defined(wrapper.findAll('button')[1]).trigger('pointerdown');
+    await defined(wrapper.findAll('button')[1]).trigger('pointerup');
     expect(wrapper.props('modelValue')).toBe(299);
   });
 
@@ -72,8 +73,8 @@ describe('BaseSpinBox', () => {
     expect(wrapper.classes()).toContain('base-spin-box--horizontal');
     const buttons = wrapper.findAll('button');
     expect(buttons.map((button) => button.attributes('aria-label'))).toEqual(['Decrease', 'Increase']);
-    await buttons[1]!.trigger('pointerdown');
-    await buttons[1]!.trigger('pointerup');
+    await defined(buttons[1]).trigger('pointerdown');
+    await defined(buttons[1]).trigger('pointerup');
     expect(wrapper.props('modelValue')).toBe(6);
   });
 });

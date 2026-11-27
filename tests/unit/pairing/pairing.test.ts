@@ -5,11 +5,12 @@ import { supportedLocales } from '../../../src/web/shared/i18n/supported-locales
 import { translatorFor, type MessageKey } from '../../../src/pairing/messages.ts';
 import { mountPairing, resolveLocale, type PairingEnvironment } from '../../../src/pairing/pairing.ts';
 import { expectElement } from '../support/dom.ts';
+import { defined } from '../../shared/index.ts';
 
 const template = readFileSync(resolve(process.cwd(), 'src/pairing/pairing.html'), 'utf8');
-const bodyMarkup = template
-  .split('<body>')[1]!
-  .split('</body>')[0]!
+const bodyMarkup = defined(defined(template
+  .split('<body>')[1])
+  .split('</body>')[0])
   .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, '');
 const en = translatorFor('en');
 const fr = translatorFor('fr');
@@ -48,7 +49,7 @@ function mount(
     goHome,
     renew: expectElement(document, '#renew', HTMLButtonElement),
     input: expectElement(document, '#code', HTMLInputElement),
-    result: document.getElementById('result')!,
+    result: defined(document.getElementById('result')),
     form: expectElement(document, '#pair', HTMLFormElement),
   };
 }
@@ -149,8 +150,8 @@ test('the page localizes every visible string from the browser language', () => 
   const ui = mount({ languages: ['fr-FR', 'en'] });
   expect(document.documentElement.lang).toBe('fr');
   expect(document.title).toBe(fr('documentTitle'));
-  expect(document.getElementById('connect')!.textContent).toBe(fr('connect'));
-  expect(document.getElementById('renew')!.textContent).toBe(fr('renew'));
+  expect(defined(document.getElementById('connect')).textContent).toBe(fr('connect'));
+  expect(defined(document.getElementById('renew')).textContent).toBe(fr('renew'));
   expect(ui.renew.textContent).toBe(fr('renew'));
 });
 

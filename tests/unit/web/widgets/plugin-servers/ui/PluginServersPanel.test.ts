@@ -7,7 +7,7 @@ import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import PluginServersPanel from '../../../../../../src/web/widgets/plugin-servers/ui/PluginServersPanel.vue';
-import { FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, RPC, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -70,7 +70,7 @@ describe('PluginServersPanel', () => {
 
   it('opens a server inside the same panel and goes back to the list', async () => {
     const { wrapper } = mountPanel();
-    await wrapper.findAll('.plugin-servers__open')[1]!.trigger('click');
+    await defined(wrapper.findAll('.plugin-servers__open')[1]).trigger('click');
     await flushPromises();
     expect(wrapper.emitted('update:selected')?.at(-1)).toEqual(['repo']);
     expect(wrapper.get('.editor-stub').text()).toBe('repo');
@@ -93,7 +93,7 @@ describe('PluginServersPanel', () => {
     expect(wrapper.text()).toContain('Connected in 4 ms');
     const testButton = wrapper.findAll('button').find((button) => button.text() === t('connections.servers.test'));
     expect(testButton).toBeDefined();
-    await testButton!.trigger('click');
+    await defined(testButton).trigger('click');
     expect(wrapper.text()).toContain('Testing…');
   });
 

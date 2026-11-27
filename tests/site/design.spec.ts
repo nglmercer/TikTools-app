@@ -3,6 +3,7 @@ import {
   demoTestId, demoUrl, docLocales, expectFirstChatMessage, frameTestId, guideLink, qaArtifacts, qaScreenshot,
   retiredLandingSelectors, selector, stageFrame, stageTestId, trackPageErrors, viewport,
 } from './support/index.ts';
+import { defined } from '../shared/index.ts';
 import { docCopy } from '../../docs/locales.ts';
 import { experienceCopy } from '../../docs/experience/copy.ts';
 import { showcaseSteps } from '../../src/web/demo/showcase/script.ts';
@@ -130,9 +131,9 @@ test('the embedded demo hands vertical scroll back to the landing page', async (
   const frame = stageFrame(page);
   await expect(frame.locator(selector.appLayout)).toBeVisible();
   const box = await page.locator(selector.stageFrame).boundingBox();
-  expect(box).not.toBeNull();
+  const bounds = defined(box, 'the stage frame bounding box');
   // Aim at the visible top of the frame: its scaled canvas is taller than the viewport.
-  await page.mouse.move(box!.x + box!.width / 2, box!.y + 80);
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 80);
   // Chromium hands the delta to the article once the frame has nothing left to scroll.
   await page.mouse.wheel(0, 400);
   await page.mouse.wheel(0, 400);

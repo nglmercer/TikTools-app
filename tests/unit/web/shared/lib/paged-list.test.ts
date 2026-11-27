@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createPagedList, type PagedReply } from '../../../../../src/web/shared/lib/paged-list.ts';
+import { defined } from '../../../../shared/index.ts';
 
 interface Row {
   id: string;
@@ -28,7 +29,7 @@ describe('paged list', () => {
       key: (item) => item.id,
       fetch: async (after) => {
         seen.push(after);
-        return pages[after ?? 'first']!;
+        return defined(pages[after ?? 'first']);
       },
     });
     await list.refresh();
@@ -45,7 +46,7 @@ describe('paged list', () => {
   it('drops a slow older reply when a newer refresh was answered first', async () => {
     const slow = deferred<PagedReply<Row>>();
     const replies = [slow.promise, Promise.resolve({ items: [row('new')], nextCursor: null })];
-    const list = createPagedList<Row>({ key: (item) => item.id, fetch: () => replies.shift()! });
+    const list = createPagedList<Row>({ key: (item) => item.id, fetch: () => defined(replies.shift()) });
     const first = list.refresh();
     await list.refresh();
     slow.resolve({ items: [row('old')], nextCursor: 'x' });
@@ -81,7 +82,7 @@ describe('paged list', () => {
       Promise.reject(new Error('down')),
       late.promise,
     ];
-    const list = createPagedList<Row>({ key: (item) => item.id, fetch: () => outcomes.shift()! });
+    const list = createPagedList<Row>({ key: (item) => item.id, fetch: () => defined(outcomes.shift()) });
     await list.refresh();
     await list.refresh();
     expect(list.error.value).toEqual(new Error('down'));

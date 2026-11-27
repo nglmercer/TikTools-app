@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { callWithMeta, createControlClient } from '../../../../../src/web/shared/api/control-client.ts';
-import { ACCOUNT_STATE, ERROR_CODE, MESSAGE_TYPE, RPC, TOPIC } from '../../../../shared/index.ts';
+import { ACCOUNT_STATE, ERROR_CODE, MESSAGE_TYPE, RPC, TOPIC, defined } from '../../../../shared/index.ts';
 
 type MockIpc = {
   sent: string[];
@@ -42,14 +42,14 @@ function hostWindow(): HostWindow {
 
 function sentId(): string {
   if (!activeIpc) throw new Error('installMockIpc() has not been called');
-  const request: { id: string } = JSON.parse(activeIpc.sent.at(-1)!);
+  const request: { id: string } = JSON.parse(defined(activeIpc.sent.at(-1)));
   return request.id;
 }
 
 function hostMessage(): (raw: string) => void {
   const receive = hostWindow().__webview_on_message__;
   expect(receive).toBeTypeOf('function');
-  return receive!;
+  return defined(receive);
 }
 
 function respond(
@@ -74,7 +74,7 @@ describe('createControlClient', () => {
       const control = createControlClient();
       control.attach();
       const pending = control.call<{ ok: boolean }>('system.ping', {});
-      expect(JSON.parse(ipc.sent[0]!)).toMatchObject({
+      expect(JSON.parse(defined(ipc.sent[0]))).toMatchObject({
         jsonrpc: '2.0',
         id: expect.any(String),
         method: 'system.ping',
@@ -89,7 +89,7 @@ describe('createControlClient', () => {
       const control = createControlClient();
       control.attach();
       const pending = callWithMeta<{ id: string }>(control, 'workflows.save', { graph: { id: 'welcome' } }, { meta: { expectedRevision: '3' } });
-      expect(JSON.parse(ipc.sent[0]!)).toMatchObject({ meta: { expectedRevision: '3' }, params: { graph: { id: 'welcome' } } });
+      expect(JSON.parse(defined(ipc.sent[0]))).toMatchObject({ meta: { expectedRevision: '3' }, params: { graph: { id: 'welcome' } } });
       const meta = { resourceVersions: [{ kind: 'workflow', id: 'welcome', scope: 'host', revision: '4' }] };
       respond(sentId(), { result: { id: 'welcome' }, meta });
       await expect(pending).resolves.toEqual({ result: { id: 'welcome' }, meta });
@@ -109,7 +109,7 @@ describe('createControlClient', () => {
         { id: 'welcome' },
         { meta: { commandId: 'delete-once', hostInstanceId: 'host-instance', expectedRevision: '3' } },
       );
-      expect(JSON.parse(ipc.sent[0]!)).toMatchObject({ meta: { commandId: 'delete-once', hostInstanceId: 'host-instance', expectedRevision: '3' } });
+      expect(JSON.parse(defined(ipc.sent[0]))).toMatchObject({ meta: { commandId: 'delete-once', hostInstanceId: 'host-instance', expectedRevision: '3' } });
       const meta = {
         resourceVersions: [{ kind: 'workflow', id: 'welcome', scope: 'host', revision: '4' }],
         hostInstanceId: 'host-instance',
@@ -377,11 +377,11 @@ describe('createControlClient', () => {
       const first: {
         id: string;
         params: { revision: number };
-      } = JSON.parse(ipc.sent.at(-1)!);
+      } = JSON.parse(defined(ipc.sent.at(-1)));
       respond(first.id, { result: { version: 1, revision: 1 } });
       await configuring;
       const hidden = control.setPresentation?.({ ...view, feed: false, points: false });
-      const second: { id: string } = JSON.parse(ipc.sent.at(-1)!);
+      const second: { id: string } = JSON.parse(defined(ipc.sent.at(-1)));
       hostMessage()(
         JSON.stringify({
           method: 'event',
@@ -405,7 +405,7 @@ describe('createControlClient', () => {
       const configuring = control.setPresentation?.(view);
       respond(sentId(), { result: { generation: 2, revision: 1 } });
       await configuring;
-      const receive = hostWindow().__tiktools_receive_batch__!;
+      const receive = defined(hostWindow().__tiktools_receive_batch__);
       const stale = JSON.stringify({
         method: 'event',
         params: { topic: TOPIC.liveUiEvent, generation: 1, revision: 1, data: 'stale' },
@@ -438,11 +438,11 @@ describe('createControlClient', () => {
       await Promise.resolve();
       await Promise.resolve();
       expect(ipc.sent).toHaveLength(2);
-      expect(JSON.parse(ipc.sent[1]!)).toMatchObject({ params: { revision: 11 } });
+      expect(JSON.parse(defined(ipc.sent[1]))).toMatchObject({ params: { revision: 11 } });
       respond(sentId(), { result: { generation: 2, revision: 11 } });
       await configuring;
       const ping = control.call('system.ping');
-      expect(JSON.parse(ipc.sent.at(-1)!)).toMatchObject({ pageGeneration: 2 });
+      expect(JSON.parse(defined(ipc.sent.at(-1)))).toMatchObject({ pageGeneration: 2 });
       respond(sentId(), { result: {} });
       await ping;
       control.detach();
@@ -475,7 +475,7 @@ it('uses the browser transport without native globals and resynchronizes after r
   control.attach();
   expect(control.setPresentation).toBeUndefined();
   const pending = control.call(RPC.systemInfo);
-  const request: { id: string } = JSON.parse(sent[0]!);
+  const request: { id: string } = JSON.parse(defined(sent[0]));
   const { id } = request;
   receive(JSON.stringify({ type: MESSAGE_TYPE.rpcResponse, response: { id, result: { platform: 'AndroidTermux' } } }));
   await expect(pending).resolves.toEqual({ platform: 'AndroidTermux' });

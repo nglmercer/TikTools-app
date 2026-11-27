@@ -135,7 +135,7 @@
 - Titles say the behavior and the condition ("empties the feed when Clear feed is pressed"), not
   "works" or "is idempotent".
 - Declare helpers such as `const t = ...` after the imports.
-- Tests and test fixtures (`tests/**`, `src/**/testing/**`) contain no type assertions: oxlint's
+- Tests and test fixtures (`tests/**`, `src/**/testing/**`) contain no type assertions and no non-null `!`: oxlint's
   `consistent-type-assertions` (style `never`) fails `frontend-lint`; only `as const` is allowed. Instead of
   `value as Foo`:
   - annotate (`const data: Foo = JSON.parse(text)`) or use `satisfies`;
@@ -146,4 +146,6 @@
   - make fakes real: a class that `implements` the interface, `vi.stubGlobal`, `new DOMRect(...)`,
     `createFakeControlClient`; call erased handlers with `Reflect.apply`, and use `Reflect.get/set` for page
     globals inside `page.evaluate`;
-  - fix the fixture type once (a generic `onTopic<T>`, `emit(topic, data: unknown)`) instead of every call site.
+  - fix the fixture type once (a generic `onTopic<T>`, `emit(topic, data: unknown)`) instead of every call site;
+  - replace `value!` with `defined(value, 'what it is')` from `tests/shared` (throws a readable error when missing);
+    inside `page.evaluate` use a guard that throws, because page code cannot import.

@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 import { parseLiveEvent } from '../../../../src/widgets/shared/event-parser.ts';
 import { LastEventCache } from '../../../../src/widgets/shared/last-events.ts';
 import { makeTestEnvelopeFor, makeTestGapEnvelope, makeTestGiftEnvelope } from '../../../../src/widgets/shared/test-events.ts';
-import { EVENT_KIND, TOPIC } from '../../../shared/index.ts';
+import { EVENT_KIND, TOPIC, defined } from '../../../shared/index.ts';
 import { propertyOf } from '../../support/json.ts';
 
 describe('LastEventCache', () => {
@@ -26,7 +26,7 @@ describe('LastEventCache', () => {
     cache.record(makeTestGiftEnvelope({ giftName: 'Galaxy', diamondCount: 1000 }));
     const replay = cache.replay(EVENT_KIND.tiktokGift);
     expect(replay).not.toBeNull();
-    const payload = parseLiveEvent(replay!);
+    const payload = parseLiveEvent(defined(replay));
     const data = payload?.event.data;
     expect(propertyOf(data, 'giftName')).toBe('Galaxy');
     expect(propertyOf(data, 'diamondCount')).toBe(1000);
@@ -34,6 +34,6 @@ describe('LastEventCache', () => {
     // Replaying never mutates the stored envelope.
     const again = cache.replay(EVENT_KIND.tiktokGift);
     expect(again).not.toBeNull();
-    expect(parseLiveEvent(again!)?.event.id).toContain('-replay-');
+    expect(parseLiveEvent(defined(again))?.event.id).toContain('-replay-');
   });
 });

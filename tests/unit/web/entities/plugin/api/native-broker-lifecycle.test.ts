@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
-import { TOPIC } from '../../../../../shared/index.ts';
+import { TOPIC, defined } from '../../../../../shared/index.ts';
 
 /** The page window the broker script decorates: the script assigns the `tiktools` surface and the broker hooks onto it. */
 class FakeWindow {
@@ -52,11 +52,11 @@ function harness() {
 test('native broker times out requests and ignores late responses', async () => {
   const { window, timers, requests } = harness();
   const pending = window.tiktools.settings.get().catch((error: Error) => error.message);
-  const [id, timeout] = [...timers.entries()][0]!;
+  const [id, timeout] = defined([...timers.entries()][0]);
   timers.delete(id);
   timeout();
   expect(await pending).toContain('timed out');
-  window.__tiktools_broker_push__({ apiVersion: 1, id: requests[0]!.id, ok: true, result: {} });
+  window.__tiktools_broker_push__({ apiVersion: 1, id: defined(requests[0]).id, ok: true, result: {} });
   expect(timers.size).toBe(0);
   window.__tiktools_broker_dispose__();
 });
@@ -68,7 +68,7 @@ test('native broker bounds admission and rejects all pending requests on teardow
   expect(overflow).toContain('limit');
   expect(requests.length).toBe(128);
   expect(timers.size).toBe(128);
-  listeners.get('pagehide')!();
+  defined(listeners.get('pagehide'))();
   expect((await Promise.all(pending)).every((result) => String(result).includes('closed'))).toBe(true);
   expect(timers.size).toBe(0);
   // Only the page-level shortcut listener (F5/F12) outlives the broker.

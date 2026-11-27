@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 
 import { parseBinding, settingsPathSegments } from '../../../src/plugin-ui/bindings.ts';
+import { defined } from '../../shared/index.ts';
 
 test('parses settings, local, and source bindings', () => {
   expect(parseBinding('settings.serverUrl')).toEqual({
@@ -23,7 +24,7 @@ test('parses settings, local, and source bindings', () => {
     scope: 'source',
     path: 'voices',
   });
-  expect(settingsPathSegments(parseBinding('settings.a.b')!)).toEqual(['a', 'b']);
+  expect(settingsPathSegments(defined(parseBinding('settings.a.b')))).toEqual(['a', 'b']);
 });
 
 test('rejects expressions, unknown scopes, and prototype paths', () => {

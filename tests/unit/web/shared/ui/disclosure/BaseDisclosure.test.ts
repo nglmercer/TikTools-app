@@ -2,6 +2,7 @@ import { enableAutoUnmount } from '@vue/test-utils';
 import { afterEach, expect, it } from 'vitest';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import BaseDisclosure from '../../../../../../src/web/shared/ui/disclosure/BaseDisclosure.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 
@@ -26,7 +27,7 @@ it('honours a controlled open prop and emits update:open', async () => {
     props: { title: 'Source', open: false },
   });
   await wrapper.get('button').trigger('click');
-  expect(wrapper.emitted('update:open')!.at(-1)).toEqual([true]);
+  expect(defined(wrapper.emitted('update:open')).at(-1)).toEqual([true]);
   expect(wrapper.get('button').attributes('aria-expanded')).toBe('false');
   await wrapper.setProps({ open: true });
   expect(wrapper.get('button').attributes('aria-expanded')).toBe('true');

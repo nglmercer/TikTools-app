@@ -12,6 +12,7 @@ import {
   validateOverlay,
   type OverlayDocument,
 } from '../../../../src/shared/cloud-overlay-schema.ts';
+import { defined } from '../../../shared/index.ts';
 
 const asset = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
 
@@ -25,7 +26,7 @@ describe('overlay schema', () => {
 
   it('keeps elements inside the canvas and the id rule', () => {
     let doc = addElement(emptyOverlay('chat', 'Chat'), 'text');
-    const id = doc.elements[0]!.id;
+    const id = defined(doc.elements[0]).id;
     expect(validateOverlay(updateElement(doc, id, { x: 1900 }))).toContain('invalidGeometry');
     expect(validateOverlay(updateElement(doc, id, { opacity: 2 }))).toContain('invalidOpacity');
     expect(validateOverlay(updateElement(doc, id, { id: 'Bad Id' }))).toContain('invalidElementId');
@@ -47,7 +48,7 @@ describe('overlay schema', () => {
   it('requires a real asset id for art elements', () => {
     const doc = addElement(emptyOverlay('share', 'Share'), 'art');
     expect(validateOverlay(doc)).toContain('missingAsset');
-    expect(validateOverlay(updateElement(doc, doc.elements[0]!.id, { assetId: asset }))).toEqual([]);
+    expect(validateOverlay(updateElement(doc, defined(doc.elements[0]).id, { assetId: asset }))).toEqual([]);
   });
 
   it('declares the live-read capability only when a value comes from the stream', () => {

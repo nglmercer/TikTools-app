@@ -8,7 +8,7 @@ import { startDynamicTour, startTour } from '../../../../../../src/web/features/
 import { tourRegistry } from '../../../../../../src/web/features/guided-help/model/registry.ts';
 import { tutorialCard, tutorialCategories, tutorialEntries, tutorialSteps } from '../../../../../../src/web/features/guided-help/model/tutorial-catalog.ts';
 import TutorialCatalogDialog from '../../../../../../src/web/features/guided-help/ui/TutorialCatalogDialog.vue';
-import { ACTION_TYPE, PLUGIN_ID } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, PLUGIN_ID, defined } from '../../../../../shared/index.ts';
 
 vi.mock('../../../../../../src/web/features/guided-help/model/coordinator.ts', () => ({ startTour: vi.fn(), startDynamicTour: vi.fn() }));
 
@@ -136,17 +136,17 @@ it('shows one step indicator with previous and next controls synchronized with t
   const steps = tutorialSteps('en', 'automationEvents');
   expect(wrapper.findAll('.tutorial-step-preview__numbers button')).toHaveLength(steps.length);
   expect(wrapper.find('.tutorial-demo-preview').exists()).toBe(true);
-  expect(wrapper.get('.tutorial-step-preview__body').text()).toContain(steps[0]!.title);
+  expect(wrapper.get('.tutorial-step-preview__body').text()).toContain(defined(steps[0]).title);
   expect(wrapper.get('.tutorial-demo-preview__zone--toolbar').classes()).toContain('tutorial-demo-preview__zone--active');
 
   const controls = wrapper.findAll('.tutorial-step-preview__controls button');
-  await controls.at(-1)!.trigger('click');
-  expect(wrapper.get('.tutorial-step-preview__body').text()).toContain(steps[1]!.title);
+  await defined(controls.at(-1)).trigger('click');
+  expect(wrapper.get('.tutorial-step-preview__body').text()).toContain(defined(steps[1]).title);
   expect(wrapper.get('.tutorial-demo-preview__zone--tabs').classes()).toContain('tutorial-demo-preview__zone--active');
   expect(wrapper.get('.tutorial-step-preview__numbers button[aria-current=\'step\']').text()).toBe('2');
 
-  await controls[0]!.trigger('click');
-  expect(wrapper.get('.tutorial-step-preview__body').text()).toContain(steps[0]!.title);
+  await defined(controls[0]).trigger('click');
+  expect(wrapper.get('.tutorial-step-preview__body').text()).toContain(defined(steps[0]).title);
   wrapper.unmount();
 });
 
@@ -164,11 +164,11 @@ it('moves focus into detail, restores it to the card and supports step arrow key
 
   const steps = tutorialSteps('en', 'automationEvents');
   const numbers = wrapper.findAll('.tutorial-step-preview__numbers button');
-  toElement(numbers[1]!.element, HTMLElement).focus();
-  await numbers[1]!.trigger('keydown', { key: 'ArrowRight' });
+  toElement(defined(numbers[1]).element, HTMLElement).focus();
+  await defined(numbers[1]).trigger('keydown', { key: 'ArrowRight' });
   await flushPromises();
-  expect(wrapper.get('.tutorial-step-preview__body').text()).toContain(steps[2]!.title);
-  expect(document.activeElement).toBe(numbers[2]!.element);
+  expect(wrapper.get('.tutorial-step-preview__body').text()).toContain(defined(steps[2]).title);
+  expect(document.activeElement).toBe(defined(numbers[2]).element);
 
   await wrapper.get('.tutorial-catalog__back').trigger('click');
   await flushPromises();
@@ -268,11 +268,11 @@ it('delegates launching when the caller supplies a handler', async () => {
   const onLaunch = vi.fn();
   const wrapper = mountWithPlugins(TutorialCatalogDialog, {
     attachTo: document.body,
-    props: { open: true, onLaunch, initialTour: tutorialEntries[0]!.id },
+    props: { open: true, onLaunch, initialTour: defined(tutorialEntries[0]).id },
   });
   await wrapper.get('.tutorial-catalog__detail .tutorial-catalog__start').trigger('click');
   await flushPromises();
-  expect(onLaunch).toHaveBeenCalledWith(tutorialEntries[0]!.id);
+  expect(onLaunch).toHaveBeenCalledWith(defined(tutorialEntries[0]).id);
   expect(startTour).not.toHaveBeenCalled();
   expect(wrapper.emitted('update:open')?.at(-1)?.[0]).toBe(false);
   wrapper.unmount();
@@ -338,7 +338,7 @@ it('lists a plugin-contributed action guide and starts it as a dynamic tour', as
 
   const card = wrapper.findAll('.tutorial-catalog__card').find((node) => node.text().includes('Create a SonicBoom voice action'));
   expect(card).toBeDefined();
-  await card!.trigger('click');
+  await defined(card).trigger('click');
   await flushPromises();
   // Assert: the card opens the plugin guide's detail and shows its field step before anything starts
   expect(wrapper.get('.tutorial-catalog__detail h3').text()).toBe('Create a SonicBoom voice action');

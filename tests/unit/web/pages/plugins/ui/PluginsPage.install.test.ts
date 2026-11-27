@@ -1,5 +1,5 @@
 import { describe, flushPromises, expect, it, t, mountPage, buttonByText, buttonByLabel, openTab, selectPlugin, detailsTitle } from '../../../../../../src/web/pages/plugins/ui/plugins-page-fixture.ts';
-import { PLUGIN_ID, RPC } from '../../../../../shared/index.ts';
+import { PLUGIN_ID, RPC, defined } from '../../../../../shared/index.ts';
 
 describe('PluginsPage install', () => {
   it('reviews a package file and requires sideload consent before installing', async () => {
@@ -13,7 +13,7 @@ describe('PluginsPage install', () => {
     expect(wrapper.text()).toContain(t('packages.access.audio_output'));
     expect(wrapper.text()).toContain(t('packages.signature.unsigned'));
     expect(buttonByText(wrapper, t('plugins.details.install')).attributes('disabled')).toBeDefined();
-    await wrapper.findAll('input[type="checkbox"]').at(-1)!.setValue(true);
+    await defined(wrapper.findAll('input[type="checkbox"]').at(-1)).setValue(true);
     await buttonByText(wrapper, t('plugins.details.install')).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === RPC.pluginsPackagesInstall)?.params).toEqual({

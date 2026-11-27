@@ -6,7 +6,7 @@ import type { AutomationEdit, AutomationReview } from '../../../../../../src/web
 import { automationEdit, liveEvent } from '../../../../support/automation.ts';
 import AutomationEditorReview from '../../../../../../src/web/features/edit-automation-record/ui/AutomationEditorReview.vue';
 import { testMessage } from '@/shared/i18n/test-message.ts';
-import { EVENT_KIND } from '../../../../../shared/index.ts';
+import { EVENT_KIND, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -25,14 +25,14 @@ function mountReview(props: Record<string, unknown> = {}) {
 }
 
 async function expandCard(wrapper: ReturnType<typeof mountReview>, index: number) {
-  const card = wrapper.findAll('.change-review__card')[index]!;
+  const card = defined(wrapper.findAll('.change-review__card')[index]);
   await card.get('.change-review__chevron').trigger('click');
   await nextTick();
   return card;
 }
 
 async function codeMode(wrapper: ReturnType<typeof mountReview>) {
-  const tab = wrapper.findAll('[role="radio"]').find((radio) => radio.text() === t('changeReview.code'))!;
+  const tab = defined(wrapper.findAll('[role="radio"]').find((radio) => radio.text() === t('changeReview.code')));
   await tab.trigger('click');
   await nextTick();
 }
@@ -70,7 +70,7 @@ describe('AutomationEditorReview', () => {
     const wrapper = mountReview({ review: { current: { record: null, revision: '2' } } });
     await nextTick();
     const cards = wrapper.findAll('.change-review__card');
-    expect(cards[1]!.classes()).toContain('change-review__card--deleted');
+    expect(defined(cards[1]).classes()).toContain('change-review__card--deleted');
     expect(wrapper.text()).toContain(t('automations.conflict.recreateLead'));
   });
 });

@@ -9,6 +9,7 @@ import {
   publicationRepository, publishSite, publishUpdateFeed, reapplyWithCas,
   type ExistingFile, type SiteArtifact, type SiteManifest,
 } from '../../../scripts/publish-site.ts';
+import { defined } from '../../shared/index.ts';
 
 const base = '/TikTools-app/';
 const encoder = new TextEncoder();
@@ -375,8 +376,8 @@ describe('both checked writers against real local Git conflicts', () => {
     for (const path of ['updates/stable.json', 'updates/stable.json.sig', 'CNAME', '.nojekyll', 'foreign/keep.bin'] as const) {
       expect(git(remote, 'show', `gh-pages:${path}`)).toEqual(Buffer.from(protectedFiles[path]));
     }
-    expect(git(remote, 'show', 'gh-pages:updates/beta.json')).toEqual(Buffer.from((await advanceBeta(new Map())).get('beta.json')!));
-    expect(git(remote, 'show', 'gh-pages:updates/beta.json.sig')).toEqual(Buffer.from((await advanceBeta(new Map())).get('beta.json.sig')!));
+    expect(git(remote, 'show', 'gh-pages:updates/beta.json')).toEqual(Buffer.from(defined((await advanceBeta(new Map())).get('beta.json'))));
+    expect(git(remote, 'show', 'gh-pages:updates/beta.json.sig')).toEqual(Buffer.from(defined((await advanceBeta(new Map())).get('beta.json.sig'))));
   }), 20_000);
 
   test('site CAS retries after the checked feed writer and retains its exact signed pairs', async () => inTemporaryDirectory(async (directory) => {
@@ -392,8 +393,8 @@ describe('both checked writers against real local Git conflicts', () => {
       expect(git(remote, 'show', `gh-pages:${path}`)).toEqual(Buffer.from(protectedFiles[path]));
     }
     const next = await advanceBeta(new Map());
-    expect(git(remote, 'show', 'gh-pages:updates/beta.json')).toEqual(Buffer.from(next.get('beta.json')!));
-    expect(git(remote, 'show', 'gh-pages:updates/beta.json.sig')).toEqual(Buffer.from(next.get('beta.json.sig')!));
+    expect(git(remote, 'show', 'gh-pages:updates/beta.json')).toEqual(Buffer.from(defined(next.get('beta.json'))));
+    expect(git(remote, 'show', 'gh-pages:updates/beta.json.sig')).toEqual(Buffer.from(defined(next.get('beta.json.sig'))));
     expect(git(remote, 'show', 'gh-pages:index.html').toString()).toBe('site after feed');
   }), 20_000);
 

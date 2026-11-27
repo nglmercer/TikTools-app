@@ -7,6 +7,7 @@ import { scenarios } from '../../src/web/demo/scenarios.ts';
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { componentFamilies } from '../../docs/scripts/component-families.ts';
 import { experienceCopy } from '../../docs/experience/copy.ts';
+import { defined } from '../shared/index.ts';
 
 
 const AUTOMATION_RESULT = 'Hello Luna';
@@ -98,7 +99,7 @@ test('the demo sidebar exposes diagnostics and component reference sections', as
   await expect(nav.getByRole('link', { name: 'Diagnostics', exact: true })).toBeVisible();
   await expect(nav.getByRole('link', { name: 'Components', exact: true })).toBeVisible();
   // The floating controls dock covers the lower sidebar links at this size.
-  await page.evaluate(() => document.querySelector<HTMLAnchorElement>('a[href="#/debug"]')!.click());
+  await page.evaluate(() => document.querySelector<HTMLAnchorElement>('a[href="#/debug"]')?.click());
   await expect(page).toHaveURL(/#\/debug$/);
 });
 
@@ -140,7 +141,7 @@ test('the jp URL alias selects Japanese and is rewritten to the canonical ja loc
 for (const scenario of Object.keys(scenarios)) {
   test(`every public scenario loads real pages without external or native requests: ${scenario}`, async ({ page, baseURL }) => {
     const failures = trackPageErrors(page);
-    const outbound = trackOutbound(page, baseURL!);
+    const outbound = trackOutbound(page, defined(baseURL));
     await page.goto(demoUrl({ scenario, instance: instanceId('smoke', scenario) }));
     await expect(page.getByTestId(demoTestId.play)).toBeVisible();
     await expect(page.locator('#app')).not.toBeEmpty();

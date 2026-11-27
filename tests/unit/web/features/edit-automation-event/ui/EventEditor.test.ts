@@ -6,12 +6,12 @@ import { cloneRecord, createEvent } from '@/entities/automation/lib/automation-r
 import { i18n } from '@/shared/i18n/i18n.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import EventEditor from '../../../../../../src/web/features/edit-automation-event/ui/EventEditor.vue';
-import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, EVENT_KIND, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string) => i18n.global.t(key);
 function button(wrapper: VueWrapper, key: string) {
-  return wrapper.findAll('button').find((item) => item.attributes('aria-label') === t(key))!;
+  return defined(wrapper.findAll('button').find((item) => item.attributes('aria-label') === t(key)));
 }
 function mountEditor() {
   const event: LiveEvent = { ...createEvent('Original'), trigger: EVENT_KIND.tiktokChat, actionIds: ['first', 'second'] };
@@ -35,14 +35,14 @@ it('combines action ordering, run mode and cooldown edits into one draft before 
   await button(wrapper, 'automations.event.scopeGlobal').trigger('click');
   expect(wrapper.emitted('save')).toBeUndefined();
   await button(wrapper, 'automations.editor.save').trigger('click');
-  const saved = wrapper.emitted<[LiveEvent]>('save')![0]![0];
+  const saved = defined(defined(wrapper.emitted<[LiveEvent]>('save'))[0])[0];
   expect(saved).toMatchObject({ name: 'Edited', actionIds: ['second', 'first'], runMode: 'random', cooldownMs: 5000, cooldownScope: 'global' });
   expect(event).toMatchObject({ name: 'Original', actionIds: ['first', 'second'], runMode: 'all', cooldownMs: 0 });
   await wrapper.setProps({ event: cloneRecord(saved) });
   expect(button(wrapper, 'automations.editor.save').attributes('disabled')).toBeUndefined();
   await button(wrapper, 'automations.editor.discard').trigger('click');
   expect(button(wrapper, 'automations.editor.save').attributes('disabled')).toBeDefined();
-  expect(wrapper.emitted('change')!.at(-1)![0]).toEqual(event);
+  expect(defined(defined(wrapper.emitted('change')).at(-1))[0]).toEqual(event);
 });
 
 it('reorders actions by dragging the grip with a pointer', async () => {
@@ -58,7 +58,7 @@ it('reorders actions by dragging the grip with a pointer', async () => {
   await grip.trigger('pointerup', {});
   expect(wrapper.findAll('[data-action-id]').map((row) => row.attributes('data-action-id'))).toEqual(['second', 'first']);
   await button(wrapper, 'automations.editor.save').trigger('click');
-  expect(wrapper.emitted<[LiveEvent]>('save')![0]![0].actionIds).toEqual(['second', 'first']);
+  expect(defined(defined(wrapper.emitted<[LiveEvent]>('save'))[0])[0].actionIds).toEqual(['second', 'first']);
 });
 
 it('duplicates a condition right below itself from the row action menu', async () => {
@@ -71,11 +71,11 @@ it('duplicates a condition right below itself from the row action menu', async (
   } });
   await button(wrapper, 'automations.conditions.actions').trigger('click');
   await nextTick();
-  const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
-    .find((entry) => entry.textContent === t('automations.conditions.duplicate'))!;
+  const item = defined([...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+    .find((entry) => entry.textContent === t('automations.conditions.duplicate')));
   item.click();
   await nextTick();
-  const changed = wrapper.emitted<[LiveEvent]>('change')!.at(-1)![0];
+  const changed = defined(defined(wrapper.emitted<[LiveEvent]>('change')).at(-1))[0];
   expect(changed.filters).toEqual([filters[0], filters[0]]);
   expect(changed.filters[0]).not.toBe(changed.filters[1]);
 });
@@ -90,15 +90,15 @@ it('combines conditions with one global AND/OR toggle and no false missing-value
     event, baseline: event, actions: [], eventTypes: [], gifts: [], viewers: [], testRuns: [],
   } });
   expect(wrapper.text()).not.toContain(t('automations.conditions.missing'));
-  const toggle = wrapper.findAll('button[role="combobox"]')
-    .find((item) => item.attributes('aria-label') === t('automations.conditions.matchMode'))!;
+  const toggle = defined(wrapper.findAll('button[role="combobox"]')
+    .find((item) => item.attributes('aria-label') === t('automations.conditions.matchMode')));
   await toggle.trigger('click');
   await nextTick();
-  const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
-    .find((item) => item.textContent?.trim() === t('automations.conditions.matchAny'))!;
+  const option = defined([...document.querySelectorAll<HTMLElement>('[role="option"]')]
+    .find((item) => item.textContent?.trim() === t('automations.conditions.matchAny')));
   option.click();
   await nextTick();
-  const changed = wrapper.emitted<[LiveEvent]>('change')!.at(-1)![0];
+  const changed = defined(defined(wrapper.emitted<[LiveEvent]>('change')).at(-1))[0];
   expect(changed.matchMode).toBe('or');
   expect(changed.filters).toEqual(filters);
 });
@@ -107,14 +107,14 @@ it('configures a condition template and discards it with the other unsaved edits
   const { event, wrapper } = mountEditor();
   await wrapper.get('input[placeholder="' + t('automations.editor.name') + '"]').setValue(t('packages.categories.moderation'));
   await button(wrapper, 'automations.conditions.templates').trigger('click');
-  const choice = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
-    .find((item) => item.textContent?.trim() === t('automations.moderation.high'))!;
+  const choice = defined([...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+    .find((item) => item.textContent?.trim() === t('automations.moderation.high')));
   choice.click();
   await nextTick();
-  const dialog = new DOMWrapper(document.querySelector<HTMLDialogElement>('dialog[open]')!);
+  const dialog = new DOMWrapper(defined(document.querySelector<HTMLDialogElement>('dialog[open]')));
   await dialog.get('input').setValue('0.75');
-  await dialog.findAll('button').find((item) => item.text() === t('automations.conditions.apply'))!.trigger('click');
-  const changed = wrapper.emitted<[LiveEvent]>('change')!.at(-1)![0];
+  await defined(dialog.findAll('button').find((item) => item.text() === t('automations.conditions.apply'))).trigger('click');
+  const changed = defined(defined(wrapper.emitted<[LiveEvent]>('change')).at(-1))[0];
   expect(changed.name).toBe(t('packages.categories.moderation'));
   expect(changed.filters).toEqual([
     { path: 'event.intel.comment.composition.repetitionScore', operator: 'gte', value: '0.75' },
@@ -123,8 +123,8 @@ it('configures a condition template and discards it with the other unsaved edits
   expect(event.filters).toEqual([]);
   expect(wrapper.emitted('save')).toBeUndefined();
   await button(wrapper, 'automations.editor.discard').trigger('click');
-  expect(wrapper.emitted('change')!.at(-1)![0]).toEqual(event);
-  expect(wrapper.emitted('update:dirty')!.at(-1)).toEqual([false]);
+  expect(defined(defined(wrapper.emitted('change')).at(-1))[0]).toEqual(event);
+  expect(defined(wrapper.emitted('update:dirty')).at(-1)).toEqual([false]);
 });
 
 it('does not mark a brand-new event as unsaved until it is edited', async () => {
@@ -137,7 +137,7 @@ it('does not mark a brand-new event as unsaved until it is edited', async () => 
   expect(button(wrapper, 'automations.editor.save').attributes('disabled')).toBeUndefined();
   await wrapper.get('input[placeholder="' + t('automations.editor.name') + '"]').setValue('Renamed');
   await nextTick();
-  expect(wrapper.emitted('update:dirty')!.at(-1)).toEqual([true]);
+  expect(defined(wrapper.emitted('update:dirty')).at(-1)).toEqual([true]);
   expect(wrapper.text()).toContain(t('automations.editor.unsaved'));
 });
 
@@ -151,7 +151,7 @@ it('groups dry-run, real fire and custom data behind the flask menu', async () =
   expect(labels).toContain(t('automations.runMenu.test'));
   expect(labels).toContain(t('automations.runMenu.fire'));
   expect(labels).toContain(t('automations.runMenu.custom'));
-  const dryRun = items.find((item) => item.textContent === t('automations.runMenu.test'))!;
+  const dryRun = defined(items.find((item) => item.textContent === t('automations.runMenu.test')));
   dryRun.click();
   await nextTick();
   expect(wrapper.emitted('test')).toHaveLength(1);
@@ -164,7 +164,7 @@ it('filters the action list without changing selection on save', async () => {
   await search.setValue('second');
   expect(wrapper.findAll('[data-action-id]').map((row) => row.attributes('data-action-id'))).toEqual(['second']);
   await button(wrapper, 'automations.editor.save').trigger('click');
-  expect(wrapper.emitted<[LiveEvent]>('save')![0]![0].actionIds).toEqual(['first', 'second']);
+  expect(defined(defined(wrapper.emitted<[LiveEvent]>('save'))[0])[0].actionIds).toEqual(['first', 'second']);
   await search.setValue('nothing matches');
   expect(wrapper.findAll('[data-action-id]')).toHaveLength(0);
   expect(wrapper.text()).toContain(t('automations.event.noMatchingActions'));
@@ -199,9 +199,9 @@ it('removes a condition through the row action menu', async () => {
   const items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
     .filter((item) => item.textContent === t('automations.conditions.remove'));
   expect(items).toHaveLength(1);
-  items[0]!.click();
+  defined(items[0]).click();
   await nextTick();
-  const changed = wrapper.emitted<[LiveEvent]>('change')!.at(-1)![0];
+  const changed = defined(defined(wrapper.emitted<[LiveEvent]>('change')).at(-1))[0];
   expect(changed.filters).toEqual([filters[1]]);
 });
 
@@ -217,19 +217,19 @@ it('edits capture aliases in their own tab', async () => {
   const aliasLabel = t('automations.conditions.alias');
   const aliasInputs = () => wrapper.findAll('input').filter((item) => item.attributes('aria-label') === aliasLabel);
   expect(aliasInputs()).toHaveLength(0);
-  const capturesToggle = wrapper.findAll('button')
-    .find((item) => item.attributes('aria-label') === t('automations.conditions.captures'))!;
+  const capturesToggle = defined(wrapper.findAll('button')
+    .find((item) => item.attributes('aria-label') === t('automations.conditions.captures')));
   await capturesToggle.trigger('click');
   await nextTick();
   expect(aliasInputs()).toHaveLength(2);
   expect(wrapper.text()).toContain('1. event.data.text');
   const writeText = vi.fn();
   Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-  await aliasInputs()[0]!.setValue('commandPrefix');
-  const changed = wrapper.emitted<[LiveEvent]>('change')!.at(-1)![0];
+  await defined(aliasInputs()[0]).setValue('commandPrefix');
+  const changed = defined(defined(wrapper.emitted<[LiveEvent]>('change')).at(-1))[0];
   expect(changed.filters[0]?.as).toBe('commandPrefix');
-  await wrapper.findAll('button')
-    .find((item) => item.attributes('aria-label') === t('common.copy'))!
+  await defined(wrapper.findAll('button')
+    .find((item) => item.attributes('aria-label') === t('common.copy')))
     .trigger('click');
   expect(writeText).toHaveBeenCalledWith('{{ match.commandPrefix }}');
 });
@@ -248,12 +248,12 @@ it('falls back to execCommand when the clipboard API rejects', async () => {
   const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {
     event, baseline: event, actions: [], eventTypes: [], gifts: [], viewers: [], testRuns: [],
   } });
-  await wrapper.findAll('button')
-    .find((item) => item.attributes('aria-label') === t('automations.conditions.captures'))!
+  await defined(wrapper.findAll('button')
+    .find((item) => item.attributes('aria-label') === t('automations.conditions.captures')))
     .trigger('click');
   await nextTick();
-  await wrapper.findAll('button')
-    .find((item) => item.attributes('aria-label') === t('common.copy'))!
+  await defined(wrapper.findAll('button')
+    .find((item) => item.attributes('aria-label') === t('common.copy')))
     .trigger('click');
   expect(execCommand).toHaveBeenCalledWith('copy');
   await nextTick();

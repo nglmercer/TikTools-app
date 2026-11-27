@@ -4,11 +4,11 @@ import { parseDemoOptions } from '../../../src/web/demo/scenarios.ts';
 import { isDemoFrameState, parseFrameCommand } from '../../../src/web/demo/frame-messages.ts';
 import { createShowcaseHarness } from './support/showcase-harness.ts';
 import { commandMessage, stateMessage } from './support/messages.ts';
-import { FIXTURE_ID } from '../../shared/index.ts';
+import { FIXTURE_ID, defined } from '../../shared/index.ts';
 
 /** The stage log line for a step's spotlight, derived from the script so renamed ids stay in sync. */
 const focusLog = (id: ShowcaseStep['id']) => {
-  const step = showcaseSteps.find((item) => item.id === id)!;
+  const step = defined(showcaseSteps.find((item) => item.id === id));
   return `focus:${step.id}:${step.target}`;
 };
 
@@ -28,7 +28,7 @@ describe('showcase director', () => {
     expect(h.log.slice(0, 3)).toEqual(['nav:/feed', focusLog('feed'), 'event']);
     for (let n = 0; n < 6; n += 1) await h.tick();
     expect(h.log.filter((entry) => entry === 'event')).toHaveLength(6);
-    expect(h.sleeps.at(-1)?.ms).toBe(showcaseSteps[0]!.dwell);
+    expect(h.sleeps.at(-1)?.ms).toBe(defined(showcaseSteps[0]).dwell);
     h.director.dispose();
   });
 
@@ -64,7 +64,7 @@ describe('showcase director', () => {
     }
     expect([...visited].sort()).toEqual([0, 1, 2, 3, 4]);
     for (let n = 0; n < 12; n += 1) await h.tick();
-    expect(h.states.some((state, i) => i > 0 && state.step === 0 && h.states[i - 1]!.step === 4)).toBe(true);
+    expect(h.states.some((state, i) => i > 0 && state.step === 0 && defined(h.states[i - 1]).step === 4)).toBe(true);
     h.director.dispose();
   });
 

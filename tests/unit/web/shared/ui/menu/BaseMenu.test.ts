@@ -5,6 +5,7 @@ import { toElement } from '../../../../support/dom.ts';
 import BaseContextMenu from '../../../../../../src/web/shared/ui/menu/BaseContextMenu.vue';
 import BaseMenu from '../../../../../../src/web/shared/ui/menu/BaseMenu.vue';
 import type { MenuAction, MenuEntry } from '../../../../../../src/web/shared/ui/menu/menu-types.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 
@@ -57,7 +58,7 @@ describe('BaseMenu', () => {
     const { open } = mountMenu();
     open.value = true;
     await nextTick();
-    const menu = menus()[0]!;
+    const menu = defined(menus()[0]);
     expect(menu.querySelectorAll('[role="separator"]')).toHaveLength(1);
     expect(menu.textContent).toContain('Ctrl+N');
     expect(menu.querySelector('[role="menuitemcheckbox"]')?.getAttribute('aria-checked')).toBe('true');
@@ -123,7 +124,7 @@ describe('BaseMenu', () => {
     const { open, selected } = mountMenu(many);
     open.value = true;
     await nextTick();
-    const rendered = menus()[0]!.querySelectorAll('[role="menuitem"]');
+    const rendered = defined(menus()[0]).querySelectorAll('[role="menuitem"]');
     expect(rendered).toHaveLength(many.length);
     toElement(rendered[rendered.length - 1], HTMLElement).click();
     expect(selected.map((action) => action.id)).toEqual(['item-39']);
@@ -134,7 +135,7 @@ describe('BaseMenu', () => {
     const { open } = mountMenu([{ id: 'long', label }]);
     open.value = true;
     await nextTick();
-    expect(menus()[0]!.querySelector('.menu-list__label')?.textContent).toBe(label);
+    expect(defined(menus()[0]).querySelector('.menu-list__label')?.textContent).toBe(label);
   });
 });
 

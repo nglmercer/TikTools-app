@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildTree, expandableIds, ROOT_ID } from '../../../../../../src/web/shared/ui/json/json-tree.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 const value = { name: 'x', list: [1, { deep: true }], empty: {}, nothing: null };
 
@@ -11,7 +12,7 @@ describe('buildTree', () => {
     const { rows } = buildTree(value, { expanded: new Set() });
     expect(summary(rows)).toEqual(['0:node::{4}']);
     expect(rows[0]).toMatchObject({ expandable: true, open: false, count: 4, array: false });
-    expect(buildTree([1, 2, 3, 4, 5], { expanded: new Set() }).rows[0]!.tokens[0]!.text).toBe('[5]');
+    expect(defined(defined(buildTree([1, 2, 3, 4, 5], { expanded: new Set() }).rows[0]).tokens[0]).text).toBe('[5]');
   });
 
   it('expands the root into labelled children with counts for collapsed containers', () => {
@@ -24,7 +25,7 @@ describe('buildTree', () => {
       '1:node:"nothing":null',
       '0:close::}',
     ]);
-    expect(rows.find((row) => row.label === '"empty"')!.expandable).toBe(false);
+    expect(defined(rows.find((row) => row.label === '"empty"')).expandable).toBe(false);
   });
 
   it('expands nested nodes by id and labels array items with their index', () => {
@@ -40,9 +41,9 @@ describe('buildTree', () => {
     const all = expandableIds(deep, { maxDepth: 2 });
     expect([...all]).toEqual([ROOT_ID, '$/0']);
     const { rows } = buildTree(deep, { expanded: new Set([ROOT_ID, '$/0', '$/0/0']), maxDepth: 2 });
-    const capped = rows.find((row) => row.label === '"b"')!;
+    const capped = defined(rows.find((row) => row.label === '"b"'));
     expect(capped.expandable).toBe(false);
-    expect(capped.tokens[0]!.text).toBe('{1}');
+    expect(defined(capped.tokens[0]).text).toBe('{1}');
     expect(rows.some((row) => row.label === '"c"')).toBe(false);
   });
 
@@ -50,7 +51,7 @@ describe('buildTree', () => {
     const list = Array.from({ length: 50 }, (_, index) => index);
     const wide = buildTree(list, { expanded: new Set([ROOT_ID]), maxChildren: 10 });
     expect(wide.truncated).toBe(true);
-    const more = wide.rows.find((row) => row.kind === 'more')!;
+    const more = defined(wide.rows.find((row) => row.kind === 'more'));
     expect(more.count).toBe(40);
     const tall = buildTree(list, { expanded: new Set([ROOT_ID]), maxRows: 5 });
     expect(tall.rows).toHaveLength(5);

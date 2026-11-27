@@ -8,7 +8,7 @@ import { useRuleProfilesStore } from '../../../../../../src/web/entities/rule-te
 import { useAutomationEditor } from '@/features/edit-automation-record/model/automation-editor.ts';
 import { libraryJournal } from '../../../../../../src/web/entities/rule-template/model/library-journal.ts';
 import { flushPromises } from '@vue/test-utils';
-import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, LIBRARY_OPERATION, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, LIBRARY_OPERATION, RPC, defined } from '../../../../../shared/index.ts';
 import { toLiveAction } from '../../../../support/automation.ts';
 import { propertyOf } from '../../../../support/json.ts';
 
@@ -193,7 +193,7 @@ test.each([false, true])(
     await flushPromises();
     expect(held).toHaveLength(2);
     // Act: finish the superseded save read after a newer background refresh has started
-    held[0]!();
+    defined(held[0])();
     const result = await saving;
     expect(result.revision).toBe('1');
     expect(result.record?.name).toBe('Known saved action');
@@ -208,7 +208,7 @@ test.each([false, true])(
       expect(library.draft.value?.mutation).toMatchObject({ operation: LIBRARY_OPERATION.assignRecord, id: action.id, profileId: 'a' });
     }
     // Act: release the background refresh, then dismiss the newer review or confirm the saved assignment
-    held[1]!();
+    defined(held[1])();
     await background;
     if (otherReview) {
       library.dismiss();

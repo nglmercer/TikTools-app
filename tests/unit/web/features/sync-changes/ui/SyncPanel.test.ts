@@ -6,6 +6,7 @@ import { defineSyncAdapter, type SyncAdapter, type SyncCapabilities, type SyncCh
 import { i18n } from '@/shared/i18n/i18n.ts';
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import SyncPanel from '../../../../../../src/web/features/sync-changes/ui/SyncPanel.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -32,9 +33,9 @@ const byText = (wrapper: VueWrapper, text: string) => wrapper.findAll('button').
 async function expandCard(wrapper: VueWrapper, name: string) {
   const card = wrapper.findAll('.change-review__card').find((entry) => entry.text().includes(name));
   expect(card, `card for ${name}`).toBeDefined();
-  await card!.get('.change-review__chevron').trigger('click');
+  await defined(card).get('.change-review__chevron').trigger('click');
   await flushPromises();
-  return card!;
+  return defined(card);
 }
 
 describe('SyncPanel capabilities', () => {
@@ -72,7 +73,7 @@ describe('SyncPanel capabilities', () => {
   it('runs the fork flow through the adapter', async () => {
     const { wrapper, spies } = await open(allCapabilities);
     await byLabel(wrapper, t('syncChanges.more')).trigger('click');
-    await wrapper.findAll('[role="menuitem"]').find((item) => item.text().includes('Fork'))!.trigger('click');
+    await defined(wrapper.findAll('[role="menuitem"]').find((item) => item.text().includes('Fork'))).trigger('click');
     await flushPromises();
     expect(spies.fork).toHaveBeenCalledOnce();
   });
@@ -119,7 +120,7 @@ describe('SyncPanel changes view', () => {
 
   it('syncs and fetches through the adapter without confirmation', async () => {
     const { wrapper, spies } = await open(allCapabilities);
-    await byText(wrapper, t('syncChanges.sync'))!.trigger('click');
+    await defined(byText(wrapper, t('syncChanges.sync'))).trigger('click');
     await byLabel(wrapper, t('syncChanges.fetch')).trigger('click');
     await flushPromises();
     expect(spies.sync).toHaveBeenCalledOnce();
@@ -135,17 +136,17 @@ describe('SyncPanel destructive confirmation', () => {
   ] as const)('asks before "%s" and runs it only after confirming', async (label, spy) => {
     const { wrapper, spies } = await open(allCapabilities);
     await byLabel(wrapper, t('syncChanges.more')).trigger('click');
-    await wrapper.findAll('[role="menuitem"]').find((item) => item.text() === label)!.trigger('click');
+    await defined(wrapper.findAll('[role="menuitem"]').find((item) => item.text() === label)).trigger('click');
     expect(spies[spy]).not.toHaveBeenCalled();
     expect(wrapper.find('[role="alertdialog"]').exists()).toBe(true);
-    await byText(wrapper, t('common.cancel'))!.trigger('click');
+    await defined(byText(wrapper, t('common.cancel'))).trigger('click');
     await flushPromises();
     expect(spies[spy]).not.toHaveBeenCalled();
     expect(wrapper.find('[role="alertdialog"]').exists()).toBe(false);
 
     await byLabel(wrapper, t('syncChanges.more')).trigger('click');
-    await wrapper.findAll('[role="menuitem"]').find((item) => item.text() === label)!.trigger('click');
-    await byText(wrapper, t('syncChanges.confirm'))!.trigger('click');
+    await defined(wrapper.findAll('[role="menuitem"]').find((item) => item.text() === label)).trigger('click');
+    await defined(byText(wrapper, t('syncChanges.confirm'))).trigger('click');
     await flushPromises();
     expect(spies[spy]).toHaveBeenCalledOnce();
   });
@@ -156,7 +157,7 @@ describe('SyncPanel destructive confirmation', () => {
     await byLabel(wrapper, t('syncChanges.reset')).trigger('click');
     expect(spies.reset).not.toHaveBeenCalled();
     expect(wrapper.get('[role="alertdialog"]').text()).toContain('Greeting');
-    await byText(wrapper, t('syncChanges.confirm'))!.trigger('click');
+    await defined(byText(wrapper, t('syncChanges.confirm'))).trigger('click');
     await flushPromises();
     expect(spies.reset).toHaveBeenCalledWith('e1');
   });
@@ -175,19 +176,19 @@ describe('SyncPanel conflicts', () => {
     // name: both changed -> Local by default; volume: only Cloud changed -> Cloud; color: only Local changed -> Local.
     await wrapper.get('[role="radiogroup"][aria-label="name"] [role="radio"]:nth-child(3)').trigger('click');
     await wrapper.get('[role="radiogroup"][aria-label="color"] [role="radio"]:nth-child(1)').trigger('click');
-    await byText(wrapper, t('syncChanges.applyMerge'))!.trigger('click');
+    await defined(byText(wrapper, t('syncChanges.applyMerge'))).trigger('click');
     await flushPromises();
     expect(spies.resolve).toHaveBeenCalledWith('e4', { choice: 'merged', value: { name: 'Theirs', volume: 9, color: 'red' } });
   });
 
   it('"All local" and "All Cloud" set every field before applying', async () => {
     const { wrapper, spies } = await conflict();
-    await byText(wrapper, t('syncChanges.allCloud'))!.trigger('click');
-    await byText(wrapper, t('syncChanges.applyMerge'))!.trigger('click');
+    await defined(byText(wrapper, t('syncChanges.allCloud'))).trigger('click');
+    await defined(byText(wrapper, t('syncChanges.applyMerge'))).trigger('click');
     await flushPromises();
     expect(spies.resolve).toHaveBeenLastCalledWith('e4', { choice: 'merged', value: { name: 'Theirs', volume: 9, color: 'red' } });
-    await byText(wrapper, t('syncChanges.allLocal'))!.trigger('click');
-    await byText(wrapper, t('syncChanges.applyMerge'))!.trigger('click');
+    await defined(byText(wrapper, t('syncChanges.allLocal'))).trigger('click');
+    await defined(byText(wrapper, t('syncChanges.applyMerge'))).trigger('click');
     await flushPromises();
     expect(spies.resolve).toHaveBeenLastCalledWith('e4', { choice: 'merged', value: { name: 'Mine', volume: 5, color: 'blue' } });
   });
@@ -196,7 +197,7 @@ describe('SyncPanel conflicts', () => {
     const { wrapper, spies } = await conflict({ resolve: true });
     expect(wrapper.find('.sync-panel__field').exists()).toBe(false);
     expect(byText(wrapper, t('syncChanges.applyMerge'))).toBeUndefined();
-    await byText(wrapper, t('syncChanges.allCloud'))!.trigger('click');
+    await defined(byText(wrapper, t('syncChanges.allCloud'))).trigger('click');
     await flushPromises();
     expect(spies.resolve).toHaveBeenCalledWith('e4', { choice: 'cloud' });
   });
@@ -211,14 +212,14 @@ describe('SyncPanel view lifecycle', () => {
   it('retains unapplied conflict choices when its dialog closes and reopens', async () => {
     const { wrapper, spies } = await open(allCapabilities);
     await expandCard(wrapper, 'Clash');
-    await byText(wrapper, t('syncChanges.allCloud'))!.trigger('click');
+    await defined(byText(wrapper, t('syncChanges.allCloud'))).trigger('click');
     await wrapper.setProps({ open: false });
     await wrapper.setProps({ open: true });
     await flushPromises();
     await expandCard(wrapper, 'Clash');
     expect(spies.resolve).not.toHaveBeenCalled();
     expect(wrapper.findAll('.sync-panel__choice[aria-checked="true"]').every(choice => choice.text().includes(t('syncChanges.cloud')))).toBe(true);
-    await byText(wrapper, t('syncChanges.applyMerge'))!.trigger('click');
+    await defined(byText(wrapper, t('syncChanges.applyMerge'))).trigger('click');
     await flushPromises();
     expect(spies.resolve).toHaveBeenCalledWith('e4', { choice: 'merged', value: { name: 'Theirs', volume: 9, color: 'red' } });
   });
@@ -227,29 +228,29 @@ describe('SyncPanel view lifecycle', () => {
 describe('SyncPanel history view', () => {
   it('lists operations, shows the changed elements and diff of the selected one', async () => {
     const { wrapper, spies } = await open(allCapabilities);
-    await byText(wrapper, t('syncChanges.history'))!.trigger('click');
+    await defined(byText(wrapper, t('syncChanges.history'))).trigger('click');
     await flushPromises();
     expect(spies.history).toHaveBeenCalled();
     expect(wrapper.findAll('.sync-panel__left [role="listitem"]')).toHaveLength(2);
     expect(wrapper.get('.sync-panel__head').text()).toContain('Sent two events');
     expect(wrapper.findAll('.sync-panel__files [role="listitem"]')).toHaveLength(2);
     expect(wrapper.find('.base-json-diff').exists()).toBe(true);
-    await wrapper.findAll('.sync-panel__left .sync-panel__pick')[1]!.trigger('click');
+    await defined(wrapper.findAll('.sync-panel__left .sync-panel__pick')[1]).trigger('click');
     expect(wrapper.get('.sync-panel__head').text()).toContain('Fetched one event');
   });
 
   it('confirms before restoring one element or reverting the operation', async () => {
     const { wrapper, spies } = await open(allCapabilities);
-    await byText(wrapper, t('syncChanges.history'))!.trigger('click');
+    await defined(byText(wrapper, t('syncChanges.history'))).trigger('click');
     await flushPromises();
-    await wrapper.findAll('[aria-label="Restore this version"]')[0]!.trigger('click');
+    await defined(wrapper.findAll('[aria-label="Restore this version"]')[0]).trigger('click');
     expect(spies.restore).not.toHaveBeenCalled();
-    await byText(wrapper, t('syncChanges.confirm'))!.trigger('click');
+    await defined(byText(wrapper, t('syncChanges.confirm'))).trigger('click');
     await flushPromises();
     expect(spies.restore).toHaveBeenCalledWith('op1', 'e1');
     await byLabel(wrapper, t('syncChanges.revert')).trigger('click');
     expect(spies.restore).toHaveBeenCalledTimes(1);
-    await byText(wrapper, t('syncChanges.confirm'))!.trigger('click');
+    await defined(byText(wrapper, t('syncChanges.confirm'))).trigger('click');
     await flushPromises();
     expect(spies.restore).toHaveBeenLastCalledWith('op1');
   });
@@ -282,13 +283,13 @@ describe('SyncPanel mark as reviewed', () => {
     await byLabel(wrapper, REVIEW).trigger('click');
     expect(spies.markReviewed).not.toHaveBeenCalled();
     expect(wrapper.get('[role="alertdialog"]').text()).toContain('Reset will no longer go back to the old one');
-    await byText(wrapper, t('common.cancel'))!.trigger('click');
+    await defined(byText(wrapper, t('common.cancel'))).trigger('click');
     await flushPromises();
     expect(spies.markReviewed).not.toHaveBeenCalled();
     expect(wrapper.find('[role="alertdialog"]').exists()).toBe(false);
 
     await byLabel(wrapper, REVIEW).trigger('click');
-    await byText(wrapper, t('syncChanges.confirm'))!.trigger('click');
+    await defined(byText(wrapper, t('syncChanges.confirm'))).trigger('click');
     await flushPromises();
     expect(spies.markReviewed).toHaveBeenCalledOnce();
     expect(wrapper.find('[role="alertdialog"]').exists()).toBe(false);
@@ -309,7 +310,7 @@ describe('SyncPanel mark as reviewed', () => {
     const visibleChips = () => wrapper.findAll('.sync-panel__status .sync-panel__chip').filter((chip) => chip.isVisible()).map((chip) => chip.text());
     expect(visibleChips()).toEqual(['1']);
     await byLabel(wrapper, REVIEW).trigger('click');
-    await byText(wrapper, t('syncChanges.confirm'))!.trigger('click');
+    await defined(byText(wrapper, t('syncChanges.confirm'))).trigger('click');
     await flushPromises();
     expect(visibleChips()).toEqual([]);
     expect(wrapper.findAll('.change-review__card')).toHaveLength(0);
@@ -320,7 +321,7 @@ describe('SyncPanel mark as reviewed', () => {
     const { wrapper, spies } = await open({ markReviewed: true });
     spies.markReviewed.mockRejectedValueOnce(new Error('storage blocked'));
     await byLabel(wrapper, REVIEW).trigger('click');
-    await byText(wrapper, t('syncChanges.confirm'))!.trigger('click');
+    await defined(byText(wrapper, t('syncChanges.confirm'))).trigger('click');
     await flushPromises();
     expect(wrapper.text()).toContain('storage blocked');
     expect(wrapper.findAll('.change-review__card')).toHaveLength(4);
@@ -381,7 +382,7 @@ describe('SyncPanel load failures', () => {
     expect(wrapper.text()).toContain('another sync or cutover operation is active');
     const before = spies.list.mock.calls.length;
     spies.list.mockResolvedValue([]);
-    await byText(wrapper, t('syncChanges.retryRead'))!.trigger('click');
+    await defined(byText(wrapper, t('syncChanges.retryRead'))).trigger('click');
     await flushPromises();
     expect(spies.list).toHaveBeenCalledTimes(before + 1);
     expect(wrapper.text()).toContain(t('changeReview.empty'));

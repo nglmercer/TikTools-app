@@ -3,6 +3,7 @@ import { demoLimits } from '../../../src/web/demo/contract.ts';
 import { demoTestId } from '../../../src/web/demo/test-ids.ts';
 import { FIRST_CHAT_MESSAGE } from './constants.ts';
 import { selector } from './selectors.ts';
+import { defined } from '../../shared/index.ts';
 
 /** Pending RPC count reported by the demo metrics output. -1 until the metrics exist. */
 export async function pendingRequests(page: Page | Frame): Promise<number> {
@@ -40,7 +41,7 @@ export async function readyPanelFrame(page: Page): Promise<Frame> {
   const element = await page.locator(selector.panelFrame).elementHandle();
   const frame = await element?.contentFrame();
   expect(frame, 'The on-demand iframe should own a browsing context').toBeTruthy();
-  await expect(frame!.locator(selector.appLayout)).toBeVisible();
-  await expect(frame!.locator(selector.demoControls)).toBeHidden();
-  return frame!;
+  await expect(defined(frame).locator(selector.appLayout)).toBeVisible();
+  await expect(defined(frame).locator(selector.demoControls)).toBeHidden();
+  return defined(frame);
 }

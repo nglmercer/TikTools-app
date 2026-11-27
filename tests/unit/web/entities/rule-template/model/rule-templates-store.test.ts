@@ -5,7 +5,7 @@ import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testin
 import type { RuleTemplate } from '../../../../../../src/web/entities/rule-template/lib/rule-templates.ts';
 import { libraryJournal } from '../../../../../../src/web/entities/rule-template/model/library-journal.ts';
 import { useRuleTemplatesStore } from '../../../../../../src/web/entities/rule-template/model/rule-templates-store.ts';
-import { ACTION_TYPE, EVENT_KIND, LIBRARY_OPERATION, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, EVENT_KIND, LIBRARY_OPERATION, RPC, defined } from '../../../../../shared/index.ts';
 
 
 function hostTemplateDocument(id: string): RuleTemplate {
@@ -42,8 +42,8 @@ test('template gallery imports freeze collision IDs across uncertainty and never
   const importing = templates.importTemplates(documents);
   const original = journal.draft.value?.mutation;
   expect(original?.operation).toBe(LIBRARY_OPERATION.importTemplates);
-  const id = original?.operation === LIBRARY_OPERATION.importTemplates ? original.templates[0]!.id : '';
-  expect(id).not.toBe(documents[0]!.id);
+  const id = original?.operation === LIBRARY_OPERATION.importTemplates ? defined(original.templates[0]).id : '';
+  expect(id).not.toBe(defined(documents[0]).id);
   await journal.confirm();
   journal.dismiss();
   expect(await importing).toBe(0);

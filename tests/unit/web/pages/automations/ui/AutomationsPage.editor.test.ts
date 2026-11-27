@@ -16,7 +16,7 @@ import {
   resetResolutionPreference,
 } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
 import { i18n } from '@/shared/i18n/i18n.ts';
-import { ACTION_TYPE, EVENT_KIND, LIBRARY_OPERATION, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, EVENT_KIND, LIBRARY_OPERATION, RPC, STORAGE_KEY, defined } from '../../../../../shared/index.ts';
 import { propertyOf } from '../../../../support/json.ts';
 const itn = (key: string, params?: Record<string, string>) => i18n.global.t(key, params ?? {});
 
@@ -29,7 +29,7 @@ afterEach(() => resetResolutionPreference('automatic'));
 
 it('offers the sync panel for the events and for the actions, but not on the variables', async () => {
     const { wrapper } = await mountPage();
-    const tab = (name: string) => wrapper.findAll('[role="tab"]').find((item) => item.text().startsWith(name))!;
+    const tab = (name: string) => defined(wrapper.findAll('[role="tab"]').find((item) => item.text().startsWith(name)));
     const button = () => wrapper.find('button[aria-label^="Sync changes"]');
     expect(button().exists()).toBe(true);
     await button().trigger('click');
@@ -53,8 +53,8 @@ it('offers the sync panel for the events and for the actions, but not on the var
     expect(filter.classes()).not.toContain('automation-library__sort--active');
     await filter.trigger('click');
     await nextTick();
-    const item = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]'))
-      .find((entry) => entry.textContent?.trim() === t('automations.library.sorts.name-desc'))!;
+    const item = defined(Array.from(document.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]'))
+      .find((entry) => entry.textContent?.trim() === t('automations.library.sorts.name-desc')));
     item.click();
     await flushPromises();
     expect(wrapper.findAll('.automation-library tbody tr').map((row) => row.text())).toEqual([
@@ -66,7 +66,7 @@ it('offers the sync panel for the events and for the actions, but not on the var
 
   it('toggles a record from the table', async () => {
     const { wrapper, calls, requests } = await mountPage();
-    await wrapper.findAll('.automation-library tbody tr')[1]!.get('input[type="checkbox"]').setValue(false);
+    await defined(wrapper.findAll('.automation-library tbody tr')[1]).get('input[type="checkbox"]').setValue(false);
     expect(calls.some((call) => call.method === RPC.automationDisable)).toBe(false);
     expect(document.body.textContent).toContain('e2 · version 1');
     documentButton(t('automations.conflict.confirmToggle')).click();
@@ -94,10 +94,10 @@ it('offers the sync panel for the events and for the actions, but not on the var
 
   it('picks an action type and saves the new action', async () => {
     const { wrapper, calls } = await mountPage();
-    await wrapper.findAll('[role="tab"]').find((tab) => tab.text().startsWith(t('automations.library.actions')))!.trigger('click');
+    await defined(wrapper.findAll('[role="tab"]').find((tab) => tab.text().startsWith(t('automations.library.actions')))).trigger('click');
     await buttonByText(wrapper, t('automations.library.newAction')).trigger('click');
     await nextTick();
-    Array.from(document.querySelectorAll<HTMLButtonElement>('.type-picker__card'))[0]!.click();
+    defined(Array.from(document.querySelectorAll<HTMLButtonElement>('.type-picker__card'))[0]).click();
     await nextTick();
     expect(wrapper.find('.action-editor').exists()).toBe(true);
     await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
@@ -120,8 +120,8 @@ it('offers the sync panel for the events and for the actions, but not on the var
   it('duplicates and deletes events from their library row menu', async () => {
     const { wrapper, calls } = await mountPage();
     const kebab = (name: string) => wrapper.get(`button[aria-label="${itn('automations.library.rowActions', { name })}"]`);
-    const item = (key: string) => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
-      .find((entry) => entry.textContent?.trim() === t(key))!;
+    const item = (key: string) => defined([...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+      .find((entry) => entry.textContent?.trim() === t(key)));
 
     await kebab('Big gifts').trigger('click');
     await nextTick();
@@ -173,17 +173,17 @@ it('offers the sync panel for the events and for the actions, but not on the var
     const { wrapper, calls } = await mountPage();
     await buttonByLabel(wrapper, t('automations.templates.open')).trigger('click');
     await nextTick();
-    const card = Array.from(document.querySelectorAll<HTMLButtonElement>('.rule-templates__card')).find((entry) =>
+    const card = defined(Array.from(document.querySelectorAll<HTMLButtonElement>('.rule-templates__card')).find((entry) =>
       entry.textContent?.includes(t('automations.builtinTemplates.chatPointsTitle')),
-    )!;
+    ));
     card.click();
     await nextTick();
     documentButton(t('automations.templates.create')).click();
     await flushPromises();
     expect(calls.some((call) => call.method === RPC.automationLibrarySubmit)).toBe(false);
     // The confirm action is an icon button: it is found by its aria-label.
-    Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
-      .find((button) => button.getAttribute('aria-label') === t('libraryRecovery.confirm'))!
+    defined(Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.getAttribute('aria-label') === t('libraryRecovery.confirm')))
       .click();
     await flushPromises();
     const created = calls.filter((call) => call.method === RPC.automationLibrarySubmit);
@@ -214,7 +214,7 @@ it('offers the sync panel for the events and for the actions, but not on the var
 
   it('shows one type icon per action row', async () => {
     const { wrapper } = await mountPage();
-    await wrapper.findAll('[role="tab"]').find((tab) => tab.text().startsWith(t('automations.library.actions')))!.trigger('click');
+    await defined(wrapper.findAll('[role="tab"]').find((tab) => tab.text().startsWith(t('automations.library.actions')))).trigger('click');
     await nextTick();
     expect(wrapper.findAll('.automation-library tbody tr')).toHaveLength(1);
     expect(wrapper.findAll('.automation-library__type-icon')).toHaveLength(1);
@@ -237,7 +237,7 @@ it('offers the sync panel for the events and for the actions, but not on the var
   it('restores the folded recent runs from storage', async () => {
     const { wrapper } = await mountPage();
     await buttonByLabel(wrapper, t('automations.runs.collapse')).trigger('click');
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY.viewState)!).automationRuns).toEqual({ open: false });
+    expect(JSON.parse(defined(localStorage.getItem(STORAGE_KEY.viewState))).automationRuns).toEqual({ open: false });
     wrapper.unmount();
     const { wrapper: remounted } = await mountPage();
     expect(remounted.get('.automation-runs').text()).not.toContain('Log gift');

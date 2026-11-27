@@ -16,7 +16,7 @@ import {
   resetResolutionPreference,
 } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
 import { runGuideAction } from '../../../../../../src/web/features/guided-help/model/guide-actions.ts';
-import { ACTION_TYPE, LIBRARY_OPERATION, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, LIBRARY_OPERATION, RPC, STORAGE_KEY, defined } from '../../../../../shared/index.ts';
 
 beforeEach(() => {
   localStorage.clear();
@@ -59,8 +59,8 @@ it('blocks profile and template changes until the initial coherent library is re
     expect(f.calls.some((call) => call.method === RPC.automationLibrarySubmit || call.method === RPC.appStateSet)).toBe(false);
     await menu.trigger('click');
     await nextTick();
-    Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
-      .find((entry) => entry.textContent?.trim() === t('automations.profile.create'))!
+    defined(Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+      .find((entry) => entry.textContent?.trim() === t('automations.profile.create')))
       .click();
     await flushPromises();
     await f.wrapper.get('input[maxlength="80"]').setValue('Ready profile');
@@ -80,7 +80,7 @@ it('blocks profile and template changes until the initial coherent library is re
     expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Events (2)', 'Actions (1)', t('automations.library.variables')]);
     expect(wrapper.find('.globals-editor').exists()).toBe(false);
     expect(calls.some((call) => call.method === RPC.globalsList)).toBe(false);
-    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === t('automations.library.variables'))!.trigger('click');
+    await defined(wrapper.findAll('[role="tab"]').find((tab) => tab.text() === t('automations.library.variables'))).trigger('click');
     await flushPromises();
     expect(wrapper.findAll<HTMLInputElement>('.globals-editor input').map((input) => input.element.value)).toEqual(['commandPort', '46665']);
     expect(wrapper.find('.automation-library__table').exists()).toBe(false);
@@ -90,13 +90,13 @@ it('blocks profile and template changes until the initial coherent library is re
   it('keeps an unsaved variable draft while switching tabs and saves it through the same contract', async () => {
     const { wrapper, calls } = await mountPage((method) =>
       (method === RPC.globalsList ? { globals: { commandPort: '46665' } } : method === RPC.globalsSet ? { ok: true } : undefined));
-    const tab = (name: string) => wrapper.findAll('[role="tab"]').find((item) => item.text().startsWith(name))!;
+    const tab = (name: string) => defined(wrapper.findAll('[role="tab"]').find((item) => item.text().startsWith(name)));
     await tab(t('automations.library.variables')).trigger('click');
     await flushPromises();
-    await wrapper.findAll('.globals-editor input')[1]!.setValue('25575');
+    await defined(wrapper.findAll('.globals-editor input')[1]).setValue('25575');
     await tab(t('automations.library.actions')).trigger('click');
     await tab(t('automations.library.variables')).trigger('click');
-    expect(wrapper.findAll<HTMLInputElement>('.globals-editor input')[1]!.element.value).toBe('25575');
+    expect(defined(wrapper.findAll<HTMLInputElement>('.globals-editor input')[1]).element.value).toBe('25575');
     await buttonByLabel(wrapper, t('globals.save')).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === RPC.globalsSet)?.params).toEqual({ key: 'commandPort', value: '25575' });
@@ -182,7 +182,7 @@ it('blocks profile and template changes until the initial coherent library is re
   it('opens the templates dialog on its Cloud tab from a saved ?view=cloud link and clears the link when it closes', async () => {
     const { wrapper, router } = await mountPage(undefined, true, { query: '?view=cloud' });
     await flushPromises();
-    const dialog = document.querySelector('dialog[open]')!;
+    const dialog = defined(document.querySelector('dialog[open]'));
     expect(dialog).not.toBeNull();
     const tabs = Array.from(dialog.querySelectorAll('[role="tab"]'));
     expect(tabs.map((tab) => tab.textContent?.trim())).toEqual([t('importDialog.templatesTab'), t('importDialog.cloudTab'), t('importDialog.manualTab')]);
@@ -192,7 +192,7 @@ it('blocks profile and template changes until the initial coherent library is re
     expect(wrapper.findAll('.automation-library [role="tab"]').map((tab) => tab.text()))
       .toEqual(['Events (2)', 'Actions (1)', t('automations.library.variables')]);
     expect(router.currentRoute.value.query.view).toBe('cloud');
-    dialog.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click();
+    defined(dialog.querySelector<HTMLButtonElement>('button[aria-label="Close"]')).click();
     await flushPromises();
     expect(router.currentRoute.value.query.view).toBeUndefined();
     wrapper.unmount();

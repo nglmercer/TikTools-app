@@ -19,6 +19,7 @@ import {
 import { readArticles, metadataErrors } from '../../docs/scripts/content.ts';
 import { docCopy, localizedDocumentPath, type DocLocale } from '../../docs/locales.ts';
 import { siteConfig } from '../../scripts/lib/site-config.ts';
+import { defined } from '../shared/index.ts';
 
 /** Longer than the mobile navigation's exit animation, so QA captures never catch a transition. */
 const NAV_SETTLE_MS = 550;
@@ -64,15 +65,15 @@ test('all six Markdown languages have reviewed equivalents, current hashes and s
       const translated = translations.find((article) => article.relativePath === source.relativePath.replace(/^en\//, `${locale}/`));
       expect(translated, source.relativePath).toBeTruthy();
       const revision = createHash('sha256').update(source.body.trim()).digest('hex');
-      for (const article of [source, translated!]) {
+      for (const article of [source, defined(translated)]) {
         expect(article.frontmatter.docId).toBe(source.frontmatter.docId);
         expect(article.frontmatter.translationKey).toBe(source.frontmatter.translationKey);
         expect(article.frontmatter.sourceRevision).toBe(revision);
         expect(article.frontmatter.translationRevision).toBe(createHash('sha256').update(article.body.trim()).digest('hex'));
         expect(article.headings.filter((heading) => heading.level === 'h1')).toHaveLength(1);
       }
-      expect(translated!.body).not.toBe(source.body);
-      expect(translated!.headings).toEqual(source.headings);
+      expect(defined(translated).body).not.toBe(source.body);
+      expect(defined(translated).headings).toEqual(source.headings);
     }
   }
 });
@@ -88,13 +89,13 @@ test('all localized built pages expose matching lang, canonical, hreflang and si
   const sitemap = await request.get('sitemap.xml');
   expect(sitemap.ok()).toBe(true);
   const xml = await sitemap.text();
-  const locations = new Set([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]!.replace(/\/index\.html$/, '/')));
+  const locations = new Set([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => defined(match[1]).replace(/\/index\.html$/, '/')));
   for (const article of (await articles).filter((entry) => localizedDocumentPath(entry.relativePath) !== undefined)) {
     const response = await request.get(htmlPath(article.relativePath));
     expect(response.status(), article.relativePath).toBe(200);
     const html = await response.text();
     const locale = String(article.frontmatter.locale);
-    const tail = localizedDocumentPath(canonicalPath(article.relativePath))!.tail;
+    const tail = defined(localizedDocumentPath(canonicalPath(article.relativePath))).tail;
     expect(html, article.relativePath).toMatch(new RegExp(`<html[^>]+lang="${locale}"`));
     expect(html).toContain(`<link rel="canonical" href="${new URL(canonicalPath(article.relativePath), site.url).href}">`);
     for (const language of docLocales) {
@@ -196,7 +197,7 @@ for (const locale of docLocales) {
 }
 
 test('docs load demo iframes automatically without native IPC or external requests', async ({ page, baseURL }) => {
-  const network = await localNetworkOnly(page, baseURL!);
+  const network = await localNetworkOnly(page, defined(baseURL));
   const requests: string[] = [];
   const errors = trackPageErrors(page);
   page.on('request', (request) => requests.push(request.url()));
@@ -206,7 +207,7 @@ test('docs load demo iframes automatically without native IPC or external reques
   expect(requests.some((url) => new URL(url).pathname.startsWith(`${site.base}demo/`))).toBe(true);
   const frame = await readyPanelFrame(page);
   await expect(frame.locator('html')).toHaveAttribute('lang', 'es');
-  expect(new URL(frame.url()).origin).toBe(new URL(baseURL!).origin);
+  expect(new URL(frame.url()).origin).toBe(new URL(defined(baseURL)).origin);
   expect(await frame.evaluate(() => Object.hasOwn(window, 'ipc'))).toBe(false);
   expect(await frame.evaluate(() => Object.hasOwn(window, '__TIKTOOLS_E2E_STATE__'))).toBe(false);
   await expect(page.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin');
@@ -218,7 +219,7 @@ test('docs load demo iframes automatically without native IPC or external reques
 });
 
 test('two same-origin demo frames isolate preferences and reset preserves app plus other frame storage', async ({ page, baseURL }) => {
-  const network = await localNetworkOnly(page, baseURL!);
+  const network = await localNetworkOnly(page, defined(baseURL));
   await test.step('open the feed and seed the real app storage', async () => {
     await page.goto('en/user/live/feed.html');
     await page.evaluate(() => {
@@ -229,7 +230,7 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
     });
   });
   const first = await readyPanelFrame(page);
-  const firstId = new URL(first.url()).searchParams.get('instance')!;
+  const firstId = defined(new URL(first.url()).searchParams.get('instance'));
   await test.step('open a second demo frame on the same origin', async () => {
     const secondURL = new URL(first.url());
     secondURL.searchParams.set('instance', `${firstId.slice(0, 50)}-b`);
@@ -242,9 +243,9 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
       document.body.append(frame);
     }, secondURL.href);
   });
-  const second = (await (await page.locator('#isolated-second-demo').elementHandle())!.contentFrame())!;
+  const second = defined((await defined((await page.locator('#isolated-second-demo').elementHandle())).contentFrame()));
   await expect(second.locator(selector.appLayout)).toBeVisible();
-  const secondId = new URL(second.url()).searchParams.get('instance')!;
+  const secondId = defined(new URL(second.url()).searchParams.get('instance'));
   const secondReloadURL = second.url();
   expect(secondId).not.toBe(firstId);
   const firstSearch = first.locator(`${selector.liveFeed} input[type="search"]`);
@@ -293,12 +294,12 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
 });
 
 test('standalone demo remains usable at desktop and mobile sizes', async ({ page, baseURL }, testInfo) => {
-  const network = await localNetworkOnly(page, baseURL!);
+  const network = await localNetworkOnly(page, defined(baseURL));
   await page.goto(demoUrl({ scenario: 'feed', locale: 'es', instance: 'documentation-screenshots' }));
   await expect(page.locator(selector.liveFeed)).toBeVisible();
   await expect.poll(async () => JSON.parse((await page.getByTestId(demoTestId.metrics).textContent()) || '{}').client?.pending).toBe(0);
   // The before snapshot only feeds the review evidence.
-  const before = qaArtifacts ? JSON.parse((await page.getByTestId(demoTestId.metrics).textContent())!) : undefined;
+  const before = qaArtifacts ? JSON.parse(defined((await page.getByTestId(demoTestId.metrics).textContent()))) : undefined;
   await page.getByTestId(demoTestId.step).click();
   await expect.poll(async () => JSON.parse((await page.getByTestId(demoTestId.metrics).textContent()) || '{}').host?.ticks).toBe(1);
   if (qaArtifacts) {
@@ -308,7 +309,7 @@ test('standalone demo remains usable at desktop and mobile sizes', async ({ page
       matchingPanels: await page.locator(selector.liveFeed).count(),
       visible: await page.locator(selector.liveFeed).isVisible(),
       before,
-      after: JSON.parse((await page.getByTestId(demoTestId.metrics).textContent())!),
+      after: JSON.parse(defined((await page.getByTestId(demoTestId.metrics).textContent()))),
       feedText: await page.locator(selector.liveFeed).innerText(),
     };
     const report = JSON.stringify(evidence, null, 2);
@@ -330,8 +331,8 @@ test('existing frontend without native IPC fails explicitly and never falls back
   const errors = trackPageErrors(page);
   const requests: string[] = [];
   page.on('request', (request) => requests.push(request.url()));
-  const origin = new URL(baseURL!).origin;
-  const entryURL = new URL('native-entry-review.html', baseURL!).href;
+  const origin = new URL(defined(baseURL)).origin;
+  const entryURL = new URL('native-entry-review.html', defined(baseURL)).href;
   // Serve the existing real frontend bytes inside this test, without changing
   // dist/site, injecting a fake host or adding any test globals to a bundle.
   await page.route('**/*', async (route) => {

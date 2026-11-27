@@ -7,7 +7,7 @@ import { tourRegistry } from '../../../../../../src/web/features/guided-help/mod
 import { tutorialEntries, tutorialTags } from '../../../../../../src/web/features/guided-help/model/tutorial-catalog.ts';
 import { tourCategory } from '../../../../../../src/web/features/guided-help/model/tutorial-taxonomy.ts';
 import { automationActionExampleAvailable } from '../../../../../../src/web/features/guided-help/model/tour-requirements.ts';
-import { ACCOUNT_STATE, ACTION_TYPE } from '../../../../../shared/index.ts';
+import { ACCOUNT_STATE, ACTION_TYPE, defined } from '../../../../../shared/index.ts';
 
 /** Account-only tours: they need a signed-in workspace, so they are never offered by the demo. */
 const ACCOUNT_TOUR_IDS = ['backup', 'backupRestore', 'cloudOverlays'] as const;
@@ -25,7 +25,7 @@ describe('guide contract', () => {
   });
 
   it('derives categories from product scope rather than naming conventions', () => {
-    expect(tourCategory(tourModules.find((module) => module.id === 'changes')!)).toBe('automations');
+    expect(tourCategory(defined(tourModules.find((module) => module.id === 'changes')))).toBe('automations');
     expect(tutorialEntries.find((entry) => entry.id === 'changes')?.category).toBe('automations');
     expect(tutorialEntries.find((entry) => entry.id === 'changes')?.tags).not.toContain('changes');
   });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { nextTick, ref } from 'vue';
 import { globalsFromRows, rowsFromGlobals, useGlobalsDraft, validateGlobalRows } from '../../../../../../src/web/features/edit-runtime-globals/model/globals-draft.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 describe('globals draft rows', () => {
   it('builds sorted rows and converts them back ignoring empty keys', () => {
@@ -33,7 +34,7 @@ describe('useGlobalsDraft', () => {
     source.value = { a: '1', b: '2' };
     await nextTick();
     expect(draft.rows.value.map((row) => row.key)).toEqual(['a', 'b']);
-    draft.update(draft.rows.value[0]!.id, { value: 'changed' });
+    draft.update(defined(draft.rows.value[0]).id, { value: 'changed' });
     source.value = { z: '9' };
     await nextTick();
     expect(draft.dirty.value).toBe(true);
@@ -48,16 +49,16 @@ describe('useGlobalsDraft', () => {
     const draft = useGlobalsDraft(ref({}));
     draft.add();
     expect(draft.blocked.value).toBe(false);
-    draft.update(draft.rows.value[0]!.id, { value: 'needs key' });
+    draft.update(defined(draft.rows.value[0]).id, { value: 'needs key' });
     expect(draft.blocked.value).toBe(true);
-    draft.remove(draft.rows.value[0]!.id);
+    draft.remove(defined(draft.rows.value[0]).id);
     expect(draft.blocked.value).toBe(false);
     expect(draft.dirty.value).toBe(true);
   });
 
   it('discards unsaved edits back to the stored values', () => {
     const draft = useGlobalsDraft(ref({ a: '1' }));
-    draft.update(draft.rows.value[0]!.id, { value: 'changed' });
+    draft.update(defined(draft.rows.value[0]).id, { value: 'changed' });
     draft.add();
     draft.discard();
     expect(draft.rows.value.map((row) => [row.key, row.value])).toEqual([['a', '1']]);

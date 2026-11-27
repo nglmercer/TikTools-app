@@ -5,7 +5,7 @@ import type { LiveAction, LiveEvent } from '../../../../../../src/automation/beh
 import { i18n } from '@/shared/i18n/i18n.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import AutomationLibrary from '../../../../../../src/web/widgets/automation-library/ui/AutomationLibrary.vue';
-import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, EVENT_KIND, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 
@@ -52,8 +52,8 @@ it.each(['events', 'actions'] as const)('the %s row menu duplicates and deletes 
   });
   const kebab = () =>
     wrapper.get(`button[aria-label="${i18n.global.t('automations.library.rowActions', { name: tab === 'events' ? event.name : action.name })}"]`);
-  const item = (key: string) => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
-    .find((entry) => entry.textContent?.trim() === i18n.global.t(key))!;
+  const item = (key: string) => defined([...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+    .find((entry) => entry.textContent?.trim() === i18n.global.t(key)));
   await kebab().trigger('click');
   await nextTick();
   expect(item('automations.library.duplicate')).toBeTruthy();

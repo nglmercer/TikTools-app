@@ -9,6 +9,7 @@ import type { RpcParams } from '@/shared/api/control-client.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import AnalyticsPage from '../../../../../../src/web/pages/analytics/ui/AnalyticsPage.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -112,7 +113,7 @@ async function openTab(
     .findAll('[role="tab"]')
     .find((node: { text: () => string }) => node.text() === testMessage('en', key));
   expect(tab, `tab ${label}`).toBeTruthy();
-  await tab!.trigger('click');
+  await defined(tab).trigger('click');
   await flushPromises();
 }
 
@@ -128,16 +129,16 @@ describe('AnalyticsPage', () => {
     // Overview tab is active by default: KPIs and insights live there.
     const tiles = wrapper.findAll('.kpi-strip__card');
     expect(tiles).toHaveLength(5);
-    expect(tiles[0]!.text()).toContain('Chats');
-    expect(tiles[0]!.text()).toContain('1,520');
-    expect(tiles[1]!.text()).toContain('Gifts');
-    expect(tiles[1]!.text()).toContain('40');
-    expect(tiles[2]!.text()).toContain('Likes');
-    expect(tiles[2]!.text()).toContain('6,400');
-    expect(tiles[3]!.text()).toContain('Diamonds');
-    expect(tiles[3]!.text()).toContain('900');
-    expect(tiles[4]!.text()).toContain(t('analytics.facts.peakViewers'));
-    expect(tiles[4]!.text()).toContain('210');
+    expect(defined(tiles[0]).text()).toContain('Chats');
+    expect(defined(tiles[0]).text()).toContain('1,520');
+    expect(defined(tiles[1]).text()).toContain('Gifts');
+    expect(defined(tiles[1]).text()).toContain('40');
+    expect(defined(tiles[2]).text()).toContain('Likes');
+    expect(defined(tiles[2]).text()).toContain('6,400');
+    expect(defined(tiles[3]).text()).toContain('Diamonds');
+    expect(defined(tiles[3]).text()).toContain('900');
+    expect(defined(tiles[4]).text()).toContain(t('analytics.facts.peakViewers'));
+    expect(defined(tiles[4]).text()).toContain('210');
     const sessionsRow = wrapper
       .findAll('.insights__row')
       .find((row: { text: () => string }) => row.text().includes(t('analytics.insights.sessions')));
@@ -156,7 +157,7 @@ describe('AnalyticsPage', () => {
     expect(wrapper.get('svg[role="img"]').attributes('aria-label')).toMatch(/^Chats:/);
     // The metric segmented lives inside the activity panel; Diamonds follows the 'all' entry.
     const panel = wrapper.get('[data-guide="analytics-activity"]');
-    await panel.findAll('.base-segmented__option')[4]!.trigger('click');
+    await defined(panel.findAll('.base-segmented__option')[4]).trigger('click');
     expect(wrapper.get('svg[role="img"]').attributes('aria-label')).toMatch(/^Diamonds:/);
   });
 
@@ -178,7 +179,7 @@ describe('AnalyticsPage', () => {
   it('overlays every metric when the all option is selected', async () => {
     const { wrapper } = await mountPage();
     const panel = wrapper.get('[data-guide="analytics-activity"]');
-    await panel.findAll('.base-segmented__option')[0]!.trigger('click');
+    await defined(panel.findAll('.base-segmented__option')[0]).trigger('click');
     const chart = wrapper.get('svg[role="img"]');
     expect(chart.attributes('aria-label')).toMatch(new RegExp(`^${t('analytics.metrics.all')}:`));
     // One line per metric on the shared scale; the picker itself is the legend
@@ -189,16 +190,16 @@ describe('AnalyticsPage', () => {
     // Every metric option carries a tinted icon; 'all' has a neutral layers
     // glyph without a chart color.
     const options = panel.findAll('.base-segmented__option');
-    expect(options[1]!.find('[style*="color"]').exists()).toBe(true);
-    expect(options[0]!.find('.base-segmented__icon').exists()).toBe(true);
-    expect(options[0]!.find('[style*="color"]').exists()).toBe(false);
+    expect(defined(options[1]).find('[style*="color"]').exists()).toBe(true);
+    expect(defined(options[0]).find('.base-segmented__icon').exists()).toBe(true);
+    expect(defined(options[0]).find('[style*="color"]').exists()).toBe(false);
   });
 
   it('requests a new span when the range changes', async () => {
     const { wrapper, calls } = await mountPage();
     const today = systemDay(Date.now());
     const rangeBar = wrapper.get('[data-guide="analytics-range"]');
-    await rangeBar.findAll('.base-segmented__option')[0]!.trigger('click');
+    await defined(rangeBar.findAll('.base-segmented__option')[0]).trigger('click');
     await flushPromises();
     expect(calls.at(-2)?.params).toMatchObject({ startDay: today, endDay: today });
     expect(wrapper.text()).toContain(t('analytics.activity.today'));
@@ -234,8 +235,8 @@ describe('AnalyticsPage', () => {
     await openTab(wrapper, 'sessions');
     const rows = wrapper.findAll('tbody tr');
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.text()).toContain('192');
-    expect(rows[0]!.text()).toContain('2h 14m');
+    expect(defined(rows[0]).text()).toContain('192');
+    expect(defined(rows[0]).text()).toContain('2h 14m');
   });
 
   it('explains when the range has no broadcasts', async () => {

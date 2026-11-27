@@ -17,7 +17,7 @@ import {
   triggerMessageKey,
   triggerOptions,
 } from '../../../../../../src/web/entities/automation/lib/automation-records.ts';
-import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, EVENT_KIND, defined } from '../../../../../shared/index.ts';
 import { propertyOf } from '../../../../support/json.ts';
 import { actionType, behaviorRun, liveEvent, pluginEventType, pluginStatus, text } from '../../../../support/automation.ts';
 
@@ -60,7 +60,7 @@ describe('automation records', () => {
   });
 
   it('creates new records with defaults', () => {
-    const created = createActionFromType(types[0]!, localize);
+    const created = createActionFromType(defined(types[0]), localize);
     expect(created).toMatchObject({ schemaVersion: 2, name: 'Log', typeId: ACTION_TYPE.coreLog, enabled: true });
     expect(created.id).toBeTruthy();
     expect(createEvent('New event')).toMatchObject({ name: 'New event', enabled: false, trigger: EVENT_KIND.tiktokGift, actionIds: [] });

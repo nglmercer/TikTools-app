@@ -1,6 +1,7 @@
 import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import BaseList from '../../../../../../src/web/shared/ui/list/BaseList.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 
@@ -36,18 +37,18 @@ describe('BaseList', () => {
   it('selects with the pointer and the keyboard', async () => {
     const wrapper = mountList();
     const options = wrapper.findAll('[role="option"]');
-    await options[1]!.trigger('pointerdown');
+    await defined(options[1]).trigger('pointerdown');
     expect(wrapper.props('selected')).toBe('live');
     await wrapper.get('[role="listbox"]').trigger('keydown', { key: 'ArrowDown' });
     expect(wrapper.props('selected')).toBe('outro');
     await wrapper.get('[role="listbox"]').trigger('keydown', { key: 'ArrowDown' });
     expect(wrapper.props('selected')).toBe('outro');
-    expect(wrapper.get('[role="listbox"]').attributes('aria-activedescendant')).toBe(options[2]!.attributes('id'));
+    expect(wrapper.get('[role="listbox"]').attributes('aria-activedescendant')).toBe(defined(options[2]).attributes('id'));
   });
 
   it('selects on right click before a context menu opens', async () => {
     const wrapper = mountList();
-    await wrapper.findAll('[role="option"]')[2]!.trigger('contextmenu');
+    await defined(wrapper.findAll('[role="option"]')[2]).trigger('contextmenu');
     expect(wrapper.props('selected')).toBe('outro');
   });
 
@@ -56,7 +57,7 @@ describe('BaseList', () => {
     const listbox = wrapper.get('[role="listbox"]');
     await listbox.trigger('keydown', { key: 'Home' });
     await listbox.trigger('keydown', { key: 'Enter' });
-    await wrapper.findAll('[role="option"]')[1]!.trigger('dblclick');
+    await defined(wrapper.findAll('[role="option"]')[1]).trigger('dblclick');
     expect(wrapper.emitted('activate')).toEqual([[scenes[0]], [scenes[1]]]);
   });
 

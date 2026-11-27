@@ -7,7 +7,7 @@ import type { BehaviorSnapshot, LiveAction } from '../../../../../../src/automat
 import { ControlCallError, type ControlCallOptions, type RpcParams } from '@/shared/api/control-client.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import { useAutomation } from '../../../../../../src/web/entities/automation/model/automation-state.ts';
-import { ACTION_TYPE, ERROR_CODE, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, FIXTURE_ID, RPC, defined } from '../../../../../shared/index.ts';
 import { toLiveAction } from '../../../../support/automation.ts';
 
 beforeEach(() => resetResolutionPreference('manual'));
@@ -100,7 +100,11 @@ test('saved-base updates keep their precondition after refresh and never recreat
   f.changeHost('Host change', '2');
   await f.automation.refresh();
   await expect(
-    f.automation.saveRecordAndRefresh('action', { ...original, name: 'Draft' }, { revision: base!, create: false, host: f.automation.sourceHost.value }),
+    f.automation.saveRecordAndRefresh(
+      'action',
+      { ...original, name: 'Draft' },
+      { revision: defined(base), create: false, host: f.automation.sourceHost.value },
+    ),
   ).rejects.toMatchObject({ code: ERROR_CODE.revisionConflict });
   f.setMissing('2');
   await expect(

@@ -19,11 +19,13 @@ test('feed appends only format new cards and still update locale, search, and cl
   await test.step('install a counter on date formatting and open the empty feed', async () => {
     await page.addInitScript(() => {
       window.feedFormatCalls = 0;
-      const descriptor = Object.getOwnPropertyDescriptor(Intl.DateTimeFormat.prototype, 'format')!;
+      const descriptor = Object.getOwnPropertyDescriptor(Intl.DateTimeFormat.prototype, 'format');
+      const getFormat = descriptor?.get;
+      if (!descriptor || !getFormat) throw new Error('Intl.DateTimeFormat.prototype.format has no getter to spy on');
       Object.defineProperty(Intl.DateTimeFormat.prototype, 'format', {
         ...descriptor,
         get() {
-          const format: (date?: number | Date) => string = descriptor.get!.call(this);
+          const format: (date?: number | Date) => string = getFormat.call(this);
           return (date?: number | Date) => {
             window.feedFormatCalls += 1;
             return format(date);

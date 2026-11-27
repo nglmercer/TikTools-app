@@ -13,7 +13,7 @@ import {
   type DefinitionWrite,
 } from '../../../../../../src/web/entities/automation/model/definition-contracts.ts';
 import { definitionJournal } from '../../../../../../src/web/entities/automation/model/definition-journal.ts';
-import { ACTION_TYPE, ERROR_CODE, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, FIXTURE_ID, RPC, defined } from '../../../../../shared/index.ts';
 import { isLiveAction, toLiveAction } from '../../../../support/automation.ts';
 import { propertyOf } from '../../../../support/json.ts';
 
@@ -65,8 +65,11 @@ describe('native Owner definition journal', () => {
     const editor = useAutomationEditor({
       read: async () => ({ record: f.record(), revision: f.revision() }),
       save: async (_kind, record, base) => {
-        const ack = await f.journal.submit({ ...f.input, record, expectedRevision: base.revision!, operation: base.create ? 'create' : 'update' }, f.host);
-        return { record: toLiveAction(ack.value), revision: ack.resourceVersions[0]!.revision };
+        const ack = await f.journal.submit(
+          { ...f.input, record, expectedRevision: defined(base.revision), operation: base.create ? 'create' : 'update' },
+          f.host,
+        );
+        return { record: toLiveAction(ack.value), revision: defined(ack.resourceVersions[0]).revision };
       },
       remove: async () => {},
     });
@@ -99,7 +102,7 @@ describe('native Owner definition journal', () => {
     const f = fixture();
     f.native.loseNextReply();
     await expect(f.journal.submit({ ...f.input, operation: 'create', expectedRevision: '9007199254740993' }, f.host)).rejects.toThrow();
-    const host = f.journal.state.value!;
+    const host = defined(f.journal.state.value);
     expect(host.recent[0]?.intent).toMatchObject({ id: 'saved', operation: 'create', expectedRevision: '9007199254740993' });
     const reloaded = createFakeControlClient(f.native.handle);
     const recovered = definitionJournal(reloaded.client);
@@ -178,7 +181,7 @@ describe('native Owner definition journal', () => {
       const result = await f.native.handle(method, params, options);
       if (method !== RPC.automationDefinitionSubmit) return result;
       const state = parseDefinitionState(propertyOf(result, 'state'));
-      const success = state.recent[0]!;
+      const success = defined(state.recent[0]);
       state.recent.push({
         ...success,
         intent: { ...success.intent, commandId: `owner-definition-${'f'.repeat(32)}` },
@@ -307,9 +310,9 @@ test('fresh delete acknowledgement supports complete cascades and rejects cross-
   ).toThrow();
   // Assert: a revision-0 outcome that reports the record as still present is accepted as fresh
   const zeroInput = { ...input, expectedRevision: '0' };
-  const zero = { state: { ...state, recent: [{ ...state.recent[0]!, intent: { ...intent, expectedRevision: '0' },
+  const zero = { state: { ...state, recent: [{ ...defined(state.recent[0]), intent: { ...intent, expectedRevision: '0' },
     receipt: { revision: '0', recordDigest: null, enabled: null, deleted: false, affectedResources: 1 } }] }, acknowledgement: {
-    ...raw.acknowledgement, value: { id: 'saved', deleted: false }, resourceVersions: [{ ...versions[0]!, revision: '0' }],
+    ...raw.acknowledgement, value: { id: 'saved', deleted: false }, resourceVersions: [{ ...defined(versions[0]), revision: '0' }],
   } };
   expect(parseDefinitionSubmission(zero, zeroInput, state).acknowledgement?.value).toEqual({ id: 'saved', deleted: false });
 });

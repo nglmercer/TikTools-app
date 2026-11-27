@@ -7,7 +7,7 @@ import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { FakeMediaQuery } from '../../../../support/media.ts';
 import CloudPlanUsage from '../../../../../../src/web/features/cloud-account/ui/CloudPlanUsage.vue';
-import { RPC } from '../../../../../shared/index.ts';
+import { RPC, defined } from '../../../../../shared/index.ts';
 
 const t = (key: string): string => testMessage('en', key);
 
@@ -54,7 +54,7 @@ describe('CloudPlanUsage', () => {
     // One bar per area, filled by whichever of count or space is closer to its limit.
     const bars = wrapper.findAll('progress');
     expect(bars).toHaveLength(4);
-    expect(Number(bars[0]!.attributes('value'))).toBeCloseTo(3 / 1000);
+    expect(Number(defined(bars[0]).attributes('value'))).toBeCloseTo(3 / 1000);
   });
 
   it('folds to its tightest area on a phone and opens on demand', async () => {

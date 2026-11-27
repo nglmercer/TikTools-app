@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { deriveStatus, diffFields, displayLeaf, flattenLeaves } from '../../../../../../src/web/features/review-shared/model/change-review.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 describe('flattenLeaves', () => {
   it('flattens nested plain objects into dot paths and keeps arrays as leaves', () => {
@@ -14,12 +15,12 @@ describe('diffFields', () => {
     expect(fields.find((field) => field.key === 'drop')?.status).toBe('deleted');
     expect(fields.find((field) => field.key === 'change')?.status).toBe('modified');
     expect(fields.find((field) => field.key === 'add')?.status).toBe('added');
-    expect(fields[0]!.status).not.toBe('unchanged');
+    expect(defined(fields[0]).status).not.toBe('unchanged');
   });
 
   it('compares array leaves by content', () => {
-    expect(diffFields({ ids: [1, 2] }, { ids: [1, 2] })[0]!.status).toBe('unchanged');
-    expect(diffFields({ ids: [1, 2] }, { ids: [1, 3] })[0]!.status).toBe('modified');
+    expect(defined(diffFields({ ids: [1, 2] }, { ids: [1, 2] })[0]).status).toBe('unchanged');
+    expect(defined(diffFields({ ids: [1, 2] }, { ids: [1, 3] })[0]).status).toBe('modified');
   });
 });
 

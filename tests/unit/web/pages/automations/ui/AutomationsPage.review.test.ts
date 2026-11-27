@@ -17,7 +17,7 @@ import {
   beforeEach,
   resetResolutionPreference,
 } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
-import { ERROR_CODE, RPC } from '../../../../../shared/index.ts';
+import { ERROR_CODE, RPC, defined } from '../../../../../shared/index.ts';
 import { toElement } from '../../../../support/dom.ts';
 import { isRecord } from '../../../../support/json.ts';
 
@@ -30,7 +30,7 @@ afterEach(() => resetResolutionPreference('automatic'));
 // The review actions are icon buttons: they are found by their aria-label
 // tooltip text rather than by visible text.
 function documentIconButton(label: string): HTMLButtonElement {
-  return Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.getAttribute('aria-label') === label)!;
+  return defined(Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.getAttribute('aria-label') === label));
 }
 
 
@@ -60,10 +60,10 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     expect(document.body.textContent).toContain(t('jsonView.hostChanges'));
     const chevrons = Array.from(document.querySelectorAll<HTMLElement>('.base-dialog .change-review__chevron'));
     expect(chevrons).toHaveLength(2);
-    chevrons[1]!.click();
+    defined(chevrons[1]).click();
     await flushPromises();
     expect(document.body.textContent).toContain('Edited on host');
-    chevrons[0]!.click();
+    defined(chevrons[0]).click();
     await flushPromises();
     expect(document.body.textContent).toContain('My draft');
     const writes = calls.filter((call) => call.method === RPC.automationUpdate).length;
@@ -198,17 +198,17 @@ it('pins the base across background refreshes, preserves a conflicting draft and
 
   it('canceling enablement restores the committed checkbox without a write', async () => {
     const { wrapper, calls } = await mountPage();
-    await wrapper.findAll('.automation-library tbody tr')[1]!.get('input[type="checkbox"]').setValue(false);
+    await defined(wrapper.findAll('.automation-library tbody tr')[1]).get('input[type="checkbox"]').setValue(false);
     await nextTick();
     documentButton(t('common.cancel')).click();
     await flushPromises();
-    expect(wrapper.findAll('.automation-library tbody tr')[1]!.get<HTMLInputElement>('input[type="checkbox"]').element.checked).toBe(true);
+    expect(defined(wrapper.findAll('.automation-library tbody tr')[1]).get<HTMLInputElement>('input[type="checkbox"]').element.checked).toBe(true);
     expect(calls.some((r) => r.method === RPC.automationDisable)).toBe(false);
   });
 
   it('an enablement conflict requires a fresh read and another explicit confirmation', async () => {
     const { wrapper, snapshot, versions, requests } = await mountPage();
-    await wrapper.findAll('.automation-library tbody tr')[1]!.get('input[type="checkbox"]').setValue(false);
+    await defined(wrapper.findAll('.automation-library tbody tr')[1]).get('input[type="checkbox"]').setValue(false);
     snapshot.events[1] = { ...chatEvent, name: 'New name before confirmation' };
     versions.set('event:e2', '2');
     documentButton(t('automations.conflict.confirmToggle')).click();

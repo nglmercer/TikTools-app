@@ -1,5 +1,5 @@
 import { callbacks, createControl, chatEvent, likeEvent, describe, expect, it, vi, createLiveFeedState } from '../../../../../../src/web/entities/live-event/model/testing/live-feed-fixture.ts';
-import { TOPIC } from '../../../../../shared/index.ts';
+import { TOPIC, defined } from '../../../../../shared/index.ts';
 
 describe('like events in the feed', () => {
   it('keeps every like packet as its own row with its own total', () => {
@@ -22,7 +22,7 @@ describe('like events in the feed', () => {
     const harness = createControl();
     const live = createLiveFeedState(harness.control, callbacks('system'));
     harness.emit(TOPIC.liveUiEvent, likeEvent('lizbeth', 15, 15, 'like-1'));
-    const likeRowId = live.events.value[0]!.id;
+    const likeRowId = defined(live.events.value[0]).id;
     harness.emit(TOPIC.liveUiEvent, chatEvent('chat', 'other', 1));
     harness.emit(TOPIC.liveUiEvent, likeEvent('lizbeth', 15, 30, 'like-2'));
     expect(live.events.value.map((row) => row.kind)).toEqual(['like', 'chat', 'like']);

@@ -7,7 +7,7 @@ import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { toElement } from '../../../../support/dom.ts';
 import CloudBackupSection from '../../../../../../src/web/features/cloud-account/ui/CloudBackupSection.vue';
-import { RPC } from '../../../../../shared/index.ts';
+import { RPC, defined } from '../../../../../shared/index.ts';
 
 const t = (key: string): string => testMessage('en', key);
 afterEach(async () => {
@@ -48,7 +48,7 @@ function mountSection(handler: (method: string) => unknown) {
 }
 
 const button = (wrapper: VueWrapper, label: string) =>
-  wrapper.findAll('button').find((node) => node.text().startsWith(label))!;
+  defined(wrapper.findAll('button').find((node) => node.text().startsWith(label)));
 
 async function pickFile(wrapper: VueWrapper, content: string, name: string): Promise<void> {
   const input = wrapper.get('input[type="file"]');
@@ -110,7 +110,7 @@ it('lists stored backups and saves a named one from the account data', async () 
 
   await wrapper.get('form').trigger('submit');
   await flushPromises();
-  const call = calls.find((entry) => entry.method === 'cloud.backup.createNamed')!;
+  const call = defined(calls.find((entry) => entry.method === 'cloud.backup.createNamed'));
   expect(call.params).toEqual({ name: expect.stringMatching(/^Backup \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/) });
   expect(wrapper.text()).toContain('Nightly');
   expect(wrapper.text()).toContain(t('account.backup.created'));
@@ -139,12 +139,12 @@ it('uploads a picked backup file to the account with its contents', async () => 
   await pickFile(wrapper, JSON.stringify(manifest), 'laptop.json');
   expect(document.body.textContent).toContain('4 records, 1 documents and 2 files');
 
-  const input = document.body.querySelector<HTMLInputElement>('dialog input[type="text"]')!;
+  const input = defined(document.body.querySelector<HTMLInputElement>('dialog input[type="text"]'));
   expect(input.value).toBe('laptop');
   const save = [...document.body.querySelectorAll('dialog button')].find((node) => node.textContent?.trim() === t('account.backup.saveFile'));
   toElement(save, HTMLButtonElement).click();
   await flushPromises();
-  const call = calls.find((entry) => entry.method === 'cloud.backup.createNamed')!;
+  const call = defined(calls.find((entry) => entry.method === 'cloud.backup.createNamed'));
   expect(call.params).toEqual({ name: 'laptop', manifest });
   expect(wrapper.text()).toContain(t('account.backup.uploaded'));
   wrapper.unmount();

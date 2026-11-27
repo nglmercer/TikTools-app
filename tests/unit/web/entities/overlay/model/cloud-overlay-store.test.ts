@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { useCloudOverlayStore } from '../../../../../../src/web/entities/overlay/model/cloud-overlay-store.ts';
-import { RPC } from '../../../../../shared/index.ts';
+import { RPC, defined } from '../../../../../shared/index.ts';
 import { propertyOf } from '../../../../support/json.ts';
 
 const id = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
@@ -38,7 +38,7 @@ describe('overlay store', () => {
     overlay.startNew('follow', 'Follow');
     overlay.add('avatar');
     expect(await overlay.save()).toBe(true);
-    expect(propertyOf(propertyOf(calls[0]!.params, 'document'), 'capabilities')).toEqual(['live.read']);
+    expect(propertyOf(propertyOf(defined(calls[0]).params, 'document'), 'capabilities')).toEqual(['live.read']);
   });
 
   it('copies the draft as an OBS URL payload and refuses one that does not fit', async () => {
@@ -54,7 +54,7 @@ describe('overlay store', () => {
     expect(calls.at(-1)?.method).toBe('widgets.copyCloudOverlayUrl');
     const before = calls.length;
     overlay.add('text');
-    overlay.patch(overlay.draft.elements[1]!.id, { width: 0 });
+    overlay.patch(defined(overlay.draft.elements[1]).id, { width: 0 });
     expect(await overlay.copyObsUrl()).toBe(false);
     expect(calls.length).toBe(before);
   });

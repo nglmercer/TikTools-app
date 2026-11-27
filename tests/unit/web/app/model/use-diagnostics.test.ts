@@ -9,7 +9,7 @@ import { diagnosticLog } from '@/shared/diagnostics/log.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { useDiagnostics } from '../../../../../src/web/app/model/use-diagnostics.ts';
-import { ACCOUNT_STATE } from '../../../../shared/index.ts';
+import { ACCOUNT_STATE, defined } from '../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 beforeEach(() => diagnosticLog.clear());
@@ -44,9 +44,9 @@ describe('useDiagnostics', () => {
     await nextTick();
     const entry = diagnosticLog.entries.value.filter(item => item.code === 'account.status').at(-1);
     expect(entry).toBeTruthy();
-    expect(entry!.level).toBe('info');
-    expect(entry!.fields.map(field => field.value)).toEqual(expect.arrayContaining([ACCOUNT_STATE.signedIn, 'acc-1']));
-    expect(entry!.details).toBe('');
+    expect(defined(entry).level).toBe('info');
+    expect(defined(entry).fields.map(field => field.value)).toEqual(expect.arrayContaining([ACCOUNT_STATE.signedIn, 'acc-1']));
+    expect(defined(entry).details).toBe('');
   });
 
   it('drops the history of an account when another one signs in', async () => {

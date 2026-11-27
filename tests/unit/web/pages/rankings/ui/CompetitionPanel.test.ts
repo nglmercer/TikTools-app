@@ -5,7 +5,7 @@ import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import type { RankingDefinition } from '@/entities/ranking/types.ts';
 import CompetitionPanel from '../../../../../../src/web/pages/rankings/ui/CompetitionPanel.vue';
-import { EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+import { EVENT_KIND, RPC, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -47,7 +47,7 @@ async function setup() {
   return { wrapper, calls };
 }
 async function openForm(wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], id: string, name: string) {
-  await wrapper.findAll('button').find((item) => item.text() === t('competitionsPanel.list.new'))!.trigger('click');
+  await defined(wrapper.findAll('button').find((item) => item.text() === t('competitionsPanel.list.new'))).trigger('click');
   await wrapper.get('[data-field="id"]').setValue(id);
   await wrapper.get('[data-field="name"]').setValue(name);
 }
@@ -65,22 +65,22 @@ describe('competition controls', () => {
       { source: 'tiktok.follow', metric: 'event.count', weight: 1, enabled: true }] };
     const wrapper = mountWithPlugins(CompetitionPanel, { props: { rankings: [mixed, gift] }, global: { plugins: storePlugins(client) } });
     await flushPromises();
-    await wrapper.findAll('button').find((item) => item.text() === t('competitionsPanel.list.new'))!.trigger('click');
+    await defined(wrapper.findAll('button').find((item) => item.text() === t('competitionsPanel.list.new'))).trigger('click');
     expect(wrapper.find('option[value="mixed"]').exists()).toBe(true);
     expect(wrapper.find('option[value="unsupported"]').exists()).toBe(false);
   });
   it('creates a command poll with explicit option routing', async () => {
     const { wrapper, calls } = await setup();
     await openForm(wrapper, 'poll', t('competitionsPanel.types.poll.name'));
-    await wrapper.findAll('select').find((item) => item.find('option[value="vote"]').exists())!.setValue('vote');
+    await defined(wrapper.findAll('select').find((item) => item.find('option[value="vote"]').exists())).setValue('vote');
     const optionFields = wrapper.findAll('fieldset input');
-    await optionFields[0]!.setValue('a');
-    await optionFields[1]!.setValue('A');
-    await optionFields[2]!.setValue('!a');
-    await optionFields[5]!.setValue('b');
-    await optionFields[6]!.setValue('B');
-    await optionFields[7]!.setValue('!b');
-    await optionFields[4]!.setValue('123, 456');
+    await defined(optionFields[0]).setValue('a');
+    await defined(optionFields[1]).setValue('A');
+    await defined(optionFields[2]).setValue('!a');
+    await defined(optionFields[5]).setValue('b');
+    await defined(optionFields[6]).setValue('B');
+    await defined(optionFields[7]).setValue('!b');
+    await defined(optionFields[4]).setValue('123, 456');
     await wrapper.find('fieldset select').setValue('tnt');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
@@ -97,14 +97,14 @@ describe('competition controls', () => {
   it('rejects ambiguous gift bindings before sending a definition', async () => {
     const { wrapper, calls } = await setup();
     await openForm(wrapper, 'poll', t('competitionsPanel.types.poll.name'));
-    await wrapper.findAll('select').find((item) => item.find('option[value="vote"]').exists())!.setValue('vote');
+    await defined(wrapper.findAll('select').find((item) => item.find('option[value="vote"]').exists())).setValue('vote');
     const items = wrapper.findAll('fieldset');
     for (const [index, item] of items.entries()) {
       const values = item.findAll('input');
-      await values[0]!.setValue(`option${index}`);
-      await values[1]!.setValue(`Option ${index}`);
-      await values[2]!.setValue(`!option${index}`);
-      await values[4]!.setValue('123');
+      await defined(values[0]).setValue(`option${index}`);
+      await defined(values[1]).setValue(`Option ${index}`);
+      await defined(values[2]).setValue(`!option${index}`);
+      await defined(values[4]).setValue('123');
     }
     await wrapper.get('form').trigger('submit');
     await flushPromises();
@@ -115,14 +115,14 @@ describe('competition controls', () => {
     const { wrapper, calls } = await setup();
     await openForm(wrapper, 'battle', 'Battle');
     await wrapper.get('[data-field="type"]').setValue('team_battle');
-    await wrapper.findAll('select').find((item) => item.find('option[value="vote"]').exists())!.setValue('vote');
+    await defined(wrapper.findAll('select').find((item) => item.find('option[value="vote"]').exists())).setValue('vote');
     const optionFields = wrapper.findAll('fieldset input');
-    await optionFields[0]!.setValue('red');
-    await optionFields[1]!.setValue('Red');
-    await optionFields[2]!.setValue('!red');
-    await optionFields[5]!.setValue('blue');
-    await optionFields[6]!.setValue('Blue');
-    await optionFields[7]!.setValue('!blue');
+    await defined(optionFields[0]).setValue('red');
+    await defined(optionFields[1]).setValue('Red');
+    await defined(optionFields[2]).setValue('!red');
+    await defined(optionFields[5]).setValue('blue');
+    await defined(optionFields[6]).setValue('Blue');
+    await defined(optionFields[7]).setValue('!blue');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
     expect(calls.find((call) => call.method === RPC.competitionsCreate)?.params).toMatchObject({ id: 'battle', kind: 'team_battle', rankingId: 'vote' });
@@ -131,14 +131,14 @@ describe('competition controls', () => {
     const { wrapper, calls } = await setup();
     await openForm(wrapper, 'wheel', 'Wheel');
     await wrapper.get('[data-field="type"]').setValue('roulette');
-    await wrapper.findAll('select').find((item) => item.find('option[value="vote"]').exists())!.setValue('vote');
+    await defined(wrapper.findAll('select').find((item) => item.find('option[value="vote"]').exists())).setValue('vote');
     const optionFields = wrapper.findAll('fieldset input');
-    await optionFields[0]!.setValue('a');
-    await optionFields[1]!.setValue('A');
-    await optionFields[2]!.setValue('!a');
-    await optionFields[5]!.setValue('b');
-    await optionFields[6]!.setValue('B');
-    await optionFields[7]!.setValue('!b');
+    await defined(optionFields[0]).setValue('a');
+    await defined(optionFields[1]).setValue('A');
+    await defined(optionFields[2]).setValue('!a');
+    await defined(optionFields[5]).setValue('b');
+    await defined(optionFields[6]).setValue('B');
+    await defined(optionFields[7]).setValue('!b');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
     expect(calls.find((call) => call.method === RPC.competitionsCreate)?.params).toMatchObject({ id: 'wheel', kind: 'roulette', rankingId: 'vote' });
@@ -162,7 +162,7 @@ describe('competition controls', () => {
     await flushPromises();
     await wrapper.get('[data-item="poll"]').trigger('click');
     await flushPromises();
-    await wrapper.findAll('button').find((item) => item.text() === t('competitionsPanel.operate.edit'))!.trigger('click');
+    await defined(wrapper.findAll('button').find((item) => item.text() === t('competitionsPanel.operate.edit'))).trigger('click');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
     expect(calls.find((call) => call.method === 'competitions.update')?.params).toMatchObject({
@@ -173,21 +173,21 @@ describe('competition controls', () => {
   it('configures typed winner action inputs', async () => {
     const { wrapper, calls } = await setup();
     await openForm(wrapper, 'poll', t('competitionsPanel.types.poll.name'));
-    await wrapper.findAll('select').find((item) => item.find('option[value="vote"]').exists())!.setValue('vote');
+    await defined(wrapper.findAll('select').find((item) => item.find('option[value="vote"]').exists())).setValue('vote');
     const optionFields = wrapper.findAll('fieldset input');
-    await optionFields[0]!.setValue('a');
-    await optionFields[1]!.setValue('A');
-    await optionFields[2]!.setValue('!a');
-    await optionFields[5]!.setValue('b');
-    await optionFields[6]!.setValue('B');
-    await optionFields[7]!.setValue('!b');
+    await defined(optionFields[0]).setValue('a');
+    await defined(optionFields[1]).setValue('A');
+    await defined(optionFields[2]).setValue('!a');
+    await defined(optionFields[5]).setValue('b');
+    await defined(optionFields[6]).setValue('B');
+    await defined(optionFields[7]).setValue('!b');
     const first = wrapper.find('fieldset');
     await first.get('select').setValue('tnt');
-    await first.findAll('button').find((item) => item.text() === t('competitionsPanel.form.addInput'))!.trigger('click');
+    await defined(first.findAll('button').find((item) => item.text() === t('competitionsPanel.form.addInput'))).trigger('click');
     const row = first.get('.action-input');
-    await row.findAll('input')[0]!.setValue('amount');
+    await defined(row.findAll('input')[0]).setValue('amount');
     await row.get('select').setValue('number');
-    await row.findAll('input')[1]!.setValue('20');
+    await defined(row.findAll('input')[1]).setValue('20');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
     expect(calls.find((call) => call.method === RPC.competitionsCreate)?.params).toMatchObject({
@@ -211,9 +211,9 @@ describe('competition controls', () => {
     await flushPromises();
     await wrapper.get('[data-item="poll"]').trigger('click');
     await flushPromises();
-    const candidate = wrapper.findAll('select').find((item) => item.find('option[value="b"]').exists())!;
+    const candidate = defined(wrapper.findAll('select').find((item) => item.find('option[value="b"]').exists()));
     await candidate.setValue('b');
-    await wrapper.findAll('button').find((item) => item.text() === t('competitionsPanel.operate.selectWinner'))!.trigger('click');
+    await defined(wrapper.findAll('button').find((item) => item.text() === t('competitionsPanel.operate.selectWinner'))).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'competitions.selectWinner')?.params).toEqual({ id: 'poll', generation: 3, winnerId: 'b' });
   });
@@ -231,7 +231,7 @@ describe('competition controls', () => {
     await wrapper.get('[data-item="poll"]').trigger('click');
     await flushPromises();
     expect(wrapper.text()).toContain('execution_failed');
-    await wrapper.findAll('button').find((item) => item.text() === t('competitionsPanel.operate.markCompleted'))!.trigger('click');
+    await defined(wrapper.findAll('button').find((item) => item.text() === t('competitionsPanel.operate.markCompleted'))).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'competitions.resolveAction')?.params).toEqual({ id: 'poll', generation: 1, resolution: 'completed' });
     expect(calls.some((call) => call.method === 'competitions.finish')).toBe(false);
@@ -241,7 +241,7 @@ describe('competition controls', () => {
     await wrapper.get('[data-item="poll"]').trigger('click');
     await flushPromises();
     expect(wrapper.text()).toContain(t('competitionsPanel.lifecycle.draft'));
-    await wrapper.findAll('button').find((item) => item.text() === t('competitionsPanel.operate.copyReveal'))!.trigger('click');
+    await defined(wrapper.findAll('button').find((item) => item.text() === t('competitionsPanel.operate.copyReveal'))).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'widgets.copyObsUrl')?.params).toEqual({
       widget: 'ranking',
@@ -249,7 +249,7 @@ describe('competition controls', () => {
       visualization: 'roulette',
       competitionId: 'poll',
     });
-    await wrapper.findAll('button').find((item) => item.text() === t('competitionsPanel.operate.start'))!.trigger('click');
+    await defined(wrapper.findAll('button').find((item) => item.text() === t('competitionsPanel.operate.start'))).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'competitions.start')?.params).toEqual({ id: 'poll' });
   });

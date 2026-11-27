@@ -8,7 +8,7 @@ import { createLiveFeedState } from '@/entities/live-event/model/live-feed-state
 import { flushPromises } from '@vue/test-utils';
 import type { AnalyticsTotals, GiftCatalogEntry } from '../../../../src/shared/messages.ts';
 import { DEMO_ACTIVITY_LENGTH } from '../../../../src/web/demo/fixtures/audience.ts';
-import { ERROR_CODE, RPC, TOPIC } from '../../../shared/index.ts';
+import { ERROR_CODE, RPC, TOPIC, defined } from '../../../shared/index.ts';
 
 describe('public demo host', () => {
   it('populates the feed, profiles, gift catalog and analytics from the same six fictional viewers', async () => {
@@ -21,7 +21,7 @@ describe('public demo host', () => {
       host.step();
       await Promise.resolve();
     }
-    const events = host.state.feedJournal!.map((row) => toUiEvent(row.event));
+    const events = defined(host.state.feedJournal).map((row) => toUiEvent(row.event));
     // Assert: the opening events come from six viewers, and the feed covers every kind of activity
     expect(new Set(events.slice(0, 9).map((event) => event.author)).size).toBe(6);
     expect(new Set(events.map((event) => event.kind))).toEqual(new Set(['chat', 'like', 'gift', 'member', 'social']));
@@ -33,10 +33,10 @@ describe('public demo host', () => {
     // Assert: every author is a leaderboard viewer, and points and level match each latest event
     for (const event of events) {
       expect(host.state.leaderboard.some((viewer) => viewer.uniqueId === event.author)).toBe(true);
-      if (event.kind === 'gift') expect(event.giftDetails?.imageUrl).toBe(catalog.gifts[0]!.iconUrl);
+      if (event.kind === 'gift') expect(event.giftDetails?.imageUrl).toBe(defined(catalog.gifts[0]).iconUrl);
     }
     for (const viewer of host.state.leaderboard) {
-      const last = events.findLast((event) => event.author === viewer.uniqueId)!;
+      const last = defined(events.findLast((event) => event.author === viewer.uniqueId));
       expect(viewer).toMatchObject({ points: last.points, level: last.level });
     }
     // Assert: analytics totals are exact sums of the six top viewers, so the dashboard matches the feed
@@ -59,7 +59,7 @@ describe('public demo host', () => {
   });
   it('awards the actual sender using the edited rates, toggles, subscriber bonus and gift quantity', async () => {
     const { host, client, dispose } = createDemoFixture('feed');
-    const viewer = (id: string) => host.state.leaderboard.find((user) => user.uniqueId === id)!;
+    const viewer = (id: string) => defined(host.state.leaderboard.find((user) => user.uniqueId === id));
     host.step();
     await Promise.resolve();
     expect(viewer('luna').points).toBe(121);

@@ -5,6 +5,7 @@ import type { PluginSettingValues } from '../../../../../../src/shared/messages.
 import { AUTOSAVE_CONFIRM_TIMEOUT_MS, AUTOSAVE_DEBOUNCE_MS } from '@/entities/plugin/lib/connection-settings.ts';
 import type { PluginSettingsState } from '@/types.ts';
 import { useConnectionAutosave } from '../../../../../../src/web/features/configure-plugin-connection/model/use-connection-autosave.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 const schema = {
   properties: {
@@ -19,9 +20,9 @@ function setup(values: PluginSettingValues = {}) {
   const settings = ref<PluginSettingsState | undefined>({ schema, values });
   const connection = ref<PluginConnectionState | undefined>(undefined);
   const saved: PluginSettingValues[] = [];
-  const autosave = scope.run(() =>
+  const autosave = defined(scope.run(() =>
     useConnectionAutosave({ pluginId, settings, connection, save: (next) => saved.push(next) }),
-  )!;
+  ));
   return { scope, pluginId, settings, connection, saved, autosave };
 }
 
@@ -51,7 +52,7 @@ describe('useConnectionAutosave', () => {
     const { autosave, settings } = setup();
     autosave.edit({ url: 'http://b' });
     autosave.flush();
-    settings.value = { ...settings.value!, values: { url: 'http://b' } };
+    settings.value = { ...defined(settings.value), values: { url: 'http://b' } };
     await nextTick();
     expect(autosave.saveState.value).toBe('saved');
     expect(autosave.dirty.value).toBe(false);

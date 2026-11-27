@@ -14,7 +14,7 @@ import {
   slugProfileId,
   useRuleProfiles,
 } from '../../../../../../src/web/entities/rule-template/model/rule-profiles-state.ts';
-import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, RPC, defined } from '../../../../../shared/index.ts';
 import { answer } from '../../../../support/answer.ts';
 import { propertyOf } from '../../../../support/json.ts';
 
@@ -130,8 +130,8 @@ test('param layers merge schema defaults, profile, then entry', () => {
   const parsed = parseRuleProfile(PROFILE);
   expect(parsed.ok).toBe(true);
   if (!parsed.ok) return;
-  expect(mergedEntryParams(parsed.profile, parsed.profile.templates[0]!)).toEqual({ giftName: 'Heart' });
-  expect(mergedEntryParams(parsed.profile, parsed.profile.templates[1]!)).toEqual({ giftName: 'Galaxy' });
+  expect(mergedEntryParams(parsed.profile, defined(parsed.profile.templates[0]))).toEqual({ giftName: 'Heart' });
+  expect(mergedEntryParams(parsed.profile, defined(parsed.profile.templates[1]))).toEqual({ giftName: 'Galaxy' });
 });
 
 test('import overrides win over entry params on every rule', () => {
@@ -157,7 +157,7 @@ test('profile param schema unions entries with profile values as defaults', () =
   const plain = parseRuleProfile({ ...PROFILE, templates: [{ template: TEMPLATE('bare', 'x'), params: {} }] });
   expect(plain.ok).toBe(true);
   if (!plain.ok) return;
-  plain.profile.templates[0]!.template.params = undefined;
+  defined(plain.profile.templates[0]).template.params = undefined;
   plain.profile.params = {};
   expect(profileParamSchema(plain.profile)).toBe(null);
 });

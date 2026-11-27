@@ -2,6 +2,7 @@ import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import BaseSplitter from '../../../../../../src/web/shared/ui/splitter/BaseSplitter.vue';
 import BaseToolbar from '../../../../../../src/web/shared/ui/toolbar/BaseToolbar.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 
@@ -13,13 +14,13 @@ describe('BaseToolbar', () => {
       slots: { default: '<button>Add</button><button disabled>Paste</button><button>Remove</button>' },
     });
     const [add, , remove] = wrapper.findAll('button').map((button) => button.element);
-    expect(add!.tabIndex).toBe(0);
-    expect(remove!.tabIndex).toBe(-1);
-    add!.focus();
+    expect(defined(add).tabIndex).toBe(0);
+    expect(defined(remove).tabIndex).toBe(-1);
+    defined(add).focus();
     await wrapper.trigger('keydown', { key: 'ArrowRight' });
     expect(document.activeElement).toBe(remove);
-    expect(remove!.tabIndex).toBe(0);
-    expect(add!.tabIndex).toBe(-1);
+    expect(defined(remove).tabIndex).toBe(0);
+    expect(defined(add).tabIndex).toBe(-1);
     await wrapper.trigger('keydown', { key: 'ArrowRight' });
     expect(document.activeElement).toBe(add);
   });

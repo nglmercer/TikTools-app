@@ -1,14 +1,15 @@
 import { describe, expect, test } from 'vitest';
 
 import { cloneDesign, EditorHistory } from '../../../../../../src/web/entities/overlay/lib/editor-history.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 describe('editor history', () => {
   test('clones designs without sharing nested objects', () => {
     const source = { background: '#112233', avatar: { size: 64 } };
     const copy = cloneDesign(source);
     expect(copy).toEqual(source);
-    copy.avatar!.size = 32;
-    expect(source.avatar!.size).toBe(64);
+    defined(copy.avatar).size = 32;
+    expect(defined(source.avatar).size).toBe(64);
   });
 
   test('undo restores pre-change snapshots and redo reapplies', () => {

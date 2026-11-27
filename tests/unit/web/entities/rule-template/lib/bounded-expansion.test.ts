@@ -8,7 +8,7 @@ import {
 } from '../../../../../../src/web/entities/rule-template/lib/rule-templates.ts';
 import { instantiateProfile, type RuleProfile } from '../../../../../../src/web/entities/rule-template/model/rule-profiles-state.ts';
 import { TEMPLATE_AGGREGATE_BYTES, TEMPLATE_RECORD_BYTES } from '../../../../../../src/web/entities/rule-template/lib/bounded-expansion.ts';
-import { ACTION_TYPE, ERROR_CODE, EVENT_KIND } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, EVENT_KIND, defined } from '../../../../../shared/index.ts';
 import { isRecord } from '../../../../support/json.ts';
 
 function template(value: JsonValue, actions = 1): RuleTemplate {
@@ -82,7 +82,7 @@ test('sole objects are measured before cloning and raw params are not recursivel
 test('profile aggregate is checked before any expanded tree is materialized, even when every individual record fits', () => {
   const source = profile('x'.repeat(70_000));
   expect(JSON.stringify(source).length).toBeLessThan(256 * 1024);
-  expect(() => applyRuleTemplate(source.templates[0]!.template, source.params)).not.toThrow();
+  expect(() => applyRuleTemplate(defined(source.templates[0]).template, source.params)).not.toThrow();
   const clone = vi.spyOn(Object, 'fromEntries');
   let failure: unknown;
   let cloned: number;

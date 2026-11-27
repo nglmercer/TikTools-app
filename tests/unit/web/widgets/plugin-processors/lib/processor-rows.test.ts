@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ProcessorStatusEntry } from '../../../../../../src/shared/messages.ts';
 import { filterProcessors, processorKey } from '../../../../../../src/web/widgets/plugin-processors/lib/processor-rows.ts';
-import { EVENT_KIND } from '../../../../../shared/index.ts';
+import { EVENT_KIND, defined } from '../../../../../shared/index.ts';
 
 function entry(pluginId: string, processorId: string, eventTypes: string[], status: ProcessorStatusEntry['status'] = 'ready') {
   return {
@@ -28,7 +28,7 @@ const entries = [entry('textintel', 'sentiment', [EVENT_KIND.tiktokChat]), entry
 
 describe('processor rows', () => {
   it('keys rows by plugin and processor', () => {
-    expect(processorKey(entries[0]!)).toBe('textintel/sentiment');
+    expect(processorKey(defined(entries[0]))).toBe('textintel/sentiment');
   });
 
   it('filters by every word across plugin, processor, status and events', () => {

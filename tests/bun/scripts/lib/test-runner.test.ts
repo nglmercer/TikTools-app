@@ -16,6 +16,7 @@ import {
   validateRustCrate,
 } from '../../../../scripts/lib/test-runner.ts';
 import { ProcessCancelled, createProcessRunner } from '../../../../scripts/lib/process-runner.ts';
+import { defined } from '../../../shared/index.ts';
 
 const CRATES = ['tiktools-cli', 'tiktools-core', 'tiktools-desktop'];
 
@@ -158,10 +159,10 @@ describe('workspace metadata and crate validation', () => {
   });
 
   test('plugin commands run inside the external plugin checkout', () => {
-    const [cmd] = buildTestCommands(
+    const [cmd] = defined(buildTestCommands(
       { area: 'plugin', plugin: 'sonicboom', watch: false, changed: false },
       { pluginRoots: ['plugins/sonicboom/shared'], pluginsRepository: '/work/plugins-example-tiktools' },
-    )!;
+    ));
     expect(cmd?.slice(1)).toEqual(['--cwd', '/work/plugins-example-tiktools', 'test', './plugins/sonicboom/shared']);
   });
 });
@@ -198,20 +199,20 @@ describe('command dispatch', () => {
   });
 
   test('a bun area filter narrows by test name instead of adding a path', () => {
-    const [cmd] = buildTestCommands({ area: 'bun', target: 'scripts', filter: 'batched', watch: false, changed: false }, {})!;
+    const [cmd] = defined(buildTestCommands({ area: 'bun', target: 'scripts', filter: 'batched', watch: false, changed: false }, {}));
     expect(cmd?.slice(1)).toEqual(['test', './tests/bun/scripts', '--test-name-pattern', 'batched']);
   });
 
   test('a tests/unit bun area runs on vitest with a name filter', () => {
-    const [cmd] = buildTestCommands({ area: 'bun', target: 'automation', filter: 'batched', watch: false, changed: false }, {})!;
+    const [cmd] = defined(buildTestCommands({ area: 'bun', target: 'automation', filter: 'batched', watch: false, changed: false }, {}));
     expect(cmd?.slice(1)).toEqual(['x', '--no-install', 'vitest', 'run', 'tests/unit/automation', '-t', 'batched']);
   });
 
   test('rust builds a locked linker-wrapped cargo command', () => {
-    const [cmd] = buildTestCommands(
+    const [cmd] = defined(buildTestCommands(
       { area: 'rust', crate: 'tiktools-core', filter: 'batched_likes', features: 'native-tiktok', watch: false, changed: false },
       { workspaceCrates: CRATES },
-    )!;
+    ));
     expect(cmd?.slice(1)).toEqual([
       'scripts/cargo-with-linker.mjs',
       'test',
@@ -231,7 +232,7 @@ describe('command dispatch', () => {
   });
 
   test('web builds a vitest filter command', () => {
-    const [cmd] = buildTestCommands({ area: 'web', filter: 'live-batch', watch: false, changed: false }, {})!;
+    const [cmd] = defined(buildTestCommands({ area: 'web', filter: 'live-batch', watch: false, changed: false }, {}));
     expect(cmd?.slice(-3)).toEqual(['vitest', 'run', 'live-batch']);
   });
 

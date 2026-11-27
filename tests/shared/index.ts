@@ -13,3 +13,4 @@ export * from './fixtures.ts';
 export * from './routes.ts';
 export * from './storage.ts';
 export * from './limits.ts';
+export * from './assert.ts';

@@ -54,7 +54,8 @@ export function nativeLibraryHost(business: (method: string, params?: RpcParams,
     const call = async (name: string, p: RpcParams, expected = '0') => business(name, p, { meta: { expectedRevision: expected }, onMetadata: (meta) => changed.push(...copy(meta?.resourceVersions ?? [])) });
     try {
       if (before.revision !== params?.expectedRevision || before.definitionDigest !== params?.definitionDigest) throw new ControlCallError('revision_conflict', 'Library changed');
-      const current = catalog!;
+      if (!catalog) throw new ControlCallError('protocol', 'The native library catalog is not loaded.');
+      const current = catalog;
       if (mutation.operation === 'create-profile') current.packs.push({ id: mutation.id, name: mutation.name, description: mutation.description, eventIds: [], actionIds: [] });
       if (mutation.operation === 'switch-profile') {
         const pack = current.packs.find((entry) => entry.id === mutation.id);

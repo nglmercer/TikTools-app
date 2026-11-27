@@ -3,6 +3,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { enableAutoUnmount } from '@vue/test-utils';
 import { afterEach, expect, it } from 'vitest';
 import BaseJsonEditor from '../../../../../../src/web/shared/ui/json/BaseJsonEditor.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 
@@ -22,7 +23,7 @@ it('rejects arrays and renders the valid document in the preview', async () => {
   const wrapper = mountWithPlugins(BaseJsonEditor, { props: { modelValue: '[1, 2]' } });
   expect(wrapper.text()).toContain(testMessage('en', 'jsonView.editor.objectRequired'));
   await wrapper.get('textarea').setValue('{"a":1}');
-  const preview = wrapper.findAll('button').find((button) => button.text() === testMessage('en', 'jsonView.editor.preview'))!;
+  const preview = defined(wrapper.findAll('button').find((button) => button.text() === testMessage('en', 'jsonView.editor.preview')));
   await preview.trigger('click');
   expect(wrapper.get('pre').text()).toContain('"a": 1');
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createCapabilityLedger, type DiscoverResult } from '../../../../../../src/web/entities/runtime/model/capabilities.ts';
-import { FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, RPC, defined } from '../../../../../shared/index.ts';
 
 const methods = (...names: string[]) => ({ methods: names.map((name) => ({ name })) });
 
@@ -51,6 +51,6 @@ describe('capability ledger', () => {
       JSON.stringify({ methods: [{ name: RPC.cloudStatus }, { name: '' }, null, { description: 'no name' }] }),
     );
     ledger.accept(ticket, FIXTURE_ID.hostA, malformed);
-    expect([...ledger.snapshot()!.methods]).toEqual([RPC.cloudStatus]);
+    expect([...defined(ledger.snapshot()).methods]).toEqual([RPC.cloudStatus]);
   });
 });

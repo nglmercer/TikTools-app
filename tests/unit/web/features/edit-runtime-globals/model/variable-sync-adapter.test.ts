@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import { createVariableSyncAdapter, type VariableComparison } from '../../../../../../src/web/features/edit-runtime-globals/model/variable-sync-adapter.ts';
-import { RPC } from '../../../../../shared/index.ts';
+import { RPC, defined } from '../../../../../shared/index.ts';
 
 function row(partial: Partial<VariableComparison> = {}): VariableComparison {
   return {
@@ -98,7 +98,7 @@ describe('native Variables Changes adapter', () => {
     const shown = await fixture.adapter.list();
     fixture.replace([row({ review: 'new-comparison' })]);
     await fixture.adapter.list();
-    await fixture.adapter.push!([shown[0]!.id]);
+    await defined(fixture.adapter.push)([defined(shown[0]).id]);
     expect(fixture.calls.at(-1)).toMatchObject({ method: RPC.syncV2VariablesSend, params: { review: 'reviewed-first' } });
     expect(
       fixture.calls.some(
@@ -108,23 +108,23 @@ describe('native Variables Changes adapter', () => {
   });
   it('fetches only into the cache and withdraws without replacing local values', async () => {
     const { adapter, calls, reloadLocal, refreshStatus } = setup();
-    await adapter.fetch!();
-    await adapter.withdraw!('secret-reference');
+    await defined(adapter.fetch)();
+    await defined(adapter.withdraw)('secret-reference');
     expect(calls.map((call) => call.method)).toEqual(['sync.v2.variables.fetch', RPC.syncV2VariablesWithdraw]);
     expect(reloadLocal).not.toHaveBeenCalled();
     expect(refreshStatus).toHaveBeenCalledTimes(2);
   });
   it('adopts the reviewed cached value through the native RPC and reloads local state', async () => {
     const { adapter, calls, reloadLocal } = setup();
-    await adapter.apply!('cloud-reference');
+    await defined(adapter.apply)('cloud-reference');
     expect(calls).toEqual([{ method: RPC.syncV2VariablesApply, params: { review: 'cloud-reference' } }]);
     expect(reloadLocal).toHaveBeenCalledOnce();
   });
   it('resolves by native send or native adoption and rejects field merges', async () => {
     const { adapter, calls } = setup();
-    await adapter.resolve!('one', { choice: 'local' });
-    await adapter.resolve!('two', { choice: 'cloud' });
-    await expect(adapter.resolve!('three', { choice: 'merged', value: {} })).rejects.toThrow();
+    await defined(adapter.resolve)('one', { choice: 'local' });
+    await defined(adapter.resolve)('two', { choice: 'cloud' });
+    await expect(defined(adapter.resolve)('three', { choice: 'merged', value: {} })).rejects.toThrow();
     expect(calls.map((call) => call.method)).toEqual([RPC.syncV2VariablesSend, RPC.syncV2VariablesApply]);
   });
 });

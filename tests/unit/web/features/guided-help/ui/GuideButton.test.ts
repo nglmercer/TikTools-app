@@ -6,6 +6,7 @@ import { activateLocale } from '@/shared/i18n/i18n.ts';
 import { tourCatalogs } from '../../../../../../src/web/features/guided-help/catalogs';
 import { rectList } from '../../../../support/dom.ts';
 import { mountGuideScope, mountGuideTargets, removeGuideFixtures } from '../support/dom.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 type TestConfig = Record<string, unknown> & {
   onDestroyed?: () => void;
@@ -80,10 +81,10 @@ it('loads the tour only when requested, skips unavailable controls and escapes t
   const { wrapper, root } = await mountGuide();
   expect(fake.driver).not.toHaveBeenCalled();
   await open(wrapper);
-  const steps = fake.engine.setSteps.mock.calls[0]![0];
+  const steps = defined(fake.engine.setSteps.mock.calls[0])[0];
   expect(steps).toHaveLength(1);
-  expect(steps[0]!.element).toBe(root.querySelector('#one'));
-  expect(steps[0]!.popover.description).toBe('&lt;safe&gt;');
+  expect(defined(steps[0]).element).toBe(root.querySelector('#one'));
+  expect(defined(steps[0]).popover.description).toBe('&lt;safe&gt;');
   expect(fake.config().allowKeyboardControl).toBe(true);
 });
 it('tracks a completed application action through props and cleans up on unmount', async () => {
@@ -91,7 +92,7 @@ it('tracks a completed application action through props and cleans up on unmount
   await open(wrapper);
   await wrapper.setProps({ steps: [{ id: 'two', selector: '#two', title: 'Second', description: 'Ready' }] });
   await flushPromises();
-  expect(fake.engine.setSteps.mock.lastCall![0][0]!.element).toBe(root.querySelector('#two'));
+  expect(defined(defined(fake.engine.setSteps.mock.lastCall)[0][0]).element).toBe(root.querySelector('#two'));
   wrapper.unmount();
   expect(fake.engine.destroy).toHaveBeenCalled();
 });

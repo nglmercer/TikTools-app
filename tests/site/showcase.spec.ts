@@ -4,6 +4,7 @@ import {
 } from './support/index.ts';
 import { showcaseCopy } from '../../src/web/demo/showcase/copy.ts';
 import { showcaseSteps } from '../../src/web/demo/showcase/script.ts';
+import { defined } from '../shared/index.ts';
 
 /** Whole recording test: the poll may take `timeout.showcaseRun`, the rest is setup. */
 const RECORDING_TEST_MS = 90_000;
@@ -29,7 +30,7 @@ test('the showcase walks the real views on its own, with a spotlight and a toolt
   await expectFirstChatMessage(page);
   // The inspector profile is opened by the registered guide action, not by synthetic clicks.
   await expect(page.locator(selector.showcaseTip)).toHaveText(showcaseCopy.en.inspector, { timeout: timeout.showcaseStep });
-  await expect(page.locator(guideTargetSelector(showcaseSteps.find((step) => step.id === 'inspector')!.target))).toBeVisible();
+  await expect(page.locator(guideTargetSelector(defined(showcaseSteps.find((step) => step.id === 'inspector')).target))).toBeVisible();
   await expect(page.locator(selector.demoControls)).toBeHidden();
   expect(errors).toEqual([]);
 });

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
 import BaseMenuBar from '../../../../../../src/web/shared/ui/menu/BaseMenuBar.vue';
 import type { MenuBarMenu } from '../../../../../../src/web/shared/ui/menu/menu-types.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 
@@ -27,16 +28,16 @@ describe('BaseMenuBar', () => {
   it('exposes a single tab stop and moves focus with arrow keys', async () => {
     const wrapper = mountMenuBar();
     const [file, view] = wrapper.findAll<HTMLElement>('[role="menuitem"]').map((item) => item.element);
-    expect(file!.tabIndex).toBe(0);
-    expect(view!.tabIndex).toBe(-1);
-    file!.focus();
+    expect(defined(file).tabIndex).toBe(0);
+    expect(defined(view).tabIndex).toBe(-1);
+    defined(file).focus();
     press('ArrowRight');
     expect(document.activeElement).toBe(view);
   });
 
   it('opens with the keyboard and moves between menus while open', async () => {
     const wrapper = mountMenuBar();
-    wrapper.findAll<HTMLElement>('[role="menuitem"]')[0]!.element.focus();
+    defined(wrapper.findAll<HTMLElement>('[role="menuitem"]')[0]).element.focus();
     press('ArrowDown');
     await nextTick();
     expect(openMenuLabels()).toEqual(['Connect', 'Exit']);
@@ -49,9 +50,9 @@ describe('BaseMenuBar', () => {
 
   it('emits the selected action and closes', async () => {
     const wrapper = mountMenuBar();
-    await wrapper.findAll('[role="menuitem"]')[0]!.trigger('click');
+    await defined(wrapper.findAll('[role="menuitem"]')[0]).trigger('click');
     await nextTick();
-    document.querySelectorAll<HTMLElement>('[role="menu"] [role="menuitem"]')[1]!.click();
+    defined(document.querySelectorAll<HTMLElement>('[role="menu"] [role="menuitem"]')[1]).click();
     await nextTick();
     await nextTick();
     expect(wrapper.emitted('select')?.[0]?.[0]).toMatchObject({ id: 'exit' });
@@ -60,7 +61,7 @@ describe('BaseMenuBar', () => {
 
   it('toggles a menu closed when its title is clicked again', async () => {
     const wrapper = mountMenuBar();
-    const file = wrapper.findAll('[role="menuitem"]')[0]!;
+    const file = defined(wrapper.findAll('[role="menuitem"]')[0]);
     await file.trigger('click');
     expect(file.attributes('aria-expanded')).toBe('true');
     await file.trigger('click');

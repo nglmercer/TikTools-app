@@ -1,3 +1,4 @@
+import { defined } from '../../shared/index.ts';
 /** Typed DOM lookups for tests: they narrow with `instanceof`, so no `as HTMLInputElement` casts are needed. */
 type ElementConstructor<T extends Element> = abstract new (...args: never[]) => T;
 
@@ -34,7 +35,7 @@ class FakeDOMRectList implements DOMRectList {
   }
 
   *[Symbol.iterator](): ArrayIterator<DOMRect> {
-    for (let index = 0; index < this.length; index++) yield this[index]!;
+    for (let index = 0; index < this.length; index++) yield defined(this[index]);
   }
 }
 

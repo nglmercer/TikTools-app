@@ -10,6 +10,7 @@ import IconChat from '@/shared/ui/icon/icons/IconChat.vue';
 import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import type { NavigationSection } from '../../../../../../src/web/widgets/app-navigation/model/navigation-types.ts';
 import AppNavigation from '../../../../../../src/web/widgets/app-navigation/ui/AppNavigation.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 const Empty = defineComponent({ render: () => null });
 
@@ -40,8 +41,8 @@ describe('AppNavigation', () => {
     expect(wrapper.get('h2').text()).toBe('Workspace');
     const links = wrapper.findAll('a');
     expect(links.map((link) => link.text())).toEqual([t('navigation.feed'), t('navigation.settings')]);
-    expect(links[1]!.attributes('aria-current')).toBe('page');
-    expect(links[0]!.attributes('aria-current')).toBeUndefined();
+    expect(defined(links[1]).attributes('aria-current')).toBe('page');
+    expect(defined(links[0]).attributes('aria-current')).toBeUndefined();
   });
 
   it('collapses to an icon rail with accessible names', async () => {

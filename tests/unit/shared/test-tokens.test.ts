@@ -18,6 +18,7 @@ describe('shared test tokens', () => {
 
   it('never names two concepts with the same value inside one group', () => {
     for (const [group, values] of Object.entries(tokens)) {
+      if (typeof values === 'function') continue; // helpers such as `defined` are not token groups
       if (!isRecord(values)) throw new Error(`Expected token group ${group} to be an object`);
       const list = Object.values(values);
       expect(new Set(list).size, group).toBe(list.length);

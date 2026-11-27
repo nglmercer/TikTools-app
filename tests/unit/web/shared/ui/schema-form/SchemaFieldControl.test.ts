@@ -7,6 +7,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import BaseMenu from '@/shared/ui/menu/BaseMenu.vue';
 import type { SchemaFieldDescriptor } from '../../../../../../src/web/shared/ui/schema-form/lib/schema-fields.ts';
 import SchemaFieldControl from '../../../../../../src/web/shared/ui/schema-form/SchemaFieldControl.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -31,12 +32,12 @@ it('anchors variable suggestions to the control and inserts into the current tex
   } });
   await wrapper.get('button').trigger('click');
   expect(wrapper.getComponent(BaseMenu).props('anchor')).toBeInstanceOf(HTMLElement);
-  document.querySelector<HTMLElement>('[role="menuitem"]')!.click();
+  defined(document.querySelector<HTMLElement>('[role="menuitem"]')).click();
   await nextTick();
-  expect(wrapper.emitted('update')!.at(-1)).toEqual(['Hello {{ event.user.uniqueId }}']);
+  expect(defined(wrapper.emitted('update')).at(-1)).toEqual(['Hello {{ event.user.uniqueId }}']);
   await wrapper.setProps({ field: field({ kind: 'json', arrayJson: true }), value: '' });
   await wrapper.get('textarea').setValue('["one","two"]');
-  expect(wrapper.emitted('update')!.at(-1)).toEqual([['one', 'two']]);
+  expect(defined(wrapper.emitted('update')).at(-1)).toEqual([['one', 'two']]);
 });
 
 it('retains media errors across control-kind changes, clears them on typing and preserves selected file metadata', async () => {
@@ -47,7 +48,7 @@ it('retains media errors across control-kind changes, clears them on typing and 
     field: media, value: '', controlId: 'media-field', openMediaPicker: picker,
   } });
   await wrapper.get('button').trigger('click');
-  expect(picker.mock.calls[0]![0]).toMatchObject({ mode: 'file', kind: 'audio', title: 'Value', extensions: expect.arrayContaining(['wav', 'mp3']) });
+  expect(defined(picker.mock.calls[0])[0]).toMatchObject({ mode: 'file', kind: 'audio', title: 'Value', extensions: expect.arrayContaining(['wav', 'mp3']) });
   selected?.(null, 'Unreadable file');
   await nextTick();
   expect(wrapper.get('[role="alert"]').text()).toBe('Unreadable file');
@@ -56,10 +57,10 @@ it('retains media errors across control-kind changes, clears them on typing and 
   expect(wrapper.get('[role="alert"]').text()).toBe('Unreadable file');
   await wrapper.get('input').setValue('/manual.wav');
   expect(wrapper.find('[role="alert"]').exists()).toBe(false);
-  expect(wrapper.emitted('update')!.at(-1)).toEqual(['/manual.wav']);
+  expect(defined(wrapper.emitted('update')).at(-1)).toEqual(['/manual.wav']);
   await wrapper.get('button').trigger('click');
   const file = { referenceVersion: 1, path: '/sound.wav', directory: '/', name: 'sound.wav', extension: 'wav', sizeBytes: 42 };
   selected?.({ type: 'file', file });
   await nextTick();
-  expect(wrapper.emitted('update')!.at(-1)).toEqual([file]);
+  expect(defined(wrapper.emitted('update')).at(-1)).toEqual([file]);
 });

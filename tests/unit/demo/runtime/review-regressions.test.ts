@@ -4,7 +4,7 @@ import { callWithMeta } from '@/shared/api/control-client.ts';
 import { createDemoTransport, demoMethod, objectParams } from '../../../../src/web/demo/runtime/transport.ts';
 import { createDemoFixture } from '../support/host.ts';
 import { propertyOf } from '../../support/json.ts';
-import { ACTION_TYPE, ERROR_CODE, RPC } from '../../../shared/index.ts';
+import { ACTION_TYPE, ERROR_CODE, RPC, defined } from '../../../shared/index.ts';
 
 const MiB = 1024 * 1024;
 const cleanup: Array<() => void> = [];
@@ -32,7 +32,7 @@ describe('review regressions: demo runtime contract and isolation', () => {
   for (const method of [RPC.pluginsSettingsGet, 'plugins.settings.set']) {
     it.each(['constructor', '__proto__'])(`${method} rejects inherited plugin key %s without changing built-ins`, async (pluginId) => {
       const { client, host } = hostHarness();
-      const originalValues = Object.getOwnPropertyDescriptor(Object, 'values')!;
+      const originalValues = defined(Object.getOwnPropertyDescriptor(Object, 'values'));
       const originalPrototypeValues = Object.getOwnPropertyDescriptor(Object.prototype, 'values');
       let failure: unknown;
       let observedValues: PropertyDescriptor | undefined;
@@ -69,9 +69,9 @@ describe('review regressions: demo runtime contract and isolation', () => {
     expect(host.state.leaderboard).toEqual(before);
     expect(host.wasSuccessful(RPC.pointsAdjust)).toBe(false);
 
-    const viewer = before[0]!;
+    const viewer = defined(before[0]);
     await client.call(RPC.pointsAdjust, { uniqueId: viewer.uniqueId, delta: 5 });
-    expect(host.state.leaderboard[0]!.points).toBe(Number(viewer.points) + 5);
+    expect(defined(host.state.leaderboard[0]).points).toBe(Number(viewer.points) + 5);
     expect(host.wasSuccessful(RPC.pointsAdjust)).toBe(true);
 
     await expect(client.call(RPC.pointsAdjust, { uniqueId: 'still-missing', delta: 5 }))
@@ -110,8 +110,8 @@ describe('review regressions: demo runtime contract and isolation', () => {
     peer.transport.send(request(1, 'fixture.large'));
     await Promise.resolve();
     expect(delivered).toHaveLength(1);
-    expect(delivered[0]!.response).toMatchObject({ id: 1, error: { code: ERROR_CODE.tooLarge } });
-    expect(delivered[0]!.response).not.toHaveProperty('result');
+    expect(defined(delivered[0]).response).toMatchObject({ id: 1, error: { code: ERROR_CODE.tooLarge } });
+    expect(defined(delivered[0]).response).not.toHaveProperty('result');
     expect(peer.diagnostics().queuedBytes).toBe(0);
   });
 
@@ -178,8 +178,8 @@ describe('review regressions: demo runtime contract and isolation', () => {
   it('rejects an update identity mismatch without changing the original record, references or revisions', async () => {
     const { host, client } = hostHarness();
     const before = await callWithMeta<BehaviorSnapshot>(client, RPC.automationSnapshot, {});
-    const original = before.result.actions[0]!;
-    const version = before.meta!.resourceVersions.find((item) => item.scope === 'action' && item.id === original.id)!;
+    const original = defined(before.result.actions[0]);
+    const version = defined(defined(before.meta).resourceVersions.find((item) => item.scope === 'action' && item.id === original.id));
     const candidate = { ...original, id: 'unexpected-renamed-identity', name: 'Must not be committed' };
     await expect(client.call(RPC.automationUpdate, { kind: 'action', id: original.id, record: candidate }, {
       meta: { expectedRevision: version.revision },
@@ -188,7 +188,7 @@ describe('review regressions: demo runtime contract and isolation', () => {
 
     const after = await callWithMeta<BehaviorSnapshot>(client, RPC.automationSnapshot, {});
     expect(after.result).toEqual(before.result);
-    expect(after.meta?.resourceVersions).toEqual(before.meta!.resourceVersions);
+    expect(after.meta?.resourceVersions).toEqual(defined(before.meta).resourceVersions);
     const retained = await callWithMeta<LiveAction>(client, 'automation.get', { kind: 'action', id: original.id });
     expect(retained.result).toEqual(original);
     expect(retained.meta?.resourceVersions).toEqual([version]);

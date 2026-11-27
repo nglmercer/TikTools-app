@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { createBrowserTransport, touchLocalSession } from '../../../../../src/web/shared/api/browser-transport.ts';
-import { RPC } from '../../../../shared/index.ts';
+import { RPC, defined } from '../../../../shared/index.ts';
 
 /** A scripted WebSocket: a real EventTarget that implements the whole interface, driven by the test through `open`, `receive` and `close`. */
 class Socket extends EventTarget implements WebSocket {
@@ -76,19 +76,19 @@ test('disconnect rejects transport work and reconnect never replays mutations', 
     return socket;
   } });
   const connected = transport.connect();
-  sockets[0]!.open();
+  defined(sockets[0]).open();
   await connected;
   const disconnected = vi.fn(), reconnected = vi.fn();
   transport.attach(vi.fn(), disconnected, reconnected);
   transport.send('mutation');
-  sockets[0]!.close();
+  defined(sockets[0]).close();
   expect(disconnected).toHaveBeenCalledOnce();
   expect(() => transport.send('other')).toThrow('unavailable');
   await vi.advanceTimersByTimeAsync(500);
   expect(sockets).toHaveLength(2);
-  sockets[1]!.open();
+  defined(sockets[1]).open();
   expect(reconnected).toHaveBeenCalledOnce();
-  expect(sockets[1]!.sent).toEqual([]);
+  expect(defined(sockets[1]).sent).toEqual([]);
   transport.detach();
   await vi.advanceTimersByTimeAsync(60_000);
   expect(sockets).toHaveLength(2);
@@ -181,13 +181,13 @@ test('a replacement connection ignores messages from the old socket', async () =
   const old = expect(transport.connect()).rejects.toThrow('cancelled');
   const opening = transport.connect();
   await old;
-  sockets[1]!.open();
+  defined(sockets[1]).open();
   await opening;
   const receive = vi.fn();
   transport.attach(receive, vi.fn(), vi.fn());
-  sockets[0]!.open();
-  sockets[0]!.receive('stale');
-  sockets[1]!.receive('current');
+  defined(sockets[0]).open();
+  defined(sockets[0]).receive('stale');
+  defined(sockets[1]).receive('current');
   expect(receive.mock.calls).toEqual([['current']]);
   transport.detach();
 });
@@ -200,11 +200,11 @@ test('replacing an open connection invalidates pending work and old buffered eve
     return socket;
   } });
   const opening = transport.connect();
-  sockets[0]!.open();
+  defined(sockets[0]).open();
   await opening;
-  sockets[0]!.receive('old buffered state');
+  defined(sockets[0]).receive('old buffered state');
   const second = transport.connect();
-  sockets[1]!.open();
+  defined(sockets[1]).open();
   await second;
   const receive = vi.fn(), gap = vi.fn(), disconnected = vi.fn();
   transport.attach(receive, disconnected, gap);
@@ -212,7 +212,7 @@ test('replacing an open connection invalidates pending work and old buffered eve
   expect(gap).toHaveBeenCalledOnce();
   const third = transport.connect();
   expect(disconnected).toHaveBeenCalledWith(expect.stringContaining('connection replaced'));
-  sockets[2]!.open();
+  defined(sockets[2]).open();
   await third;
   transport.detach();
 });
@@ -246,10 +246,10 @@ test('leaves reconnection to the owner when autoReconnect is disabled', async ()
     sessionState: (state) => states.push(state),
   });
   const connected = transport.connect();
-  sockets[0]!.open();
+  defined(sockets[0]).open();
   await connected;
   expect(states).toEqual(['ok']);
-  sockets[0]!.close();
+  defined(sockets[0]).close();
   expect(states).toEqual(['ok', 'reconnecting']);
   await vi.advanceTimersByTimeAsync(60_000);
   expect(sockets).toHaveLength(1);

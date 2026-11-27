@@ -5,6 +5,7 @@ import type { LiveAction } from '../../../../../../src/automation/behavior/types
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { actionType, text } from '../../../../support/automation.ts';
 import ActionEditor from '../../../../../../src/web/features/edit-automation-action/ui/ActionEditor.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -70,7 +71,7 @@ it('renders an empty default for a templated text field as empty, not "true"', a
   });
   await flushPromises();
   const input = wrapper.findAll<HTMLInputElement>('input').find((el) => el.element.placeholder === 'Daft Punk');
-  expect(input!.element.value).toBe('');
+  expect(defined(input).element.value).toBe('');
 });
 
 it('keeps the enable switch in the General section header and mutes an inactive action', async () => {

@@ -5,7 +5,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import DiagnosticsLog from '../../../../../src/web/shared/diagnostics/DiagnosticsLog.vue';
 import { diagnosticLog, diagnosticView } from '../../../../../src/web/shared/diagnostics/log.ts';
-import { ACCOUNT_STATE } from '../../../../shared/index.ts';
+import { ACCOUNT_STATE, defined } from '../../../../shared/index.ts';
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
 afterEach(() => {
@@ -37,7 +37,7 @@ test('changing source clears entity context so filters do not hide unrelated sou
   diagnosticView.source.value = 'plugins';
   diagnosticView.entityId.value = 'game';
   const wrapper = mountWithPlugins(DiagnosticsLog);
-  wrapper.findAllComponents(BaseComboBox)[0]!.vm.$emit('update:modelValue', 'sync');
+  defined(wrapper.findAllComponents(BaseComboBox)[0]).vm.$emit('update:modelValue', 'sync');
   await flushPromises();
   expect(diagnosticView.entityId.value).toBe('');
   expect(wrapper.findAll('.logs__message').map(row => row.text())).toEqual(['sync failure']);
@@ -55,10 +55,10 @@ test('copies redacted selected details and clearing history preserves domain-ind
   });
   diagnosticView.selectedId.value = entry.id;
   const wrapper = mountWithPlugins(DiagnosticsLog);
-  await wrapper.findAll('button').find(button => button.text() === t('diagnostics.copyEntry'))!.trigger('click');
+  await defined(wrapper.findAll('button').find(button => button.text() === t('diagnostics.copyEntry'))).trigger('click');
   expect(writeText).toHaveBeenCalledOnce();
-  expect(writeText.mock.calls[0]![0]).not.toContain('private-secret');
-  expect(writeText.mock.calls[0]![0]).not.toContain('another-secret');
+  expect(defined(writeText.mock.calls[0])[0]).not.toContain('private-secret');
+  expect(defined(writeText.mock.calls[0])[0]).not.toContain('another-secret');
   await wrapper.get('button[aria-label="Clear history"]').trigger('click');
   expect(wrapper.text()).toContain(t('diagnostics.emptyHistory'));
 });
@@ -72,12 +72,12 @@ test('filters collapse without losing state and copy scopes stay distinct', asyn
   const toggle = wrapper.get('.logs__filter-button');
   expect(toggle.attributes('aria-expanded')).toBe('false');
   await toggle.trigger('click');
-  wrapper.findAllComponents(BaseComboBox)[0]!.vm.$emit('update:modelValue', 'plugins');
+  defined(wrapper.findAllComponents(BaseComboBox)[0]).vm.$emit('update:modelValue', 'plugins');
   await flushPromises();
   await wrapper.get('button[aria-label="Copy filtered"]').trigger('click');
   expect(writeText.mock.calls.at(-1)?.[0]).toContain('plugin failure');
   expect(writeText.mock.calls.at(-1)?.[0]).not.toContain('sync complete');
-  await wrapper.findAll('button').find(button => button.text() === t('diagnostics.copyAll'))!.trigger('click');
+  await defined(wrapper.findAll('button').find(button => button.text() === t('diagnostics.copyAll'))).trigger('click');
   expect(writeText.mock.calls.at(-1)?.[0]).toContain('sync complete');
   await wrapper.get('.logs__filters').trigger('keydown', { key: 'Escape' });
   expect(toggle.attributes('aria-expanded')).toBe('false');
@@ -94,7 +94,7 @@ test('does not repeat identical details but preserves the full export text', asy
   diagnosticView.selectedId.value = entry.id;
   const wrapper = mountWithPlugins(DiagnosticsLog);
   expect(wrapper.find('pre').exists()).toBe(false);
-  await wrapper.findAll('button').find(button => button.text() === t('diagnostics.copyEntry'))!.trigger('click');
+  await defined(wrapper.findAll('button').find(button => button.text() === t('diagnostics.copyEntry'))).trigger('click');
   expect(writeText.mock.calls[0]?.[0]).toContain('Not supported');
 });
 test('renders structured properties and a raw JSON view for the selected entry', async () => {
@@ -108,7 +108,7 @@ test('renders structured properties and a raw JSON view for the selected entry',
   diagnosticView.selectedId.value = entry.id;
   const wrapper = mountWithPlugins(DiagnosticsLog);
   expect(wrapper.get('.logs__fields').text()).toContain(ACCOUNT_STATE.signedIn);
-  await wrapper.findAll('button').find(button => button.text() === t('diagnostics.showRaw'))!.trigger('click');
+  await defined(wrapper.findAll('button').find(button => button.text() === t('diagnostics.showRaw'))).trigger('click');
   expect(wrapper.get('.logs__raw').text()).toContain('account.status');
 });
 

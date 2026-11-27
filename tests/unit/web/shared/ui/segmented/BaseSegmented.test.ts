@@ -2,6 +2,7 @@ import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import BaseDateField from '../../../../../../src/web/shared/ui/date-field/BaseDateField.vue';
 import BaseSegmented from '../../../../../../src/web/shared/ui/segmented/BaseSegmented.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 
@@ -35,7 +36,7 @@ describe('BaseSegmented', () => {
 
   it('selects by click and arrows past disabled options', async () => {
     const wrapper = mountSegmented();
-    await wrapper.findAll('[role="radio"]')[0]!.trigger('click');
+    await defined(wrapper.findAll('[role="radio"]')[0]).trigger('click');
     expect(wrapper.props('modelValue')).toBe('today');
     await wrapper.trigger('keydown', { key: 'End' });
     expect(wrapper.props('modelValue')).toBe('90d');

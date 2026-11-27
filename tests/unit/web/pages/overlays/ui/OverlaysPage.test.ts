@@ -6,7 +6,7 @@ import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import OverlaysPage from '../../../../../../src/web/pages/overlays/ui/OverlaysPage.vue';
-import { FIXTURE_ID, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, RPC, STORAGE_KEY, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -33,11 +33,11 @@ async function mountPage(announce: string[] = []) {
 type Wrapper = Awaited<ReturnType<typeof mountPage>>['wrapper'];
 
 function buttonByText(wrapper: Wrapper, text: string) {
-  return wrapper.findAll('button').find((button) => button.text() === text)!;
+  return defined(wrapper.findAll('button').find((button) => button.text() === text));
 }
 
 async function selectKind(wrapper: Wrapper, name: string) {
-  await wrapper.findAll('.overlays-page__kinds [role="option"]').find((item) => item.text().includes(name))!.trigger('pointerdown');
+  await defined(wrapper.findAll('.overlays-page__kinds [role="option"]').find((item) => item.text().includes(name))).trigger('pointerdown');
   await nextTick();
 }
 
@@ -99,7 +99,7 @@ describe('OverlaysPage', () => {
   it('clears selection when search hides the selected overlay', async () => {
     const { wrapper } = await mountPage([RPC.bundlesOverlaysCreate]);
     await wrapper.get('button[aria-label="Cloud"]').trigger('click');
-    await wrapper.findAll('.overlay-library__card')[0]!.trigger('click');
+    await defined(wrapper.findAll('.overlay-library__card')[0]).trigger('click');
     await wrapper.get('.overlay-library input[type="search"]').setValue('no matching widget');
     expect(wrapper.get('.overlay-library').text()).toContain(t('overlayLibrary.empty'));
     expect(buttonByText(wrapper, t('overlayLibrary.open')).attributes('disabled')).toBeDefined();
@@ -117,7 +117,7 @@ describe('OverlaysPage', () => {
     const { wrapper, calls } = await mountPage();
     expect(buttonByText(wrapper, t('overlays.editor.save')).attributes('disabled')).toBeDefined();
     await buttonByText(wrapper, t('overlays.editor.sections.card')).trigger('click');
-    const shadow = wrapper.findAll('.design-inspector input[type="checkbox"]')[0]!;
+    const shadow = defined(wrapper.findAll('.design-inspector input[type="checkbox"]')[0]);
     await shadow.setValue(false);
     expect(buttonByText(wrapper, t('overlays.editor.save')).attributes('disabled')).toBeUndefined();
     await buttonByText(wrapper, t('overlays.editor.save')).trigger('click');
@@ -131,10 +131,10 @@ describe('OverlaysPage', () => {
   it('asks before switching away from unsaved changes', async () => {
     const { wrapper } = await mountPage();
     await buttonByText(wrapper, t('overlays.editor.sections.card')).trigger('click');
-    await wrapper.findAll('.design-inspector input[type="checkbox"]')[0]!.setValue(false);
+    await defined(wrapper.findAll('.design-inspector input[type="checkbox"]')[0]).setValue(false);
     await selectKind(wrapper, t('overlays.kinds.gift.name'));
     expect(document.body.textContent).toContain(t('overlays.editor.discardTitle'));
-    Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Discard')!.click();
+    defined(Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Discard')).click();
     await nextTick();
     expect(wrapper.get<HTMLInputElement>('#overlay-source-url').element.value).toContain('/widgets/gift/');
   });

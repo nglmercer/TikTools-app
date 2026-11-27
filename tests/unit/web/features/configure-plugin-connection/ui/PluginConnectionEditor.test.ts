@@ -4,7 +4,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { AUTOSAVE_DEBOUNCE_MS } from '@/entities/plugin/lib/connection-settings.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import PluginConnectionEditor from '../../../../../../src/web/features/configure-plugin-connection/ui/PluginConnectionEditor.vue';
-import { PLUGIN_ID } from '../../../../../shared/index.ts';
+import { PLUGIN_ID, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -35,8 +35,8 @@ test('a local server without authentication stays connected while downloading it
 
 test('connect opens the admin login when the server requires authorization', async () => {
   const wrapper = mountEditor(true, false);
-  await wrapper.findAll('button').find(button => button.text() === 'Connect SonicBoom')!.trigger('click');
-  await wrapper.setProps({ connection: { ...wrapper.props('connection')!, at: 2 } });
+  await defined(wrapper.findAll('button').find(button => button.text() === 'Connect SonicBoom')).trigger('click');
+  await wrapper.setProps({ connection: { ...defined(wrapper.props('connection')), at: 2 } });
   await flushPromises();
   const username = document.querySelector<HTMLInputElement>('#provision-user');
   expect(username?.value).toBe('admin');
@@ -46,8 +46,8 @@ test('connect opens the admin login when the server requires authorization', asy
 
 test('the sign-in dialog outlives the authorization button when the server becomes authorized', async () => {
   const wrapper = mountEditor(true, false);
-  await wrapper.findAll('button').find(button => button.text() === 'Connect SonicBoom')!.trigger('click');
-  await wrapper.setProps({ connection: { ...wrapper.props('connection')!, at: 2 } });
+  await defined(wrapper.findAll('button').find(button => button.text() === 'Connect SonicBoom')).trigger('click');
+  await wrapper.setProps({ connection: { ...defined(wrapper.props('connection')), at: 2 } });
   await flushPromises();
   expect(document.querySelector('#provision-password')).not.toBeNull();
   await wrapper.setProps({ connection: { ok: true, reachable: true, latencyMs: 4, at: 3,
@@ -61,7 +61,7 @@ test('the sign-in dialog outlives the authorization button when the server becom
 test('manual token entry is available under advanced settings and preserves the saved value', async () => {
   const wrapper = mountEditor(true, false);
   expect(wrapper.find('input[type="password"]').exists()).toBe(false);
-  await wrapper.findAll('button').find(button => button.text() === t('plugins.connection.advanced'))!.trigger('click');
+  await defined(wrapper.findAll('button').find(button => button.text() === t('plugins.connection.advanced'))).trigger('click');
   expect(wrapper.find('input[type="password"]').exists()).toBe(true);
   expect(wrapper.emitted('save')).toBeUndefined();
 });
@@ -69,7 +69,7 @@ test('manual token entry is available under advanced settings and preserves the 
 test('discovery completes before opening the sign-in dialog on a first connection', async () => {
   const wrapper = mountEditor(false, false);
   await wrapper.setProps({ connection: { ok: false, latencyMs: 0, at: 2 } });
-  await wrapper.findAll('button').find(button => button.text() === 'Connect SonicBoom')!.trigger('click');
+  await defined(wrapper.findAll('button').find(button => button.text() === 'Connect SonicBoom')).trigger('click');
   expect(wrapper.emitted('test')).toBeTruthy();
   await wrapper.setProps({ connection: { ok: false, reachable: true, latencyMs: 3, at: 3,
     serverInfo: { authRequired: true, authorized: false, modelStatus: 'loading', setupComplete: true, playback: true } } });
@@ -96,9 +96,9 @@ test('the sectioned layout keeps connection fields and gameplay defaults side by
     t('plugins.connection.sections.connection'),
     t('plugins.connection.sections.defaults'),
   ]);
-  expect(sections[0]!.find('input[type="password"]').exists()).toBe(true);
-  expect(sections[0]!.find('input[role="spinbutton"]').exists()).toBe(false);
-  expect(sections[1]!.find('input[role="spinbutton"]').exists()).toBe(true);
+  expect(defined(sections[0]).find('input[type="password"]').exists()).toBe(true);
+  expect(defined(sections[0]).find('input[role="spinbutton"]').exists()).toBe(false);
+  expect(defined(sections[1]).find('input[role="spinbutton"]').exists()).toBe(true);
 });
 
 test('an unreachable server keeps recovery guidance and moves technical details to logs', async () => {
@@ -106,7 +106,7 @@ test('an unreachable server keeps recovery guidance and moves technical details 
   await wrapper.setProps({ connection: { ok: false, reachable: false, error: 'raw network failure', latencyMs: 5, at: 2 } });
   expect(wrapper.text()).toContain('Open SonicBoom on this computer');
   expect(wrapper.text()).not.toContain('raw network failure');
-  await wrapper.findAll('button').find(button => button.text() === t('plugins.connection.advanced'))!.trigger('click');
+  await defined(wrapper.findAll('button').find(button => button.text() === t('plugins.connection.advanced'))).trigger('click');
   expect(wrapper.text()).not.toContain('raw network failure');
   expect(wrapper.find('button[aria-label="Connection failed. View logs"]').exists()).toBe(true);
 });
@@ -136,10 +136,10 @@ describe.each(['stacked', 'sections'] as const)('credentials and authorization i
     const [auto, folder] = buttons.filter(button => button.attributes('title')?.startsWith('Finds installed games'));
     expect(auto).toBeDefined();
     expect(folder).toBeDefined();
-    await auto!.trigger('click');
-    await folder!.trigger('click');
-    await buttons.find(button => button.attributes('title')?.startsWith('Select the game or server configuration file'))!.trigger('click');
-    await buttons.filter(button => button.text() === t('plugins.connection.useConfiguration'))[1]!.trigger('click');
+    await defined(auto).trigger('click');
+    await defined(folder).trigger('click');
+    await defined(buttons.find(button => button.attributes('title')?.startsWith('Select the game or server configuration file'))).trigger('click');
+    await defined(buttons.filter(button => button.text() === t('plugins.connection.useConfiguration'))[1]).trigger('click');
     expect(wrapper.emitted('importToken')).toEqual([
       ['peak.game', { mode: 'auto' }],
       ['peak.game', { mode: 'folder' }],
@@ -167,7 +167,7 @@ describe.each(['stacked', 'sections'] as const)('credentials and authorization i
     expect(wrapper.findAllComponents({ name: 'ProvisionTokenDialog' })).toHaveLength(1);
     expect(wrapper.findAll('dialog')).toHaveLength(1);
     expect(document.querySelectorAll('#provision-user')).toHaveLength(0);
-    await wrapper.findAll('button').find(button => button.text() === t('plugins.connection.getToken'))!.trigger('click');
+    await defined(wrapper.findAll('button').find(button => button.text() === t('plugins.connection.getToken'))).trigger('click');
     expect(document.querySelectorAll('#provision-user')).toHaveLength(1);
     expect(wrapper.findAll('dialog')).toHaveLength(1);
     expect(wrapper.findAllComponents({ name: 'ProvisionTokenDialog' })).toHaveLength(1);
@@ -204,9 +204,9 @@ describe.each(['stacked', 'sections'] as const)('credentials and authorization i
       vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS - 1);
       expect(wrapper.emitted('save')).toBeUndefined();
       vi.advanceTimersByTime(1);
-      const saves = wrapper.emitted('save')!;
+      const saves = defined(wrapper.emitted('save'));
       expect(saves).toHaveLength(1);
-      expect(saves[0]![1]).toMatchObject({ serverUrl: 'http://127.0.0.1:9001', playerId: 'p1' });
+      expect(defined(saves[0])[1]).toMatchObject({ serverUrl: 'http://127.0.0.1:9001', playerId: 'p1' });
       vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS * 5);
       expect(wrapper.emitted('save')).toHaveLength(1);
       expect(wrapper.emitted('test')).toBeUndefined();
@@ -228,13 +228,13 @@ test('editing the connection form and the defaults form saves one shared documen
       connection: { ok: false, latencyMs: 0, at: 1 },
     } });
     const [connectionSection, defaultsSection] = wrapper.findAll('section.base-section');
-    await connectionSection!.get('input').setValue('http://127.0.0.1:9000');
-    await defaultsSection!.get('input').setValue('player-7');
+    await defined(connectionSection).get('input').setValue('http://127.0.0.1:9000');
+    await defined(defaultsSection).get('input').setValue('player-7');
     vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
-    const saves = wrapper.emitted('save')!;
+    const saves = defined(wrapper.emitted('save'));
     expect(saves).toHaveLength(1);
-    expect(saves[0]![1]).toEqual({ serverUrl: 'http://127.0.0.1:9000', playerId: 'player-7' });
-    expect(connectionSection!.get<HTMLInputElement>('input').element.value).toBe('http://127.0.0.1:9000');
+    expect(defined(saves[0])[1]).toEqual({ serverUrl: 'http://127.0.0.1:9000', playerId: 'player-7' });
+    expect(defined(connectionSection).get<HTMLInputElement>('input').element.value).toBe('http://127.0.0.1:9000');
   } finally {
     vi.useRealTimers();
   }

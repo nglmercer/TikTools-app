@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { flushPromises } from '@vue/test-utils';
 import AnalyticsRangeBar from '../../../../../src/web/features/select-analytics-range/ui/AnalyticsRangeBar.vue';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
+import { defined } from '../../../../shared/index.ts';
 
 function mountBar(range: 'today' | '7d' | '30d' | '90d' | 'custom') {
   const state = { start: ref('2026-11-20'), end: ref('2026-11-26') };
@@ -64,8 +65,8 @@ describe('AnalyticsRangeBar', () => {
     const { wrapper, state } = mountBar('custom');
     await wrapper.get('.range-bar__trigger').trigger('click');
     const [from, to] = wrapper.findAll('input[type="date"]');
-    await from!.setValue('2026-11-01');
-    await to!.setValue('2026-11-30');
+    await defined(from).setValue('2026-11-01');
+    await defined(to).setValue('2026-11-30');
     expect(state.start.value).toBe('2026-11-01');
     expect(state.end.value).toBe('2026-11-30');
   });

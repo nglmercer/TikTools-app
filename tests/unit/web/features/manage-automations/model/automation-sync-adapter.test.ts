@@ -4,6 +4,7 @@ import type { SectionSnapshot } from '@/entities/cloud-sync/lib/snapshot-store.t
 import { liveEvent } from '../../../../support/automation.ts';
 import { propertyOf } from '../../../../support/json.ts';
 import { createAutomationSyncAdapter } from '../../../../../../src/web/features/manage-automations/model/automation-sync-adapter.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 const event = (id: string, name: string, enabled = true): LiveEvent => liveEvent({ id, name, enabled, trigger: 'chat' });
 
@@ -36,7 +37,7 @@ describe('automation sync adapter', () => {
   it('starts a snapshot the first time and reports no changes', async () => {
     const { adapter, stored } = setup([event('a', 'A')]);
     expect(await adapter.list()).toEqual([]);
-    expect(Object.keys(stored.get('automation-events')!)).toEqual(['a']);
+    expect(Object.keys(defined(stored.get('automation-events')))).toEqual(['a']);
   });
 
   it('does not treat a host that has not delivered its definitions as deleting everything', async () => {
@@ -55,7 +56,7 @@ describe('automation sync adapter', () => {
       ['c', 'added', 'local'],
       ['b', 'deleted', 'local'],
     ]);
-    const modified = changes[0]!;
+    const modified = defined(changes[0]);
     expect(propertyOf(modified.before, 'name')).toBe('A');
     expect(propertyOf(modified.after, 'name')).toBe('A renamed');
   });
@@ -64,9 +65,9 @@ describe('automation sync adapter', () => {
     const { adapter, deps, set } = setup([event('a', 'A'), event('b', 'B')]);
     await adapter.list();
     set([event('a', 'A renamed')]);
-    await adapter.reset!('a');
+    await defined(adapter.reset)('a');
     expect(deps.save).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'a', name: 'A' }), { revision: '3', create: false, host: null });
-    await adapter.reset!('b');
+    await defined(adapter.reset)('b');
     expect(deps.save).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'b' }), { revision: '3', create: true, host: null });
   });
 
@@ -74,7 +75,7 @@ describe('automation sync adapter', () => {
     const { adapter, deps, set } = setup([event('a', 'A')]);
     await adapter.list();
     set([event('a', 'A'), event('c', 'C')]);
-    await adapter.reset!('c');
+    await defined(adapter.reset)('c');
     expect(deps.remove).toHaveBeenCalledWith('event', 'c', '3', null);
     expect(deps.save).not.toHaveBeenCalled();
   });
@@ -83,7 +84,7 @@ describe('automation sync adapter', () => {
     const { adapter, deps, set } = setup([event('a', 'A')]);
     await adapter.list();
     set([event('a', 'A2'), event('c', 'C')]);
-    await adapter.resetAll!();
+    await defined(adapter.resetAll)();
     expect(deps.save).toHaveBeenCalledTimes(1);
     expect(deps.remove).toHaveBeenCalledTimes(1);
   });
@@ -93,10 +94,10 @@ describe('automation sync adapter', () => {
     await adapter.list();
     set([event('a', 'A renamed'), event('c', 'C')]);
     expect(await adapter.list()).toHaveLength(3);
-    await adapter.markReviewed!();
+    await defined(adapter.markReviewed)();
     expect(await adapter.list()).toEqual([]);
-    expect(Object.keys(stored.get('automation-events')!).sort()).toEqual(['a', 'c']);
-    expect(propertyOf(stored.get('automation-events')!.a, 'name')).toBe('A renamed');
+    expect(Object.keys(defined(stored.get('automation-events'))).sort()).toEqual(['a', 'c']);
+    expect(propertyOf(defined(stored.get('automation-events')).a, 'name')).toBe('A renamed');
   });
 
   it('uses the advance hook when the store has one, so readers compare again', async () => {
@@ -104,7 +105,7 @@ describe('automation sync adapter', () => {
     const { adapter, deps } = setup([event('a', 'A')]);
     const custom = createAutomationSyncAdapter({ ...deps, snapshots: { ...deps.snapshots, advance } });
     await custom.list();
-    await custom.markReviewed!();
+    await defined(custom.markReviewed)();
     expect(advance).toHaveBeenCalledWith('automation-events', expect.objectContaining({ a: expect.objectContaining({ name: 'A' }) }));
     expect(adapter.watchSource).toBeTypeOf('function');
   });
@@ -114,20 +115,20 @@ describe('automation sync adapter', () => {
     // The default store is shared and reactive; the count badge watches this source.
     const adapter = createAutomationSyncAdapter({ ...deps, snapshots: undefined });
     const referenceOf = (): string => {
-      const source = adapter.watchSource!();
+      const source = defined(adapter.watchSource)();
       if (!Array.isArray(source)) throw new Error('Expected the watch source to be a list');
       return JSON.stringify(source.slice(1));
     };
     const before = referenceOf();
     await adapter.list();
-    await adapter.markReviewed!();
+    await defined(adapter.markReviewed)();
     expect(referenceOf()).not.toBe(before);
     localStorage.removeItem('tiktools.sync.snapshot.automation-events');
   });
 
   it('refuses to advance before the host has delivered its definitions', async () => {
     const { adapter, stored } = setup([], false);
-    await expect(adapter.markReviewed!()).rejects.toThrow('syncChanges.actionFailed');
+    await expect(defined(adapter.markReviewed)()).rejects.toThrow('syncChanges.actionFailed');
     expect(stored.size).toBe(0);
   });
 
@@ -135,9 +136,9 @@ describe('automation sync adapter', () => {
     const { adapter, deps, set } = setup([event('a', 'A')]);
     await adapter.list();
     set([event('a', 'A2')]);
-    await adapter.markReviewed!();
+    await defined(adapter.markReviewed)();
     set([event('a', 'A3')]);
-    await adapter.reset!('a');
+    await defined(adapter.reset)('a');
     expect(deps.save).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'a', name: 'A2' }), expect.anything());
   });
 });

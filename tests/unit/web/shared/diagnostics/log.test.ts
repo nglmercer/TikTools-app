@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { createDiagnosticLog, formatDiagnostics, redactDiagnostic } from '../../../../../src/web/shared/diagnostics/log.ts';
+import { defined } from '../../../../shared/index.ts';
 const failure = { source: 'plugins', level: 'error', code: 'health.failed', entityId: 'game', message: 'unreachable' } as const;
 describe('diagnostic retention and redaction', () => {
   test('redacts before retaining, searching, deduplicating and copying', () => {
@@ -28,7 +29,7 @@ describe('diagnostic retention and redaction', () => {
     expect(exported).toContain('Origin:');
     expect(exported).not.toContain('private-secret');
     expect(exported).not.toContain('user:pass');
-    expect(log.entries.value[0]!.fields[0]!.value).toBe('password=[redacted]');
+    expect(defined(defined(log.entries.value[0]).fields[0]).value).toBe('password=[redacted]');
   });
   test('groups bursts by source and entity, preserves first/last times, separates recovery', () => {
     let now = 100;

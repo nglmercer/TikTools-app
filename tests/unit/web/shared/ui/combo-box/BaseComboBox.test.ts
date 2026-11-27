@@ -2,6 +2,7 @@ import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { toElement } from '../../../../support/dom.ts';
 import BaseComboBox from '../../../../../../src/web/shared/ui/combo-box/BaseComboBox.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 const options = [
   { value: 'fade', label: 'Fade' },
@@ -42,7 +43,7 @@ describe('BaseComboBox', () => {
     const trigger = wrapper.get('[role="combobox"]');
     await trigger.trigger('click');
     expect(trigger.attributes('aria-expanded')).toBe('true');
-    const active = document.getElementById(trigger.attributes('aria-activedescendant')!);
+    const active = document.getElementById(defined(trigger.attributes('aria-activedescendant')));
     expect(active?.textContent?.trim()).toBe('Cut');
     expect(active?.getAttribute('aria-selected')).toBe('true');
   });
@@ -60,10 +61,10 @@ describe('BaseComboBox', () => {
   it('selects an option by click and ignores disabled ones', async () => {
     const wrapper = mountComboBox('fade');
     await wrapper.get('[role="combobox"]').trigger('click');
-    const items = listbox()!.querySelectorAll<HTMLElement>('[role="option"]');
-    items[2]!.click();
+    const items = defined(listbox()).querySelectorAll<HTMLElement>('[role="option"]');
+    defined(items[2]).click();
     expect(wrapper.props('modelValue')).toBe('fade');
-    items[1]!.click();
+    defined(items[1]).click();
     await wrapper.vm.$nextTick();
     expect(wrapper.props('modelValue')).toBe('cut');
   });

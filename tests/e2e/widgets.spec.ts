@@ -6,7 +6,7 @@ import type { Page } from '@playwright/test';
 import { assertNoUnhandledCalls, installFakeHost, readHostState, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
 import { SEL } from './support/selectors.ts';
-import { RPC } from '../shared/index.ts';
+import { RPC, defined } from '../shared/index.ts';
 import { PAUSE_MS } from './support/timeouts.ts';
 
 declare global {
@@ -187,10 +187,10 @@ test('all widget previews render locally without a gateway and replay', async ({
     [t('overlays.kinds.subscribe.name'), 'subscribe', '.subscribe-card'],
   ]) {
     await page.getByRole('option', { name: label, exact: true }).click();
-    await expect(page.locator(SEL.widgetHost)).toHaveAttribute('data-widget', kind!);
-    await expect(page.locator(selector!).first()).toBeVisible();
+    await expect(page.locator(SEL.widgetHost)).toHaveAttribute('data-widget', defined(kind));
+    await expect(page.locator(defined(selector)).first()).toBeVisible();
     await page.getByRole('button', { name: t('overlays.preview.replay') }).click();
-    await expect(page.locator(selector!).first()).toBeVisible();
+    await expect(page.locator(defined(selector)).first()).toBeVisible();
     await expect(page.locator(SEL.widgetHost)).toHaveCount(1);
   }
   // The sample must remain visible beyond the normal subscription duration.
@@ -202,7 +202,7 @@ test('all widget previews render locally without a gateway and replay', async ({
   await page.setViewportSize({ width: 520, height: 800 });
   const preview = await page.locator('.overlay-preview__canvas').boundingBox();
   const card = await page.locator(SEL.subscribeCard).boundingBox();
-  expect(card!.width).toBeLessThanOrEqual(preview!.width);
+  expect(defined(card).width).toBeLessThanOrEqual(defined(preview).width);
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();
 });

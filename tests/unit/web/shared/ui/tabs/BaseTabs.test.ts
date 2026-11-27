@@ -2,6 +2,7 @@ import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
 import BaseTabs from '../../../../../../src/web/shared/ui/tabs/BaseTabs.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 
@@ -29,9 +30,9 @@ describe('BaseTabs', () => {
   it('links the selected tab to its panel with a single tab stop', () => {
     const wrapper = mountTabs();
     const [general, stream] = wrapper.findAll('[role="tab"]');
-    expect(general!.attributes()).toMatchObject({ 'aria-selected': 'true', tabindex: '0' });
-    expect(stream!.attributes('tabindex')).toBe('-1');
-    expect(wrapper.get('[role="tabpanel"]').attributes('aria-labelledby')).toBe(general!.attributes('id'));
+    expect(defined(general).attributes()).toMatchObject({ 'aria-selected': 'true', tabindex: '0' });
+    expect(defined(stream).attributes('tabindex')).toBe('-1');
+    expect(wrapper.get('[role="tabpanel"]').attributes('aria-labelledby')).toBe(defined(general).attributes('id'));
     expect(wrapper.get('.panel').text()).toBe('general');
   });
 
@@ -55,10 +56,10 @@ describe('BaseTabs', () => {
       slots: { bar: '<input aria-label="Search">' },
     });
     const [alpha, beta] = wrapper.findAll('[role="tab"]');
-    expect(alpha!.find('svg').exists()).toBe(true);
-    expect(alpha!.text()).toBe('Alpha 3');
-    expect(beta!.find('svg').exists()).toBe(false);
-    expect(beta!.text()).toBe('Beta');
+    expect(defined(alpha).find('svg').exists()).toBe(true);
+    expect(defined(alpha).text()).toBe('Alpha 3');
+    expect(defined(beta).find('svg').exists()).toBe(false);
+    expect(defined(beta).text()).toBe('Beta');
     // The slot sits beside the tab list, never inside it.
     expect(wrapper.get('[role="tablist"]').find('input').exists()).toBe(false);
     expect(wrapper.find('.base-tabs__bar input').exists()).toBe(true);

@@ -10,7 +10,7 @@ import { tourRegistry } from '../../../../../../src/web/features/guided-help/mod
 import { tourCatalogs } from '../../../../../../src/web/features/guided-help/catalogs';
 import { rectList } from '../../../../support/dom.ts';
 import { mountGuideTargets, removeGuideFixtures } from '../support/dom.ts';
-import { RPC } from '../../../../../shared/index.ts';
+import { RPC, defined } from '../../../../../shared/index.ts';
 
 interface StepCopy {
   title: string;
@@ -323,11 +323,11 @@ it('keeps targets in its workspace and explicitly skips hidden/denied later step
   const test = setup();
   const foreign = mountGuideTargets('plugins', ['plugins-search']);
   const root = mountGuideTargets('plugins', ['plugin-catalog', 'plugins-search', 'plugins-install']);
-  root.querySelector('[data-guide="plugins-search"]')!.setAttribute('hidden', '');
+  defined(root.querySelector('[data-guide="plugins-search"]')).setAttribute('hidden', '');
   const session = test.coordinator.startTour('plugin', { scope: root, capabilities: { supports: () => false }, waitMs: 10 });
   await vi.advanceTimersByTimeAsync(0);
   await session.ready;
-  expect(test.steps()[0]!.element).toBe(root.querySelector('[data-guide="plugin-catalog"]'));
+  expect(defined(test.steps()[0]).element).toBe(root.querySelector('[data-guide="plugin-catalog"]'));
   expect(test.config().allowedElements).toEqual([root]);
   expect(test.steps().some((step) => step.element instanceof Node && foreign.contains(step.element))).toBe(false);
   test.next();
@@ -340,7 +340,7 @@ it('waits for visibility of each subsequent step, rather than checking only the 
   vi.useFakeTimers();
   const test = setup();
   const root = mountGuideTargets('points', ['points-rules', 'points-leaderboard']);
-  const later = root.querySelector<HTMLElement>('[data-guide="points-leaderboard"]')!;
+  const later = defined(root.querySelector<HTMLElement>('[data-guide="points-leaderboard"]'));
   later.style.display = 'none';
   const session = test.coordinator.startTour('points', { waitMs: 30 });
   await vi.advanceTimersByTimeAsync(0);
@@ -378,7 +378,7 @@ it('does not highlight zero-opacity ancestors or zero-area targets', async () =>
   expect(await invisible.done).toBe('unavailable');
   expect(test.driver).not.toHaveBeenCalled();
   root.style.opacity = '1';
-  const rules = root.querySelector<HTMLElement>('[data-guide="points-rules"]')!;
+  const rules = defined(root.querySelector<HTMLElement>('[data-guide="points-rules"]'));
   vi.spyOn(rules, 'getClientRects').mockReturnValue(rectList(new DOMRect(0, 0, 0, 30)));
   const unlaidOut = test.coordinator.startTour('points', { waitMs: 10 });
   await vi.advanceTimersByTimeAsync(10);
@@ -390,7 +390,7 @@ it('detects layout becoming visible without a DOM mutation and clears polling on
   vi.useFakeTimers();
   const test = setup();
   const root = mountGuideTargets('points', ['points-rules']);
-  const rules = root.querySelector<HTMLElement>('[data-guide="points-rules"]')!;
+  const rules = defined(root.querySelector<HTMLElement>('[data-guide="points-rules"]'));
   let laidOut = false;
   vi.spyOn(rules, 'getClientRects').mockImplementation(() => (laidOut ? rectList(new DOMRect(0, 0, 120, 30)) : rectList()));
   const session = test.coordinator.startTour('points', { waitMs: 200 });
@@ -448,8 +448,8 @@ it('escapes untrusted display text and respects reduced motion without losing ke
     ],
   });
   await session.ready;
-  expect(test.steps()[0]!.popover?.title).toBe('&lt;img onerror=&quot;bad&quot;&gt;');
-  expect(test.steps()[0]!.popover?.description).toBe('&lt;script&gt;bad&lt;/script&gt;&amp;');
+  expect(defined(test.steps()[0]).popover?.title).toBe('&lt;img onerror=&quot;bad&quot;&gt;');
+  expect(defined(test.steps()[0]).popover?.description).toBe('&lt;script&gt;bad&lt;/script&gt;&amp;');
   expect(test.config().animate).toBe(false);
   expect(test.config().allowKeyboardControl).toBe(true);
   expect(test.config().showButtons).toEqual(['close']);
@@ -508,8 +508,8 @@ describe('versioned registry and localized copy', () => {
           expect(Array.isArray(step.requiredCapabilities)).toBe(true);
           expect(['skip', 'cancel']).toContain(step.missingTargetPolicy);
           const cjk = locale === 'zh' || locale === 'ja';
-          expect(copy[step.id]!.title.trim().length).toBeGreaterThan(cjk ? 1 : 5);
-          expect(copy[step.id]!.description.trim().length).toBeGreaterThan(cjk ? 15 : 25);
+          expect(defined(copy[step.id]).title.trim().length).toBeGreaterThan(cjk ? 1 : 5);
+          expect(defined(copy[step.id]).description.trim().length).toBeGreaterThan(cjk ? 15 : 25);
         }
       }
     }
@@ -606,7 +606,7 @@ it('presses the prepare trigger when an interaction-gated target is missing, ins
   vi.useFakeTimers();
   const test = setup();
   const root = mountGuideTargets('automations', ['automation-profiles', 'automation-tab-events', 'automation-events', 'automation-runs']);
-  const table = root.querySelector('[data-guide="automation-events"]')!;
+  const table = defined(root.querySelector('[data-guide="automation-events"]'));
   const body = document.createElement('tbody');
   const row = document.createElement('tr');
   body.append(row);
@@ -637,7 +637,7 @@ it('prefers a semantic editor operation and suppresses the selector fallback whi
   vi.useFakeTimers();
   const test = setup();
   const root = mountGuideTargets('automations', ['automation-profiles', 'automation-tab-events', 'automation-events', 'automation-runs']);
-  const table = root.querySelector('[data-guide="automation-events"]')!;
+  const table = defined(root.querySelector('[data-guide="automation-events"]'));
   const body = document.createElement('tbody');
   const row = document.createElement('tr');
   body.append(row);
@@ -673,7 +673,7 @@ it('does not press the prepare trigger when the target already exists', async ()
   vi.useFakeTimers();
   const test = setup();
   const root = mountGuideTargets('automations', tourRegistry.automationEvents.steps.map((step) => step.target));
-  const table = root.querySelector('[data-guide="automation-events"]')!;
+  const table = defined(root.querySelector('[data-guide="automation-events"]'));
   const body = document.createElement('tbody');
   const row = document.createElement('tr');
   body.append(row);
@@ -699,7 +699,7 @@ it('backward navigation presses chained prepare triggers until the target return
   const close = document.createElement('button');
   close.dataset.guide = 'automation-editor-close';
   root.append(close);
-  const eventsTab = root.querySelector('[data-guide="automation-tab-events"]')!;
+  const eventsTab = defined(root.querySelector('[data-guide="automation-tab-events"]'));
   const closeClick = vi.fn(() => {
     close.remove(); // closing the editor brings the library back, still missing the events table in this drill
   });

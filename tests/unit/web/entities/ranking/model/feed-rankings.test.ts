@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ControlClient, GapHandler, RpcParams } from '@/shared/api/control-client.ts';
 import type { RankingDefinition } from '../../../../../../src/web/entities/ranking/types.ts';
 import { createFeedRankings, feedRankingDefinition, FEED_RANKING_IDS } from '../../../../../../src/web/entities/ranking/model/feed-rankings.ts';
-import { EVENT_KIND, FIXTURE_ID, RPC, TOPIC } from '../../../../../shared/index.ts';
+import { EVENT_KIND, FIXTURE_ID, RPC, TOPIC, defined } from '../../../../../shared/index.ts';
 import { answer } from '../../../../support/answer.ts';
 import { isRecord, propertyOf } from '../../../../support/json.ts';
 
@@ -52,7 +52,7 @@ function fakeHost(options: { fail?: boolean } = {}) {
       return { ok: true };
     }
     if (method === RPC.rankingsSnapshot) {
-      const definition = definitions.get(String(params['id']))!;
+      const definition = defined(definitions.get(String(params['id'])));
       return rankingSnapshot(definition.id, definition.creatorId, definition.roomId, scores[definition.id] ?? []);
     }
     throw new Error(`unexpected ${method}`);

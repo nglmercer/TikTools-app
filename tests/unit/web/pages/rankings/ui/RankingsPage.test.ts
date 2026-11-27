@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import RankingsPage from '../../../../../../src/web/pages/rankings/ui/RankingsPage.vue';
-import { EVENT_KIND, RPC, TOPIC } from '../../../../../shared/index.ts';
+import { EVENT_KIND, RPC, TOPIC, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -50,7 +50,7 @@ async function setup(paused = false) {
   return { wrapper, calls };
 }
 function button(wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], name: string) {
-  return wrapper.findAll('button').find((item) => item.text() === name)!;
+  return defined(wrapper.findAll('button').find((item) => item.text() === name));
 }
 describe('rankings management', () => {
   it('does not replace a pushed new instance with an older in-flight response', async () => {
@@ -82,9 +82,9 @@ describe('rankings management', () => {
     await wrapper.get('[data-item="top"]').trigger('click');
     await flushPromises();
     expect(wrapper.text()).toContain('Alice — 5');
-    const visualization = wrapper.findAll('select').find((item) => item.find('option[value="donut"]').exists())!;
+    const visualization = defined(wrapper.findAll('select').find((item) => item.find('option[value="donut"]').exists()));
     await visualization.setValue('donut');
-    const percentages = wrapper.findAll('label').find((label) => label.text().includes(t('rankingsPage.detail.showPercentages')))!;
+    const percentages = defined(wrapper.findAll('label').find((label) => label.text().includes(t('rankingsPage.detail.showPercentages'))));
     await percentages.get('input').setValue(true);
     await button(wrapper, t('rankingsPage.detail.copyUrl')).trigger('click');
     await flushPromises();
@@ -101,9 +101,9 @@ describe('rankings management', () => {
     const { wrapper, calls } = await setup();
     await button(wrapper, t('rankingsPage.list.new')).trigger('click');
     const inputs = wrapper.findAll('input');
-    await inputs[0]!.setValue('new-rank');
-    await inputs[1]!.setValue('creator');
-    await inputs[2]!.setValue('room');
+    await defined(inputs[0]).setValue('new-rank');
+    await defined(inputs[1]).setValue('creator');
+    await defined(inputs[2]).setValue('room');
     await button(wrapper, t('rankingsPage.form.addMetric')).trigger('click');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
@@ -119,7 +119,7 @@ describe('rankings management', () => {
     await wrapper.get('[data-item="top"]').trigger('click');
     await flushPromises();
     await button(wrapper, t('rankingsPage.detail.edit')).trigger('click');
-    const topEntries = wrapper.findAll('label').find((label) => label.text().startsWith(t('rankingsPage.form.topEntries')))!;
+    const topEntries = defined(wrapper.findAll('label').find((label) => label.text().startsWith(t('rankingsPage.form.topEntries'))));
     await wrapper.get(`input[id="${topEntries.attributes('for')}"]`).setValue(5);
     await wrapper.get('form').trigger('submit');
     await flushPromises();
@@ -129,14 +129,14 @@ describe('rankings management', () => {
     const { wrapper, calls } = await setup();
     await button(wrapper, t('rankingsPage.list.new')).trigger('click');
     const inputs = wrapper.findAll('input');
-    await inputs[0]!.setValue('limited');
-    await inputs[1]!.setValue('creator');
-    await inputs[2]!.setValue('room');
+    await defined(inputs[0]).setValue('limited');
+    await defined(inputs[1]).setValue('creator');
+    await defined(inputs[2]).setValue('room');
     await button(wrapper, t('rankingsPage.form.addMetric')).trigger('click');
-    await wrapper.findAll('label').find((label) => label.text().includes(t('rankingsPage.form.limitUsers')))!.get('input').setValue(true);
-    const maximum = wrapper.findAll('label').find((label) => label.text().startsWith('Maximum contributions'))!;
+    await defined(wrapper.findAll('label').find((label) => label.text().includes(t('rankingsPage.form.limitUsers')))).get('input').setValue(true);
+    const maximum = defined(wrapper.findAll('label').find((label) => label.text().startsWith('Maximum contributions')));
     await wrapper.get(`input[id="${maximum.attributes('for')}"]`).setValue(3);
-    const cooldown = wrapper.findAll('label').find((label) => label.text().startsWith('Cooldown per user'))!;
+    const cooldown = defined(wrapper.findAll('label').find((label) => label.text().startsWith('Cooldown per user')));
     await wrapper.get(`input[id="${cooldown.attributes('for')}"]`).setValue(500);
     await wrapper.get('form').trigger('submit');
     await flushPromises();
@@ -148,10 +148,10 @@ describe('rankings management', () => {
     const { wrapper, calls } = await setup();
     await button(wrapper, t('rankingsPage.list.new')).trigger('click');
     const inputs = wrapper.findAll('input');
-    await inputs[0]!.setValue('gifts');
-    await inputs[1]!.setValue('creator');
-    await inputs[2]!.setValue('room');
-    const metric = wrapper.findAll('select').find((item) => item.find(`option[value='${JSON.stringify(['tiktok.gift', 'gift.diamonds'])}']`).exists())!;
+    await defined(inputs[0]).setValue('gifts');
+    await defined(inputs[1]).setValue('creator');
+    await defined(inputs[2]).setValue('room');
+    const metric = defined(wrapper.findAll('select').find((item) => item.find(`option[value='${JSON.stringify(['tiktok.gift', 'gift.diamonds'])}']`).exists()));
     await metric.setValue(JSON.stringify([EVENT_KIND.tiktokGift, 'gift.diamonds']));
     await button(wrapper, t('rankingsPage.form.addMetric')).trigger('click');
     await button(wrapper, t('rankingsPage.form.addGiftOverride')).trigger('click');

@@ -10,7 +10,7 @@ import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testin
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import type { ConnectionStatus, LiveChannel } from '@/types.ts';
 import ConnectionsPage from '../../../../../../src/web/pages/connections/ui/ConnectionsPage.vue';
-import { FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, RPC, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -46,7 +46,7 @@ async function mountPage(status: ConnectionStatus = 'idle', announce: string[] =
 }
 
 function buttonByText(wrapper: VueWrapper, text: string) {
-  return wrapper.findAll('button').find((button) => button.text() === text)!;
+  return defined(wrapper.findAll('button').find((button) => button.text() === text));
 }
 
 describe('ConnectionsPage', () => {
@@ -66,7 +66,7 @@ describe('ConnectionsPage', () => {
     await nextTick();
     const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'));
     expect(items.map((item) => item.textContent?.trim())).toEqual(['@luna', '@mango']);
-    items[1]!.click();
+    defined(items[1]).click();
     await flushPromises();
     expect(calls.find((call) => call.method === RPC.liveConnect)?.params).toMatchObject({ uniqueId: 'mango' });
     connection.status = 'idle';
@@ -115,8 +115,8 @@ describe('ConnectionsPage', () => {
     expect(calls[0]?.method).toBe(RPC.liveChannels);
     const rows = wrapper.findAll('.live-explorer tbody tr');
     expect(rows.map((row) => row.text())).toEqual([expect.stringContaining('@luna'), expect.stringContaining('@mango')]);
-    expect(rows[0]!.text()).toContain('1,520');
-    await rows[1]!.get('button').trigger('click');
+    expect(defined(rows[0]).text()).toContain('1,520');
+    await defined(rows[1]).get('button').trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === RPC.liveConnect)?.params).toMatchObject({ uniqueId: 'mango' });
   });
@@ -147,7 +147,7 @@ describe('ConnectionsPage', () => {
   it('starts the monitor with the typed creator and follows the host when it stops', async () => {
     const { wrapper, calls, connection } = await mountPage();
     await wrapper.get('#live-handle').setValue('mango');
-    const monitorSwitch = wrapper.findAll<HTMLInputElement>('input[role="switch"]')[1]!;
+    const monitorSwitch = defined(wrapper.findAll<HTMLInputElement>('input[role="switch"]')[1]);
     await monitorSwitch.setValue(true);
     await buttonByText(wrapper, t('connection.connect')).trigger('click');
     await flushPromises();

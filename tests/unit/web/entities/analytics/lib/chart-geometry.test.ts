@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildLineGeometry, buildStackedBars } from '../../../../../../src/web/entities/analytics/lib/chart-geometry.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 const box = { width: 120, height: 60, pad: 10 };
 
@@ -31,10 +32,10 @@ describe('chart geometry', () => {
       box,
     );
     expect(max).toBe(4);
-    expect(bars[0]!.segments).toEqual([
+    expect(defined(bars[0]).segments).toEqual([
       { key: 'a', y: 30, height: 20, value: 2 },
       { key: 'b', y: 10, height: 20, value: 2 },
     ]);
-    expect(bars[1]!.segments).toEqual([{ key: 'b', y: 40, height: 10, value: 1 }]);
+    expect(defined(bars[1]).segments).toEqual([{ key: 'b', y: 40, height: 10, value: 1 }]);
   });
 });

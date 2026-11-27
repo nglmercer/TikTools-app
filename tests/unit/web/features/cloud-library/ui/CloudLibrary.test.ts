@@ -9,7 +9,7 @@ import { nativeDefinitionHost } from '@/entities/automation/testing/native-defin
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import { createRequest } from '../../../../support/automation.ts';
 import CloudLibrary from '../../../../../../src/web/features/cloud-library/ui/CloudLibrary.vue';
-import { ACCOUNT_STATE, ACTION_TYPE, EVENT_KIND, RPC } from '../../../../../shared/index.ts';
+import { ACCOUNT_STATE, ACTION_TYPE, EVENT_KIND, RPC, defined } from '../../../../../shared/index.ts';
 
 const t = (key: string): string => testMessage('en', key);
 
@@ -20,7 +20,7 @@ const summary = (id = firstId, title = 'First document') => ({
   sha256: 'a'.repeat(64), status: 'published',
 });
 const button = (wrapper: ReturnType<typeof mountWithPlugins>, text: string) =>
-  wrapper.findAll('button').find((item) => item.text() === text)!;
+  defined(wrapper.findAll('button').find((item) => item.text() === text));
 
 describe('CloudLibrary', () => {
   it('browses pages and reads the exact revision without importing or activating', async () => {
@@ -67,7 +67,7 @@ describe('CloudLibrary', () => {
     account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
     const wrapper = mountWithPlugins(CloudLibrary, { global: { plugins: stores.plugins } });
     await flushPromises();
-    await wrapper.findAll('select')[0]!.setValue('mine');
+    await defined(wrapper.findAll('select')[0]).setValue('mine');
     expect(wrapper.text()).toContain('Loading Cloud documents');
     account.working = true;
     account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedOut, persistence: ACCOUNT_STATE.memoryOnly };
@@ -95,7 +95,7 @@ describe('CloudLibrary', () => {
     account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
     const wrapper = mountWithPlugins(CloudLibrary, { global: { plugins: stores.plugins } });
     await flushPromises();
-    await wrapper.findAll('select')[0]!.setValue('mine');
+    await defined(wrapper.findAll('select')[0]).setValue('mine');
     await flushPromises();
     await button(wrapper, 'Alice-private-001').trigger('click');
     account.working = true;
@@ -133,7 +133,7 @@ describe('CloudLibrary', () => {
     account.status = { origin: 'https://cloud.example', state: ACCOUNT_STATE.signedIn, accountId: 'alice', persistence: ACCOUNT_STATE.memoryOnly };
     const wrapper = mountWithPlugins(CloudLibrary, { global: { plugins: stores.plugins } });
     await flushPromises();
-    await wrapper.findAll('select')[0]!.setValue('mine');
+    await defined(wrapper.findAll('select')[0]).setValue('mine');
     await flushPromises();
     await button(wrapper, 'Private title').trigger('click');
     // Act: a same-host context change clears the open private detail before its read returns

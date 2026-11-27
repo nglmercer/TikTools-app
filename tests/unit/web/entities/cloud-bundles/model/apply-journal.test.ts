@@ -9,6 +9,7 @@ import {
   setEntry,
   summarize,
 } from '../../../../../../src/web/entities/cloud-bundles/model/apply-journal.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 const id = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
 const ready = [
@@ -18,7 +19,7 @@ const ready = [
 
 describe('apply journal', () => {
   it('refuses to start while any item is not ready', () => {
-    expect(() => createJournal('pkg', [...ready, { ...ready[1]!, status: 'revisionChanged' }], 1)).toThrow(/revisionChanged/);
+    expect(() => createJournal('pkg', [...ready, { ...defined(ready[1]), status: 'revisionChanged' }], 1)).toThrow(/revisionChanged/);
     expect(() => createJournal('pkg', [], 1)).toThrow();
   });
 

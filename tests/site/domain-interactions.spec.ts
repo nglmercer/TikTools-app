@@ -2,6 +2,7 @@ import { test as base, expect, type Locator, type Page } from '@playwright/test'
 import {
   demoTestId, demoUrl, expectSettled, instanceId, t, trackOutbound, trackPageErrors,
 } from './support/index.ts';
+import { defined } from '../shared/index.ts';
 
 
 const DEMO_AUDIO = 'Demo Audio';
@@ -16,7 +17,7 @@ const OVERLAY_REVISED_TEXT = 'Welcome fictional viewers';
 const test = base.extend<{ publicDemoOnly: void }>({
   publicDemoOnly: [async ({ page, baseURL }, use) => {
     const failures = trackPageErrors(page);
-    const outbound = trackOutbound(page, baseURL!, { block: true });
+    const outbound = trackOutbound(page, defined(baseURL), { block: true });
     await page.routeWebSocket('**/*', (socket) => {
       outbound.push(socket.url());
       socket.close();

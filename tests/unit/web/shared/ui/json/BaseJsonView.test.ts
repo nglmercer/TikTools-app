@@ -3,6 +3,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { enableAutoUnmount } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import BaseJsonView from '../../../../../../src/web/shared/ui/json/BaseJsonView.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -42,8 +43,8 @@ describe('BaseJsonView code mode', () => {
     const wrapper = mountWithPlugins(BaseJsonView, { props: { value, lineNumbers: true } });
     const lines = wrapper.findAll('.base-json__line');
     expect(lines).toHaveLength(pretty.split('\n').length);
-    expect(lines[0]!.attributes('data-line')).toBe('1');
-    expect(lines.at(-1)!.attributes('data-line')).toBe(String(lines.length));
+    expect(defined(lines[0]).attributes('data-line')).toBe('1');
+    expect(defined(lines.at(-1)).attributes('data-line')).toBe(String(lines.length));
     expect(wrapper.get('pre').classes()).toContain('base-json__code--numbers');
     expect(wrapper.get('pre').classes()).toContain('base-json__code--wrap');
     const toggle = wrapper.get('button[aria-label="Wrap lines"]');
@@ -60,7 +61,7 @@ describe('BaseJsonView code mode', () => {
     await wrapper.get('button[aria-label="Copy JSON"]').trigger('click');
     await vi.waitFor(() => expect(wrapper.get('[role="status"]').text()).toBe('Copied'));
     expect(writeText).toHaveBeenCalledWith(pretty);
-    expect(wrapper.emitted('copy')![0]).toEqual([pretty]);
+    expect(defined(wrapper.emitted('copy'))[0]).toEqual([pretty]);
     vi.advanceTimersByTime(2000);
     await wrapper.vm.$nextTick();
     expect(wrapper.get('[role="status"]').text()).toBe('');
@@ -107,13 +108,13 @@ describe('BaseJsonView tree mode', () => {
     expect(wrapper.find('pre').exists()).toBe(false);
     const root = wrapper.get('.base-json__toggle');
     expect(root.attributes('aria-expanded')).toBe('true');
-    const list = wrapper.findAll('.base-json__toggle').find((button) => button.text().includes('"list"'))!;
+    const list = defined(wrapper.findAll('.base-json__toggle').find((button) => button.text().includes('"list"')));
     expect(list.attributes('aria-expanded')).toBe('false');
     expect(list.text()).toBe('"list": [2]');
     expect(wrapper.text()).toContain('"empty": {}');
     await list.trigger('click');
     expect(list.attributes('aria-expanded')).toBe('true');
-    const inner = wrapper.findAll('.base-json__toggle').find((button) => button.text().startsWith('1:'))!;
+    const inner = defined(wrapper.findAll('.base-json__toggle').find((button) => button.text().startsWith('1:')));
     expect(inner.text()).toBe('1: {1}');
   });
 
@@ -125,8 +126,8 @@ describe('BaseJsonView tree mode', () => {
     await wrapper.get('button[aria-label="Collapse all"]').trigger('click');
     const toggles = wrapper.findAll('.base-json__toggle');
     expect(toggles).toHaveLength(1);
-    expect(toggles[0]!.text()).toBe('{6}');
-    expect(toggles[0]!.attributes('aria-expanded')).toBe('false');
+    expect(defined(toggles[0]).text()).toBe('{6}');
+    expect(defined(toggles[0]).attributes('aria-expanded')).toBe('false');
   });
 
   it('switches between code and tree when switchable', async () => {
@@ -145,7 +146,7 @@ describe('BaseJsonView tree mode', () => {
 
   it('retains expanded nodes when the tree is unmounted for code or invalid source', async () => {
     const wrapper = mountWithPlugins(BaseJsonView, { props: { source: '{"nested":{"value":7}}', mode: 'tree', switchable: true } });
-    const nested = () => wrapper.findAll('.base-json__toggle').find((button) => button.text().includes('"nested"'))!;
+    const nested = () => defined(wrapper.findAll('.base-json__toggle').find((button) => button.text().includes('"nested"')));
     await nested().trigger('click');
     expect(wrapper.text()).toContain('"value": 7');
     await wrapper.get('button[aria-label="Code view"]').trigger('click');

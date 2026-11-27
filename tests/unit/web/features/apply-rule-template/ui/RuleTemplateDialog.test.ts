@@ -11,7 +11,7 @@ import { parseRuleTemplate } from '@/entities/rule-template/lib/rule-templates.t
 import BaseSchemaForm from '@/shared/ui/schema-form/BaseSchemaForm.vue';
 import type { RuleTemplateTab } from '../../../../../../src/web/features/apply-rule-template/model/template-tab.ts';
 import RuleTemplateDialog from '../../../../../../src/web/features/apply-rule-template/ui/RuleTemplateDialog.vue';
-import { ACTION_TYPE, EVENT_KIND } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, EVENT_KIND, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -44,7 +44,7 @@ test('oversized expansion reports an error while retaining the configured templa
     },
     attachTo: document.body,
   });
-  await wrapper.findAll('.rule-templates__card').find((card) => card.text().includes('Bounded template'))!.trigger('click');
+  await defined(wrapper.findAll('.rule-templates__card').find((card) => card.text().includes('Bounded template'))).trigger('click');
   // Act: enter a value large enough to overflow the expansion limit, then apply
   const value = 'x'.repeat(256 * 1024);
   const form = wrapper.getComponent(BaseSchemaForm);
@@ -159,7 +159,7 @@ test('the Import tab stages a template file, reports problems and emits the impo
   expect(wrapper.findAll('.base-import-dialog__items li').map((item) => item.text())).toEqual(['Mine one', 'Mine two']);
   expect(wrapper.find('[role="alert"]').exists()).toBe(false);
   await wrapper.get('.base-button--primary').trigger('click');
-  const [templates, done] = wrapper.emitted<[Array<{ id: string }>, (added: number) => void]>('import')![0]!;
+  const [templates, done] = defined(defined(wrapper.emitted<[Array<{ id: string }>, (added: number) => void]>('import'))[0]);
   expect(templates.map((template) => template.id)).toEqual(['mine-one', 'mine-two']);
   expect(wrapper.get('.base-button--primary').attributes('disabled')).toBeDefined();
   done(2);
@@ -184,10 +184,10 @@ test('the Import tab can clear the staged file and refuses an empty one', async 
 test('configuring a template replaces the tabs and goes back to the list', async () => {
   await activateLocale('en');
   const wrapper = mountTemplates();
-  await wrapper.findAll('.rule-templates__card').find((card) => card.text().includes('Local one'))!.trigger('click');
+  await defined(wrapper.findAll('.rule-templates__card').find((card) => card.text().includes('Local one'))).trigger('click');
   expect(wrapper.find('[role="tablist"]').exists()).toBe(false);
   expect(wrapper.find('.rule-templates__card').exists()).toBe(false);
-  await wrapper.findAll('.base-dialog__footer button').at(-1)!.trigger('click');
+  await defined(wrapper.findAll('.base-dialog__footer button').at(-1)).trigger('click');
   expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual([
     t('importDialog.templatesTab'),
     t('importDialog.cloudTab'),
@@ -199,8 +199,8 @@ test('configuring a template replaces the tabs and goes back to the list', async
 test('retries the same generated records after failure and generates new identities only after a draft edit', async () => {
   await activateLocale('en');
   const wrapper = mountTemplates();
-  await wrapper.findAll('.rule-templates__card').find((card) => card.text().includes('Local one'))!.trigger('click');
-  const attempt = (index: number) => wrapper.emitted<[LiveAction[], LiveEvent, (success: boolean) => void]>('apply')![index]!;
+  await defined(wrapper.findAll('.rule-templates__card').find((card) => card.text().includes('Local one'))).trigger('click');
+  const attempt = (index: number) => defined(defined(wrapper.emitted<[LiveAction[], LiveEvent, (success: boolean) => void]>('apply'))[index]);
   await wrapper.get('.base-button--primary').trigger('click');
   const [firstActions, firstEvent, failed] = attempt(0);
   failed(false);
@@ -219,5 +219,5 @@ test('retries the same generated records after failure and generates new identit
   expect(editedEvent.name).toBe('Changed event');
   succeeded(true);
   await flushPromises();
-  expect(wrapper.emitted('update:open')!.at(-1)).toEqual([false]);
+  expect(defined(wrapper.emitted('update:open')).at(-1)).toEqual([false]);
 });

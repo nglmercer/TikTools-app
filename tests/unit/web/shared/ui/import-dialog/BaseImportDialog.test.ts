@@ -7,6 +7,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import BaseFileDrop from '@/shared/ui/file-drop/BaseFileDrop.vue';
 import BaseImportDialog from '../../../../../../src/web/shared/ui/import-dialog/BaseImportDialog.vue';
 import type { ImportTab, StagedImportItem } from '../../../../../../src/web/shared/ui/import-dialog/import-types.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -64,7 +65,7 @@ describe('BaseImportDialog', () => {
     expect(found.map((tab) => tab.text())).toEqual(['Local', t('importDialog.cloudTab'), 'Manual']);
     expect(found.map((tab) => tab.attributes('aria-selected'))).toEqual(['true', 'false', 'false']);
     const panel = wrapper.get('[role="tabpanel"]');
-    expect(panel.attributes('aria-labelledby')).toBe(found[0]!.attributes('id'));
+    expect(panel.attributes('aria-labelledby')).toBe(defined(found[0]).attributes('id'));
     expect(panel.find('.local-body').exists()).toBe(true);
     expect(wrapper.find('.cloud-body').exists()).toBe(false);
     expect(wrapper.findComponent(BaseFileDrop).exists()).toBe(false);
@@ -99,7 +100,7 @@ describe('BaseImportDialog', () => {
     await input.trigger('change');
     await flushPromises();
     expect(wrapper.emitted('error')).toHaveLength(1);
-    expect(wrapper.emitted('error')![0]![0]).toBeTruthy();
+    expect(defined(defined(wrapper.emitted('error'))[0])[0]).toBeTruthy();
     expect(wrapper.emitted('content')).toBeUndefined();
   });
 
@@ -133,7 +134,7 @@ describe('BaseImportDialog', () => {
   });
 
   it('draws no tab bar for a single source or a step that replaces the body', async () => {
-    const single = mountDialog({ tabs: [tabs[2]!] });
+    const single = mountDialog({ tabs: [defined(tabs[2])] });
     expect(single.find('[role="tablist"]').exists()).toBe(false);
     expect(single.findComponent(BaseFileDrop).exists()).toBe(true);
     const hidden = mountDialog({ tab: 'local', hideTabs: true });
@@ -173,7 +174,7 @@ describe('BaseImportDialog', () => {
     });
     const wrapper = mountWithPlugins(Host, { attachTo: document.body });
     const buttons = wrapper.findAll('.base-dialog__footer button');
-    await buttons.at(-1)!.trigger('click');
+    await defined(buttons.at(-1)).trigger('click');
     expect(wrapper.get('output').text()).toBe('false');
   });
 });

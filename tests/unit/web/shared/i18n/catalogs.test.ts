@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { activateLocale, i18n, supportedLocales, type Locale } from '../../../../../src/web/shared/i18n/i18n.ts';
 import english from '../../../../../src/web/shared/i18n/locales/en.ts';
+import { defined } from '../../../../shared/index.ts';
 
 type Tree = { [key: string]: string | Tree };
 
@@ -23,7 +24,7 @@ function flatten(tree: Tree, prefix = ''): Map<string, string> {
   return leaves;
 }
 
-const placeholders = (message: string): string[] => [...message.matchAll(/\{(\w+)\}/g)].map((match) => match[1]!).sort();
+const placeholders = (message: string): string[] => [...message.matchAll(/\{(\w+)\}/g)].map((match) => defined(match[1])).sort();
 
 afterEach(async () => {
   await activateLocale('en');
@@ -35,7 +36,7 @@ describe('message catalogs', () => {
     const catalog = flatten((await catalogs[locale]()).default);
     expect([...catalog.keys()].sort(), `${locale} catalog keys`).toEqual([...reference.keys()].sort());
     for (const [key, source] of reference) {
-      const translated = catalog.get(key)!;
+      const translated = defined(catalog.get(key));
       expect(placeholders(translated), `${locale}: ${key}`).toEqual(placeholders(source));
       expect(translated.split('|').length, `${locale} plural forms: ${key}`).toBe(source.split('|').length);
     }

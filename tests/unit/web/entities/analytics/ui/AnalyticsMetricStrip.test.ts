@@ -3,6 +3,7 @@ import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import type { AnalyticsTotals } from '../../../../../../src/shared/messages.ts';
 import AnalyticsMetricStrip from '../../../../../../src/web/entities/analytics/ui/AnalyticsMetricStrip.vue';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 
@@ -36,13 +37,13 @@ describe('AnalyticsMetricStrip preview', () => {
   it('opens the metric preview after the hover delay and closes on leave', async () => {
     vi.useFakeTimers();
     const wrapper = mountStrip();
-    const card = wrapper.findAll('.kpi-strip__card')[0]!;
+    const card = defined(wrapper.findAll('.kpi-strip__card')[0]);
     await card.trigger('pointerenter');
     vi.advanceTimersByTime(300);
     await flushPromises();
     const preview = document.body.querySelector('.kpi-preview');
     expect(preview).toBeTruthy();
-    expect(preview!.textContent).toContain('100');
+    expect(defined(preview).textContent).toContain('100');
     await card.trigger('pointerleave');
     await flushPromises();
     expect(document.body.querySelector('.kpi-preview')).toBeNull();
@@ -52,7 +53,7 @@ describe('AnalyticsMetricStrip preview', () => {
   it('closes the preview on Escape', async () => {
     vi.useFakeTimers();
     const wrapper = mountStrip();
-    await wrapper.findAll('.kpi-strip__card')[0]!.trigger('pointerenter');
+    await defined(wrapper.findAll('.kpi-strip__card')[0]).trigger('pointerenter');
     vi.advanceTimersByTime(300);
     await flushPromises();
     expect(document.body.querySelector('.kpi-preview')).toBeTruthy();
@@ -65,11 +66,11 @@ describe('AnalyticsMetricStrip preview', () => {
   it('derives the best day and average from the series', async () => {
     vi.useFakeTimers();
     const wrapper = mountStrip();
-    await wrapper.findAll('.kpi-strip__card')[0]!.trigger('pointerenter');
+    await defined(wrapper.findAll('.kpi-strip__card')[0]).trigger('pointerenter');
     vi.advanceTimersByTime(300);
     await flushPromises();
     const stats = document.body.querySelector('.kpi-preview__stats');
-    expect(stats!.textContent).toContain('100');
+    expect(defined(stats).textContent).toContain('100');
     vi.useRealTimers();
   });
 });

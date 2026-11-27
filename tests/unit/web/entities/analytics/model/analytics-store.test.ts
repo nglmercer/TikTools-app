@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createApp } from 'vue';
 import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
 import { useAnalyticsStore } from '../../../../../../src/web/entities/analytics/model/analytics-store.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 function setup(handler: Parameters<typeof createFakeControlClient>[0]) {
   const { client, calls } = createFakeControlClient(handler);
@@ -33,11 +34,11 @@ describe('useAnalyticsStore', () => {
     // Each load fetches the current span and the previous comparison span.
     const first = store.load('a', { startDay: 1, endDay: 1 });
     const second = store.load('a', { startDay: 2, endDay: 2 });
-    resolvers[2]!({ summary: { startDay: 2 } });
-    resolvers[3]!({ summary: null });
+    defined(resolvers[2])({ summary: { startDay: 2 } });
+    defined(resolvers[3])({ summary: null });
     await second;
-    resolvers[0]!({ summary: { startDay: 1 } });
-    resolvers[1]!({ summary: null });
+    defined(resolvers[0])({ summary: { startDay: 1 } });
+    defined(resolvers[1])({ summary: null });
     await first;
     expect(store.summary).toEqual({ startDay: 2 });
   });

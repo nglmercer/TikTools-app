@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { mount } from '@vue/test-utils';
 import RevealWidget from '../../../../src/widgets/ranking/RevealWidget.vue';
 import { RevealController, parseRevealResult } from '../../../../src/widgets/shared/reveal-controller.ts';
+import { defined } from '../../../shared/index.ts';
 const event = {
   topic: 'competition.result',
   data: {
@@ -24,7 +25,7 @@ describe('committed result reveal', () => {
     const controller = new RevealController('r', (value) => values.push(value));
     expect(controller.handleEnvelope(event)).toBe(true);
     expect(controller.handleEnvelope(event)).toBe(false);
-    const result = parseRevealResult(event)!;
+    const result = defined(parseRevealResult(event));
     const wrapper = mount(RevealWidget, { props: { result, status: 'connected', debug: false } });
     expect(wrapper.text()).toContain('Revealing winner');
     wrapper.find('.wheel').trigger('animationend');
@@ -70,7 +71,7 @@ describe('committed result reveal', () => {
     ).toBeNull();
   });
   test('includes omitted candidates in the wheel without changing the stored winner', () => {
-    const result = parseRevealResult({ ...event, data: { result: { ...event.data.result, eligibleCount: 4, otherWeight: 6 } } })!;
+    const result = defined(parseRevealResult({ ...event, data: { result: { ...event.data.result, eligibleCount: 4, otherWeight: 6 } } }));
     const wrapper = mount(RevealWidget, { props: { result, status: 'connected', debug: false } });
     expect(wrapper.find('.wheel').attributes('style')).toContain('--rotation: 1710deg');
     expect(wrapper.text()).toContain('Other: 2 participants');

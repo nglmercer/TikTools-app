@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 
 import { installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
-import { ROUTE, RPC } from '../shared/index.ts';
+import { ROUTE, RPC, defined } from '../shared/index.ts';
 import { SEL } from './support/selectors.ts';
 
 const t = (key: string): string => testMessage('en', key);
@@ -59,16 +59,16 @@ test('Explore shows the published plugin from the Cloud catalog', async ({ page 
 
 test('Explore shows a neutral retry state when the Cloud is unreachable, and "nothing published" for an empty registry', async ({ page }) => {
   const state = catalogState();
-  state.catalog!.error = { code: 'unavailable', message: 'cloud down', data: { cloud: { code: 'offline' } } };
+  defined(state.catalog).error = { code: 'unavailable', message: 'cloud down', data: { cloud: { code: 'offline' } } };
   await installFakeHost(page, state);
   await page.goto(ROUTE.plugins);
   await waitForFrontend(page);
   await page.getByRole('tab', { name: /Explore/ }).click();
   await expect(page.getByText(t('exploreCatalog.unavailable'))).toBeVisible();
   await expect(page.getByRole('button', { name: t('exploreCatalog.retry') })).toBeVisible();
-  delete state.catalog!.error;
-  state.catalog!.items = [];
-  state.catalog!.dataState = 'noActiveGeneration';
+  delete defined(state.catalog).error;
+  defined(state.catalog).items = [];
+  defined(state.catalog).dataState = 'noActiveGeneration';
   await page.evaluate(
     (next) => Object.assign(window.__TIKTOOLS_E2E_STATE__, { catalog: next }),
     state.catalog,

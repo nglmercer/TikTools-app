@@ -7,7 +7,7 @@ import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.
 import { createJournal, parseJournal, serializeJournal, setEntry } from '../../../../../../src/web/entities/cloud-bundles/model/apply-journal.ts';
 import { JOURNAL_KEY, useBundlesStore } from '../../../../../../src/web/entities/cloud-bundles/model/bundles-store.ts';
 import { propertyOf } from '../../../../support/json.ts';
-import { ACCOUNT_STATE, ACTION_TYPE, EVENT_KIND, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
+import { ACCOUNT_STATE, ACTION_TYPE, EVENT_KIND, FIXTURE_ID, RPC, defined } from '../../../../../shared/index.ts';
 
 const id = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
 
@@ -77,7 +77,7 @@ describe('package apply', () => {
     const bundles = stores.use(() => useBundlesStore());
     await bundles.loadJournal();
     expect(bundles.journal?.entries[0]?.status).toBe('interrupted');
-    expect(parseJournal(writes.at(-1)!.value)?.entries[0]?.status).toBe('interrupted');
+    expect(parseJournal(defined(writes.at(-1)).value)?.entries[0]?.status).toBe('interrupted');
   });
 });
 

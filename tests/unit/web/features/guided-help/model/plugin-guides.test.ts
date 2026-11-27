@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { mergePluginGuides, pluginGuideCatalogItems, pluginGuideTour } from '../../../../../../src/web/features/guided-help/model/plugin-guides.ts';
-import { ACTION_TYPE, PLUGIN_ID } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, PLUGIN_ID, defined } from '../../../../../shared/index.ts';
 
 const type = {
   id: PLUGIN_ID.sonicboomServerSpeak,
@@ -44,7 +44,7 @@ function guide(steps: unknown[] = [{
 it('parses host-stamped plugin guides and converts field targets to semantic tour steps', () => {
   const [merged] = mergePluginGuides({ ...snapshot, pluginGuides: [guide()] });
   expect(merged?.id).toBe('sonicboom.server/speak-action');
-  const dynamic = pluginGuideTour(merged!);
+  const dynamic = pluginGuideTour(defined(merged));
   expect(dynamic.definition.requirements?.automationActionType).toEqual({ typeId: PLUGIN_ID.sonicboomServerSpeak });
   expect(dynamic.definition.requirements?.automationActionExample).toBeUndefined();
   expect(dynamic.definition.steps[0]).toEqual(expect.objectContaining({

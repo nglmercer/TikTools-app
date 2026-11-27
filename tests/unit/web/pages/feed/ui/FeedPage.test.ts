@@ -12,7 +12,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { rankingSnapshot } from '../../../entities/ranking/model/feed-rankings.test.ts';
 import { tourRegistry } from '@/features/guided-help/model/registry.ts';
 import FeedPage from '../../../../../../src/web/pages/feed/ui/FeedPage.vue';
-import { RPC, TOPIC } from '../../../../../shared/index.ts';
+import { RPC, TOPIC, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -76,7 +76,7 @@ async function selectFilter(wrapper: Awaited<ReturnType<typeof mountFeed>>['wrap
   const option = Array.from(document.querySelectorAll('[role="option"]'))
     .find((node) => node.textContent?.trim() === label);
   expect(option).toBeDefined();
-  option!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  defined(option).dispatchEvent(new MouseEvent('click', { bubbles: true }));
   await flushPromises();
 }
 
@@ -140,7 +140,7 @@ describe('FeedPage', () => {
     const likesFilter = wrapper.findAll('.feed-inspector__viewer-filter button')
       .find((button) => button.text() === t('feed.filters.like'));
     expect(likesFilter).toBeDefined();
-    await likesFilter!.trigger('click');
+    await defined(likesFilter).trigger('click');
     expect(wrapper.findAll('.top-likes__row')).toHaveLength(2);
     expect(wrapper.find('.top-likes__row').text()).toContain('164');
     await wrapper.find('.top-likes__row').trigger('click');
@@ -177,7 +177,7 @@ describe('FeedPage', () => {
       expect.stringContaining('30'),
     ]);
     // Act: switch the viewer filter to Likes, which must show the engine's total rather than the legacy 7
-    await wrapper.findAll('.feed-inspector__viewer-filter button').find((button) => button.text() === t('feed.filters.like'))!.trigger('click');
+    await defined(wrapper.findAll('.feed-inspector__viewer-filter button').find((button) => button.text() === t('feed.filters.like'))).trigger('click');
     expect(wrapper.findAll('.top-likes__row')).toHaveLength(1);
     expect(wrapper.get('.top-likes__row').text()).toContain('5,000');
 
@@ -192,11 +192,11 @@ describe('FeedPage', () => {
     const { wrapper, push } = await mountFeed();
     await push({ kind: 'chat', author: 'luna', nickname: 'Luna', text: 'first', msgId: 'a' });
     await push({ kind: 'chat', author: 'luna', nickname: 'Luna', text: 'second', msgId: 'b' });
-    await wrapper.findAll('.event-row__content')[0]!.trigger('click');
+    await defined(wrapper.findAll('.event-row__content')[0]).trigger('click');
     expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe(t('feed.inspector.details'));
     expect(wrapper.text()).toContain(t('feed.details.messageId'));
-    expect(wrapper.findAll('.event-row')[0]!.classes()).toContain('event-row--selected');
-    await wrapper.findAll('.event-row__author')[1]!.trigger('click');
+    expect(defined(wrapper.findAll('.event-row')[0]).classes()).toContain('event-row--selected');
+    await defined(wrapper.findAll('.event-row__author')[1]).trigger('click');
     expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe(t('feed.inspector.profile'));
     expect(wrapper.findAll('.feed-inspector__message').map((item) => item.text())).toEqual([
       expect.stringContaining('second'),
@@ -209,7 +209,7 @@ describe('FeedPage', () => {
     await wrapper.get('button[aria-label="Pause auto-scroll"]').trigger('click');
     await push({ kind: 'chat', author: 'luna', text: 'while paused', msgId: 'p1' });
     expect(wrapper.text()).toContain('Jump to latest (1)');
-    await wrapper.findAll('button').find((button) => button.text().startsWith('Jump to latest'))!.trigger('click');
+    await defined(wrapper.findAll('button').find((button) => button.text().startsWith('Jump to latest'))).trigger('click');
     await nextTick();
     expect(wrapper.text()).not.toContain('Jump to latest');
   });

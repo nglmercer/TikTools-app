@@ -57,8 +57,9 @@ export function nativeDefinitionHost(business: (method: string, params: RpcParam
     }
     if (!object(value)) throw new ControlCallError('protocol', 'native business reply');
     const body = value;
-    if (!versions.length) throw new ControlCallError('definition_journal_invalid', 'The original outcome could not be verified.');
-    state.recent.unshift({ intent, outcome: 'succeeded', receipt: { revision: versions[0]!.revision,
+    const firstVersion = versions[0];
+    if (!firstVersion) throw new ControlCallError('definition_journal_invalid', 'The original outcome could not be verified.');
+    state.recent.unshift({ intent, outcome: 'succeeded', receipt: { revision: firstVersion.revision,
       recordDigest: operation === 'delete' ? null : intent.recordDigest ?? 'b'.repeat(64),
       enabled: operation === 'delete' ? null : typeof body.enabled === 'boolean' ? body.enabled : null,
       deleted: operation === 'delete' && typeof body.deleted === 'boolean' ? body.deleted : null, affectedResources: versions.length }, errorCode: null, recordedAt: 2 });

@@ -9,6 +9,7 @@ import {
   systemDay,
 } from '../../../../../../src/web/entities/analytics/lib/analytics-range.ts';
 import { formatCount } from '@/shared/lib/intl.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 describe('analytics range', () => {
   it('resolves presets as inclusive spans ending today', () => {
@@ -24,7 +25,7 @@ describe('analytics range', () => {
   });
 
   it('round-trips ISO dates and rejects malformed ones', () => {
-    const day = isoDateToDay('2026-10-19')!;
+    const day = defined(isoDateToDay('2026-10-19'));
     expect(dayToIsoDate(day)).toBe('2026-10-19');
     expect(isoDateToDay('2026-02-30')).toBeNull();
     expect(isoDateToDay('19/10/2026')).toBeNull();
@@ -43,7 +44,7 @@ describe('analytics range', () => {
   it('formats counts, spans and clock times per locale', () => {
     expect(formatCount(1234.4, 'en')).toBe('1,234');
     expect(formatCount(1234, 'es')).toBe('1234');
-    const day = isoDateToDay('2026-10-19')!;
+    const day = defined(isoDateToDay('2026-10-19'));
     expect(formatSpan({ startDay: day, endDay: day }, 'en')).toBe('Oct 19, 2026');
     expect(formatSpan({ startDay: day - 6, endDay: day }, 'en')).toBe('Oct 13, 2026 – Oct 19, 2026');
     expect(formatClockTime(0, 'en')).toBe('—');

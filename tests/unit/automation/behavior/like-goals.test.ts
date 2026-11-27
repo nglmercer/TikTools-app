@@ -5,7 +5,7 @@ import { applyConditionTemplate } from '../../../../src/automation/behavior/cond
 import { liveGoalTemplates } from '../../../../src/automation/behavior/live-goal-templates.ts';
 import { normalizeEvent } from '../../../../src/automation/behavior/schema.ts';
 import { parseRuleTemplate } from '../../../../src/web/entities/rule-template/lib/rule-templates.ts';
-import { ACTION_TYPE, EVENT_KIND } from '../../../shared/index.ts';
+import { ACTION_TYPE, EVENT_KIND, defined } from '../../../shared/index.ts';
 import { automationEvent } from '../../support/automation-event.ts';
 
 function likeBatch(previous: number, total: number, count = total - previous): AutomationEvent {
@@ -26,11 +26,11 @@ describe('legacy like goal template compatibility', () => {
   test('preserves both preset IDs and the existing threshold operators', () => {
     const templates = liveGoalTemplates();
     expect(templates.map((template) => template.id)).toEqual(['likes-goal-global', 'likes-goal-user']);
-    expect(applyConditionTemplate(templates[0]!, { goal: '150' })).toEqual([
+    expect(applyConditionTemplate(defined(templates[0]), { goal: '150' })).toEqual([
       { path: 'event.data.aggregation.global.previous', operator: 'lt', value: '150' },
       { path: 'event.data.aggregation.global.total', operator: 'gte', value: '150' },
     ]);
-    expect(applyConditionTemplate(templates[1]!, { goal: '150' })).toEqual([
+    expect(applyConditionTemplate(defined(templates[1]), { goal: '150' })).toEqual([
       { path: 'event.data.aggregation.user.previous', operator: 'lt', value: '150' },
       { path: 'event.data.aggregation.user.total', operator: 'gte', value: '150' },
     ]);
@@ -38,8 +38,8 @@ describe('legacy like goal template compatibility', () => {
 
   test('45 + 60 + 45 + 300 fires each 150-like goal only at the first crossing', () => {
     const [global, viewer] = liveGoalTemplates();
-    const globalFilters = applyConditionTemplate(global!, { goal: '150' });
-    const userFilters = applyConditionTemplate(viewer!, { goal: '150' });
+    const globalFilters = applyConditionTemplate(defined(global), { goal: '150' });
+    const userFilters = applyConditionTemplate(defined(viewer), { goal: '150' });
     let previous = 0;
     const globalHits: number[] = [];
     const userHits: number[] = [];
@@ -60,7 +60,7 @@ describe('legacy like goal template compatibility', () => {
   });
 
   test('web importer and normalization preserve existing operators', () => {
-    const filters = applyConditionTemplate(liveGoalTemplates()[0]!, { goal: '150' });
+    const filters = applyConditionTemplate(defined(liveGoalTemplates()[0]), { goal: '150' });
     const normalized = normalizeEvent({
       schemaVersion: 1, id: 'like-150', name: 'First 150',
       enabled: true, trigger: EVENT_KIND.tiktokLike, filters,

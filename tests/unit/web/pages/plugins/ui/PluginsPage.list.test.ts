@@ -18,7 +18,7 @@ import {
   menuItems,
   menuItem,
 } from '../../../../../../src/web/pages/plugins/ui/plugins-page-fixture.ts';
-import { EVENT_KIND, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
+import { EVENT_KIND, RPC, STORAGE_KEY, defined } from '../../../../../shared/index.ts';
 
 describe('PluginsPage list', () => {
   it('saves the current view on leaving and cannot overwrite a later view from a delayed callback', async () => {
@@ -27,12 +27,12 @@ describe('PluginsPage list', () => {
       const { wrapper } = await mountPage();
       await selectPlugin(wrapper, 'DECK');
       wrapper.unmount();
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY.viewState)!);
+      const saved = JSON.parse(defined(localStorage.getItem(STORAGE_KEY.viewState)));
       expect(saved.plugins.selected).toBe('deck');
       saved.plugins.selected = 'next-screen';
       localStorage.setItem(STORAGE_KEY.viewState, JSON.stringify(saved));
       await vi.advanceTimersByTimeAsync(500);
-      expect(JSON.parse(localStorage.getItem(STORAGE_KEY.viewState)!).plugins.selected).toBe('next-screen');
+      expect(JSON.parse(defined(localStorage.getItem(STORAGE_KEY.viewState))).plugins.selected).toBe('next-screen');
     } finally {
       vi.useRealTimers();
     }
@@ -108,17 +108,17 @@ describe('PluginsPage list', () => {
     const { wrapper, calls } = await mountPage([plugin('deck'), broken]);
     const rows = wrapper.findAll('.plugin-catalog__row');
     expect(rows).toHaveLength(2);
-    expect(rows[0]!.text()).toContain('Plugin package · 1.2.0');
-    expect(rows[0]!.get('[role="img"][aria-label="Actions: 1"]').text()).toBe('1');
-    expect(rows[1]!.get('[role="img"][aria-label="Events: 1"]').text()).toBe('1');
-    expect(rows[0]!.text()).not.toContain(t('plugins.catalog.unavailable'));
-    expect(rows[1]!.text()).toContain(t('plugins.catalog.unavailable'));
+    expect(defined(rows[0]).text()).toContain('Plugin package · 1.2.0');
+    expect(defined(rows[0]).get('[role="img"][aria-label="Actions: 1"]').text()).toBe('1');
+    expect(defined(rows[1]).get('[role="img"][aria-label="Events: 1"]').text()).toBe('1');
+    expect(defined(rows[0]).text()).not.toContain(t('plugins.catalog.unavailable'));
+    expect(defined(rows[1]).text()).toContain(t('plugins.catalog.unavailable'));
     // One status per fact: the switch says enabled, so no "Active" text beside it.
     expect(wrapper.text()).not.toContain('Active');
-    await rows[0]!.get('input[role="switch"]').setValue(false);
+    await defined(rows[0]).get('input[role="switch"]').setValue(false);
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.disable')?.params).toEqual({ pluginId: 'deck' });
-    expect(rows[1]!.find('input[role="switch"][aria-label="Enable HOTKEYS"]').exists()).toBe(true);
+    expect(defined(rows[1]).find('input[role="switch"][aria-label="Enable HOTKEYS"]').exists()).toBe(true);
   });
 
   it('lists installed plugins apart from bundled and registry plugins', async () => {
@@ -128,7 +128,7 @@ describe('PluginsPage list', () => {
     expect(calls.map((call) => call.method)).toContain('registry.search');
     const rows = wrapper.findAll('.plugin-catalog__row');
     expect(rows.map((item) => item.text())).toEqual([expect.stringContaining('TTS'), expect.stringContaining('Acme TTS')]);
-    expect(rows[0]!.find('input[role="switch"]').exists()).toBe(false);
+    expect(defined(rows[0]).find('input[role="switch"]').exists()).toBe(false);
     expect(buttonByLabel(wrapper, 'Install Acme TTS').exists()).toBe(true);
   });
 
@@ -190,7 +190,7 @@ describe('PluginsPage list', () => {
       t('plugins.details.tabs.versions'),
     ]);
     expect(wrapper.findAll('[role="tab"] svg')).toHaveLength(4);
-    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === t('plugins.details.tabs.connection'))!.trigger('click');
+    await defined(wrapper.findAll('[role="tab"]').find((tab) => tab.text() === t('plugins.details.tabs.connection'))).trigger('click');
     // The same editor the Connections page uses, with its own status and test button.
     expect(wrapper.find('.connection-editor--sections').exists()).toBe(true);
     expect(wrapper.text()).toContain(t('connections.servers.notConfigured'));
@@ -204,10 +204,10 @@ describe('PluginsPage list', () => {
     await selectPlugin(wrapper, 'DECK');
     const columns = wrapper.findAll('.plugin-details__column');
     expect(columns).toHaveLength(2);
-    expect(columns[0]!.text()).toContain(t('plugins.details.sources.user'));
-    expect(columns[0]!.text()).toContain('Local server');
-    expect(columns[0]!.text()).toContain('network');
-    expect(columns[1]!.text()).toContain('Switch scene');
+    expect(defined(columns[0]).text()).toContain(t('plugins.details.sources.user'));
+    expect(defined(columns[0]).text()).toContain('Local server');
+    expect(defined(columns[0]).text()).toContain('network');
+    expect(defined(columns[1]).text()).toContain('Switch scene');
   });
 
   it('explains in the open plugin why it cannot load, once', async () => {
@@ -224,9 +224,9 @@ describe('PluginsPage list', () => {
     await buttonByLabel(wrapper, t('plugins.details.uninstall')).trigger('click');
     await nextTick();
     expect(document.body.textContent).toContain('2 actions use it and will stop working.');
-    const confirm = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
+    const confirm = defined(Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
       (button) => button.textContent?.trim() === t('plugins.details.uninstallConfirm'),
-    )!;
+    ));
     confirm.click();
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.uninstall')?.params).toEqual({ pluginId: 'deck', purgeData: false });
@@ -253,9 +253,9 @@ describe('PluginsPage list', () => {
     await flushPromises();
     expect(detailsTitle(wrapper)).toBe('DECK');
     expect(document.body.textContent).toContain('2 actions use it and will stop working.');
-    Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
+    defined(Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
       (button) => button.textContent?.trim() === t('plugins.details.uninstallConfirm'),
-    )!.click();
+    )).click();
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.uninstall')?.params).toEqual({ pluginId: 'deck', purgeData: false });
   });

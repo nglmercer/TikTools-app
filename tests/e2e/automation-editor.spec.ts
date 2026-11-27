@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { assertNoUnhandledCalls, emitTopic, installFakeHost, readHostState, waitForFrontend, writeHostState } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
-import { ACTION_TYPE, EVENT_KIND, ROUTE, RPC, TOPIC } from '../shared/index.ts';
+import { ACTION_TYPE, EVENT_KIND, ROUTE, RPC, TOPIC, defined } from '../shared/index.ts';
 import { SEL } from './support/selectors.ts';
 import { isRecord } from '../unit/support/json.ts';
 
@@ -94,7 +94,7 @@ for (const locale of ['en', 'es'] as const) {
       const afterSave = await readHostState(page);
       expect(afterSave.calls.filter((r) => r.method === RPC.automationUpdate).at(-1)?.meta?.['expectedRevision']).toBe('2');
       afterSave.automationSnapshot['events'] = [];
-      afterSave.automationVersions!['event:same'] = '4';
+      defined(afterSave.automationVersions)['event:same'] = '4';
       await writeHostState(page, afterSave);
       await emitTopic(page, TOPIC.workflowChanged, { kind: 'event', id: 'same', change: 'deleted' });
       await name.fill('Draft after deletion');

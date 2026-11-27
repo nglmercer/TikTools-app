@@ -15,7 +15,7 @@ import {
   menuItem,
   REGISTRY_HOST,
 } from '../../../../../../src/web/pages/plugins/ui/plugins-page-fixture.ts';
-import { FIXTURE_ID, PLUGIN_ID, RPC, STORAGE_KEY } from '../../../../../shared/index.ts';
+import { FIXTURE_ID, PLUGIN_ID, RPC, STORAGE_KEY, defined } from '../../../../../shared/index.ts';
 
 describe('PluginsPage catalog', () => {
   describe('on a host that announces the unified catalog', () => {
@@ -49,7 +49,7 @@ describe('PluginsPage catalog', () => {
     it('does not write the implicit view as a choice', async () => {
       const { wrapper } = await unified();
       expect(savedView()).toBeUndefined();
-      await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === t('plugins.views.processors'))!.trigger('click');
+      await defined(wrapper.findAll('[role="tab"]').find((tab) => tab.text() === t('plugins.views.processors'))).trigger('click');
       await new Promise((resolve) => setTimeout(resolve, 400));
       expect(savedView()).toBe('processors');
     });

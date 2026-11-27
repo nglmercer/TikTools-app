@@ -3,6 +3,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { enableAutoUnmount } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import BaseJsonDiff from '../../../../../../src/web/shared/ui/json/BaseJsonDiff.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -17,13 +18,13 @@ describe('BaseJsonDiff unified', () => {
     const added = wrapper.findAll('.base-json-diff__line--added');
     expect(removed).toHaveLength(2);
     expect(added).toHaveLength(3);
-    expect(removed[0]!.get('.base-json-diff__marker').text()).toContain('-');
-    expect(removed[0]!.get('.base-json-diff__marker').text()).toContain(t('jsonView.lineRemoved'));
-    expect(added[0]!.get('.base-json-diff__marker').text()).toContain('+');
-    expect(added[0]!.get('.base-json-diff__marker').text()).toContain(t('jsonView.lineAdded'));
-    const numbers = removed[0]!.findAll('.base-json-diff__number').map((n) => n.text());
+    expect(defined(removed[0]).get('.base-json-diff__marker').text()).toContain('-');
+    expect(defined(removed[0]).get('.base-json-diff__marker').text()).toContain(t('jsonView.lineRemoved'));
+    expect(defined(added[0]).get('.base-json-diff__marker').text()).toContain('+');
+    expect(defined(added[0]).get('.base-json-diff__marker').text()).toContain(t('jsonView.lineAdded'));
+    const numbers = defined(removed[0]).findAll('.base-json-diff__number').map((n) => n.text());
     expect(numbers).toEqual(['3', '']);
-    expect(added[0]!.findAll('.base-json-diff__number').map((n) => n.text())).toEqual(['', '3']);
+    expect(defined(added[0]).findAll('.base-json-diff__number').map((n) => n.text())).toEqual(['', '3']);
     expect(wrapper.get('.base-json-diff__stats').text()).toBe('1 added, 0 removed, 2 changed');
   });
 
@@ -40,7 +41,7 @@ describe('BaseJsonDiff unified', () => {
     const wrapper = mountWithPlugins(BaseJsonDiff, { props: { before: { list, flag: false }, after: { list, flag: true } } });
     const fold = wrapper.get('.base-json-diff__fold');
     expect(fold.text()).toMatch(/^\d+ unchanged lines$/);
-    const hidden = Number(fold.text().match(/\d+/)![0]);
+    const hidden = Number(defined(fold.text().match(/\d+/))[0]);
     expect(hidden).toBeGreaterThan(50);
     const visibleBefore = wrapper.findAll('.base-json-diff__line').length;
     expect(visibleBefore).toBeLessThan(15);
@@ -94,23 +95,23 @@ describe('BaseJsonDiff side by side', () => {
       props: { before, after, layout: 'side-by-side', beforeLabel: t('syncChanges.base'), afterLabel: t('syncChanges.cloud'), context: 10 },
     });
     expect(wrapper.get('.base-json-diff__heads').text()).toBe('BaseCloud');
-    const changed = wrapper.findAll('.base-json-diff__split').find((row) => row.text().includes('Old name'))!;
+    const changed = defined(wrapper.findAll('.base-json-diff__split').find((row) => row.text().includes('Old name')));
     const halves = changed.findAll('.base-json-diff__half');
     expect(halves).toHaveLength(2);
-    expect(halves[0]!.classes()).toContain('base-json-diff__line--removed');
-    expect(halves[1]!.classes()).toContain('base-json-diff__line--added');
-    expect(halves[0]!.text()).toContain('Old name');
-    expect(halves[1]!.text()).toContain('New name');
-    expect(halves[0]!.get('.base-json-diff__number').text()).toBe('3');
-    expect(halves[0]!.find('.base-json-diff__word--removed').text()).toBe('Old');
-    expect(halves[1]!.find('.base-json-diff__word--added').text()).toBe('New');
+    expect(defined(halves[0]).classes()).toContain('base-json-diff__line--removed');
+    expect(defined(halves[1]).classes()).toContain('base-json-diff__line--added');
+    expect(defined(halves[0]).text()).toContain('Old name');
+    expect(defined(halves[1]).text()).toContain('New name');
+    expect(defined(halves[0]).get('.base-json-diff__number').text()).toBe('3');
+    expect(defined(halves[0]).find('.base-json-diff__word--removed').text()).toBe('Old');
+    expect(defined(halves[1]).find('.base-json-diff__word--added').text()).toBe('New');
   });
 
   it('leaves a blank filler opposite pure additions and removals', () => {
     const wrapper = mountWithPlugins(BaseJsonDiff, { props: { before: { a: 1 }, after: { a: 1, b: 2 }, layout: 'side-by-side' } });
-    const split = wrapper.findAll('.base-json-diff__split').find((row) => row.text().includes('"b"'))!;
-    expect(split.findAll('.base-json-diff__half')[0]!.classes()).toContain('base-json-diff__line--empty');
-    expect(split.findAll('.base-json-diff__half')[1]!.classes()).toContain('base-json-diff__line--added');
+    const split = defined(wrapper.findAll('.base-json-diff__split').find((row) => row.text().includes('"b"')));
+    expect(defined(split.findAll('.base-json-diff__half')[0]).classes()).toContain('base-json-diff__line--empty');
+    expect(defined(split.findAll('.base-json-diff__half')[1]).classes()).toContain('base-json-diff__line--added');
   });
 
   it('collapses unchanged runs in this layout too', async () => {

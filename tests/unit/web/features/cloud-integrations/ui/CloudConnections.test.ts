@@ -5,7 +5,7 @@ import { activateLocale } from '@/shared/i18n/i18n.ts';
 import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import CloudConnections from '../../../../../../src/web/features/cloud-integrations/ui/CloudConnections.vue';
-import { RPC } from '../../../../../shared/index.ts';
+import { RPC, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -33,7 +33,7 @@ function mount(rows: unknown[] = [active]) {
 }
 
 const button = (wrapper: ReturnType<typeof mountWithPlugins>, text: string) =>
-  wrapper.findAll('button').find((node) => node.text() === text)!;
+  defined(wrapper.findAll('button').find((node) => node.text() === text));
 
 describe('CloudConnections', () => {
   it('keeps create disabled for an invalid label and shows the secret once', async () => {

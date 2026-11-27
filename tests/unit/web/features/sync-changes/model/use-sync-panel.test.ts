@@ -5,11 +5,12 @@ import type { SyncCapabilities } from '@/entities/cloud-sync/api/sync-adapter.ts
 import { allCapabilities, fakeAdapter } from '../../../../../../src/web/features/sync-changes/testing/fake-adapter.ts';
 import { useSyncChanges } from '../../../../../../src/web/features/sync-changes/model/use-sync-changes.ts';
 import { useSyncPanel } from '../../../../../../src/web/features/sync-changes/model/use-sync-panel.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 async function panel(capabilities: Partial<SyncCapabilities>) {
   const { adapter, spies } = fakeAdapter(capabilities);
   const scope = effectScope();
-  const state = scope.run(() => useSyncPanel(adapter, useSyncChanges(adapter)))!;
+  const state = defined(scope.run(() => useSyncPanel(adapter, useSyncChanges(adapter))));
   await flushPromises();
   return { state, spies };
 }
@@ -63,7 +64,7 @@ describe('useSyncPanel', () => {
     const { adapter, spies } = fakeAdapter(allCapabilities);
     delete adapter.resetAll;
     const scope = effectScope();
-    const state = scope.run(() => useSyncPanel(adapter, useSyncChanges(adapter)))!;
+    const state = defined(scope.run(() => useSyncPanel(adapter, useSyncChanges(adapter))));
     await flushPromises();
     state.ask({ kind: 'resetAll' });
     await state.confirm();
@@ -99,7 +100,7 @@ describe('reviewed native record actions', () => {
       },
     ]);
     const scope = effectScope();
-    const state = scope.run(() => useSyncPanel(adapter, useSyncChanges(adapter)))!;
+    const state = defined(scope.run(() => useSyncPanel(adapter, useSyncChanges(adapter))));
     await flushPromises();
     expect(state.sendable.value).toEqual([]);
     state.ask({ kind: 'apply', id: 'secret-review', name: 'ordinary' });
@@ -122,7 +123,7 @@ describe('reviewed native record actions', () => {
       { id: 'cloud-review', name: 'port', kind: 'variable', status: 'added', side: 'remote', canApply: true },
     ]);
     const scope = effectScope();
-    const state = scope.run(() => useSyncPanel(adapter, useSyncChanges(adapter)))!;
+    const state = defined(scope.run(() => useSyncPanel(adapter, useSyncChanges(adapter))));
     await flushPromises();
     state.ask({ kind: 'apply', id: 'cloud-review', name: 'port' });
     expect(spies.apply).not.toHaveBeenCalled();

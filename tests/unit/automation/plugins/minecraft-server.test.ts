@@ -4,6 +4,7 @@ import manifestJson from '../../../fixtures/plugins/minecraft-server.plugin.json
 import type { ActionField, ActionFieldKind, ActionTypeDefinition, Localized } from '../../../../src/automation/behavior/types.ts';
 import { defaultActionConfig } from '../../../../src/automation/behavior/action-config.ts';
 import { propertyOf } from '../../support/json.ts';
+import { defined } from '../../../shared/index.ts';
 
 const FIELD_KINDS: readonly ActionFieldKind[] = ['text', 'textarea', 'number', 'range', 'select', 'boolean', 'keyvalue', 'media', 'code'];
 
@@ -77,29 +78,29 @@ test('minecraft example exposes six structured actions', () => {
 
 test('minecraft action defaults match the form contracts', () => {
   const byId = Object.fromEntries(manifest.actionTypes.map((action) => [action.id, action]));
-  expect(defaultActionConfig(byId['minecraft.server.give-item']!)).toEqual({
+  expect(defaultActionConfig(defined(byId['minecraft.server.give-item']))).toEqual({
     item: 'minecraft:apple',
     amount: 1,
     target: '@p',
   });
-  expect(defaultActionConfig(byId['minecraft.server.spawn-mob']!)).toEqual({
+  expect(defaultActionConfig(defined(byId['minecraft.server.spawn-mob']))).toEqual({
     entity: 'minecraft:zombie',
     target: '@p',
   });
-  expect(defaultActionConfig(byId['minecraft.server.apply-effect']!)).toEqual({
+  expect(defaultActionConfig(defined(byId['minecraft.server.apply-effect']))).toEqual({
     effect: 'minecraft:speed',
     duration: 30,
     amplifier: 0,
     target: '@p',
   });
-  expect(defaultActionConfig(byId['minecraft.server.change-weather']!)).toEqual({
+  expect(defaultActionConfig(defined(byId['minecraft.server.change-weather']))).toEqual({
     weather: 'clear',
     duration: 300,
   });
-  expect(defaultActionConfig(byId['minecraft.server.send-message']!)).toEqual({
+  expect(defaultActionConfig(defined(byId['minecraft.server.send-message']))).toEqual({
     message: 'Hello from TikTok!',
   });
-  expect(defaultActionConfig(byId['minecraft.server.run-command']!)).toEqual({
+  expect(defaultActionConfig(defined(byId['minecraft.server.run-command']))).toEqual({
     command: '/say Hello from TikTok!',
   });
 });

@@ -6,6 +6,7 @@ import { activateLocale } from '@/shared/i18n/i18n.ts';
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import ChangeReviewWorkspace from '../../../../../../src/web/features/review-shared/ui/ChangeReviewWorkspace.vue';
 import type { ChangeReviewItem } from '../../../../../../src/web/features/review-shared/model/change-review.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 beforeEach(() => activateLocale('en'));
@@ -29,16 +30,16 @@ describe('ChangeReviewWorkspace', () => {
     await nextTick();
     const cards = wrapper.findAll('.change-review__card');
     expect(cards).toHaveLength(3);
-    expect(cards[0]!.classes()).toContain('change-review__card--added');
-    expect(cards[1]!.classes()).toContain('change-review__card--modified');
-    expect(cards[2]!.classes()).toContain('change-review__card--deleted');
+    expect(defined(cards[0]).classes()).toContain('change-review__card--added');
+    expect(defined(cards[1]).classes()).toContain('change-review__card--modified');
+    expect(defined(cards[2]).classes()).toContain('change-review__card--deleted');
     expect(wrapper.find('.change-review__fields').exists()).toBe(false);
   });
 
   it('expands a card inline with the chevron and shows the semantic field diff', async () => {
     const wrapper = mountWorkspace();
     await nextTick();
-    const card = wrapper.findAll('.change-review__card')[1]!;
+    const card = defined(wrapper.findAll('.change-review__card')[1]);
     await card.get('.change-review__chevron').trigger('click');
     await nextTick();
     const text = card.text();
@@ -50,9 +51,9 @@ describe('ChangeReviewWorkspace', () => {
   it('switches the expanded card to the JSON diff in code mode', async () => {
     const wrapper = mountWorkspace();
     await nextTick();
-    const card = wrapper.findAll('.change-review__card')[1]!;
+    const card = defined(wrapper.findAll('.change-review__card')[1]);
     await card.get('.change-review__chevron').trigger('click');
-    const codeTab = wrapper.findAll('[role="radio"]').find((radio) => radio.text() === t('changeReview.code'))!;
+    const codeTab = defined(wrapper.findAll('[role="radio"]').find((radio) => radio.text() === t('changeReview.code')));
     await codeTab.trigger('click');
     await nextTick();
     expect(card.find('.base-json-diff').exists()).toBe(true);

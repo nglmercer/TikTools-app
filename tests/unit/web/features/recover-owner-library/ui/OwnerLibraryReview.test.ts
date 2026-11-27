@@ -11,7 +11,7 @@ import { controlClientKey } from '@/shared/api/use-control-client.ts';
 import { activateLocale } from '@/shared/i18n/i18n.ts';
 import { createRequest, isLiveAction } from '../../../../support/automation.ts';
 import OwnerLibraryReview from '../../../../../../src/web/features/recover-owner-library/ui/OwnerLibraryReview.vue';
-import { ACTION_TYPE, EVENT_KIND, FIXTURE_ID, LIBRARY_OPERATION, RPC } from '../../../../../shared/index.ts';
+import { ACTION_TYPE, EVENT_KIND, FIXTURE_ID, LIBRARY_OPERATION, RPC, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 beforeEach(() => activateLocale('en'));
@@ -70,7 +70,7 @@ test('a lost graph reply retains its reviewed source and current comparison with
       await button.trigger('click');
       await flushPromises();
     }
-    const codeTab = records.findAll('[role="radio"]').find((radio) => radio.text() === 'Code')!;
+    const codeTab = defined(records.findAll('[role="radio"]').find((radio) => radio.text() === 'Code'));
     await codeTab.trigger('click');
     await flushPromises();
     // Assert: the review shows the frozen source, never the configuration edited after the request

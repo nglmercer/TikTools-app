@@ -4,7 +4,7 @@ import { afterEach, expect, it } from 'vitest';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
 import SyncSetup from '../../../../../../src/web/features/sync-changes/ui/SyncSetup.vue';
-import { ACCOUNT_STATE, RPC } from '../../../../../shared/index.ts';
+import { ACCOUNT_STATE, RPC, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -27,7 +27,7 @@ it('retains the migration blocker and never migrates without a successful review
   const wrapper = mountWithPlugins(SyncSetup, { global: { plugins: storePlugins(client) } });
   await flushPromises();
   expect(calls.some(call => call.method === 'sync.enable')).toBe(false);
-  await wrapper.findAll('button').find(button => button.text() === t('syncChanges.prepare'))!.trigger('click');
+  await defined(wrapper.findAll('button').find(button => button.text() === t('syncChanges.prepare'))).trigger('click');
   await flushPromises();
   expect(wrapper.text()).toContain('installed_plugin_missing');
   expect(calls.some(call => call.method === 'sync.v2.migrate')).toBe(false);
@@ -70,7 +70,7 @@ it('requires explicit confirmation of the reviewed inventory and rechecks migrat
   const wrapper = mountWithPlugins(SyncSetup, { global: { plugins: storePlugins(client) } });
   await flushPromises();
   const click = async (label: string) => {
-    await wrapper.findAll('button').find(button => button.text() === label)!.trigger('click');
+    await defined(wrapper.findAll('button').find(button => button.text() === label)).trigger('click');
     await flushPromises();
   };
   await click(t('syncChanges.prepare'));

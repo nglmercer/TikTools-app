@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { linesText, plainTextLines, prettyJson, tokenizeJson, tokenizeJsonSource } from '../../../../../../src/web/shared/ui/json/json-tokens.ts';
 import { expectPrettyJson } from '../../../../../../src/web/shared/ui/json/json-test-helpers.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 const sample = {
   name: 'Gift alert',
@@ -32,8 +33,8 @@ describe('tokenizeJson', () => {
       ['key', 'punct', 'punct'],
       ['punct'],
     ]);
-    expect(lines[1]![0]).toEqual({ kind: 'ws', text: '  ' });
-    expect(lines[1]![1]).toEqual({ kind: 'key', text: '"a"' });
+    expect(defined(lines[1])[0]).toEqual({ kind: 'ws', text: '  ' });
+    expect(defined(lines[1])[1]).toEqual({ kind: 'key', text: '"a"' });
   });
 
   it('keeps keys in the order they were given and optionally sorts them', () => {
@@ -90,7 +91,7 @@ describe('tokenizeJson', () => {
     const giant = tokenizeJson({ blob: 'x'.repeat(100_000) }, { maxLineChars: 100 });
     expect(giant.truncated).toBe(true);
     expect(linesText(giant.lines).length).toBeLessThan(200);
-    expect(giant.lines[1]!.some((token) => token.text.endsWith('…"') || token.text.endsWith('…'))).toBe(true);
+    expect(defined(giant.lines[1]).some((token) => token.text.endsWith('…"') || token.text.endsWith('…'))).toBe(true);
   });
 
   it('handles very deep nesting without overflowing the stack', () => {
@@ -120,7 +121,7 @@ describe('tokenizeJsonSource', () => {
   it('shows text that is not JSON verbatim as plain text', () => {
     const result = tokenizeJsonSource('{"a": 1,\r\n  oops');
     expect(result.plain).toBe(true);
-    expect(result.lines.map((line) => line[0]!.kind)).toEqual(['text', 'text']);
+    expect(result.lines.map((line) => defined(line[0]).kind)).toEqual(['text', 'text']);
     expect(linesText(result.lines)).toBe('{"a": 1,\n  oops');
   });
 

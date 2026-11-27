@@ -5,6 +5,7 @@ import { nextTick, type App } from 'vue';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { createSessionRecovery, sessionRecoveryKey } from '@/shared/api/session-recovery.ts';
 import SessionRecoveryDialog from '../../../../../../src/web/shared/ui/dialog/SessionRecoveryDialog.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -47,7 +48,7 @@ describe('SessionRecoveryDialog', () => {
     expect(wrapper.get('h2').text()).toBe(t('sessionRecovery.expiredTitle'));
     const buttons = wrapper.findAll('footer button');
     expect(buttons.map((button) => button.text())).toEqual([t('sessionRecovery.pair'), t('sessionRecovery.retry')]);
-    await buttons[1]!.trigger('click');
+    await defined(buttons[1]).trigger('click');
     expect(retry).toHaveBeenCalledOnce();
   });
 
@@ -57,7 +58,7 @@ describe('SessionRecoveryDialog', () => {
     expect(wrapper.get('h2').text()).toBe(t('sessionRecovery.unavailableTitle'));
     const buttons = wrapper.findAll('footer button');
     expect(buttons.map((button) => button.text())).toEqual([t('sessionRecovery.retry'), t('sessionRecovery.pair')]);
-    await buttons[0]!.trigger('click');
+    await defined(buttons[0]).trigger('click');
     expect(retry).toHaveBeenCalled();
   });
 

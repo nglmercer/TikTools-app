@@ -13,8 +13,8 @@ export const sampleChanges: SyncChange[] = [
 ];
 
 export const sampleOperations: SyncOperation[] = [
-  { id: 'op1', kind: 'push', title: 'Sent two events', device: 'Desktop', at: 1_700_000_000_000, changes: [sampleChanges[0]!, sampleChanges[1]!] },
-  { id: 'op2', kind: 'fetch', title: 'Fetched one event', at: 1_700_000_100_000, changes: [sampleChanges[2]!] },
+  { id: 'op1', kind: 'push', title: 'Sent two events', device: 'Desktop', at: 1_700_000_000_000, changes: sampleChanges.slice(0, 2) },
+  { id: 'op2', kind: 'fetch', title: 'Fetched one event', at: 1_700_000_100_000, changes: sampleChanges.slice(2, 3) },
 ];
 
 /** An adapter whose every operation is a spy, with the capabilities the test asks for. */

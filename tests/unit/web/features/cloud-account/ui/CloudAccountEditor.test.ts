@@ -7,7 +7,7 @@ import { ControlCallError } from '@/shared/api/control-client.ts';
 import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import CloudAccountEditor from '../../../../../../src/web/features/cloud-account/ui/CloudAccountEditor.vue';
-import { ACCOUNT_STATE, FIXTURE_ID, RPC } from '../../../../../shared/index.ts';
+import { ACCOUNT_STATE, FIXTURE_ID, RPC, defined } from '../../../../../shared/index.ts';
 
 const t = (key: string): string => testMessage('en', key);
 
@@ -102,14 +102,14 @@ describe('CloudAccountEditor', () => {
     });
     const wrapper = mountWithPlugins(CloudAccountEditor, { global: { plugins: storePlugins(client) } });
     await flushPromises();
-    await wrapper.findAll('button').find((button) => button.text() === signIn)!.trigger('click');
+    await defined(wrapper.findAll('button').find((button) => button.text() === signIn)).trigger('click');
     await flushPromises();
     expect(wrapper.text()).toContain(manual);
     expect(wrapper.text()).toContain('https://cloud.example/desktop/login');
     expect(wrapper.get('.cloud-account__waiting').text()).toContain(t('account.waiting'));
     expect(wrapper.find('.cloud-account__spin').exists()).toBe(true);
     expect(wrapper.get('.cloud-account').attributes('aria-busy')).toBe('true');
-    await wrapper.findAll('button').find((button) => button.text() === cancel)!.trigger('click');
+    await defined(wrapper.findAll('button').find((button) => button.text() === cancel)).trigger('click');
     await flushPromises();
     expect(wrapper.text()).toContain(signIn);
     expect(wrapper.text()).not.toContain('https://cloud.example/desktop/login');

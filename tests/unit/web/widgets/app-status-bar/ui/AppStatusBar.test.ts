@@ -2,6 +2,7 @@ import { testMessage } from '@/shared/i18n/test-message.ts';
 import { describe, expect, it } from 'vitest';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import AppStatusBar from '../../../../../../src/web/widgets/app-status-bar/ui/AppStatusBar.vue';
+import { defined } from '../../../../../shared/index.ts';
 
 const t = (key: string): string => testMessage('en', key);
 
@@ -20,7 +21,7 @@ describe('AppStatusBar', () => {
     expect(wrapper.text()).toContain('1,520 viewers');
     const buttons = wrapper.findAll('button');
     expect(buttons.map((button) => button.text())).toEqual(['Reconnect', 'Disconnect']);
-    await buttons[1]!.trigger('click');
+    await defined(buttons[1]).trigger('click');
     expect(wrapper.emitted('disconnect')).toHaveLength(1);
   });
 

@@ -4,6 +4,7 @@ import {
   guideTargetSelector, panelFrameFor, qaArtifacts, qaScreenshot, retiredLandingSelectors, selector, stageFrame, stageTestId,
   trackOutbound, trackPageErrors, viewport,
 } from './support/index.ts';
+import { defined } from '../shared/index.ts';
 import { docCopy } from '../../docs/locales.ts';
 import { experienceCopy } from '../../docs/experience/copy.ts';
 import { showcaseSteps } from '../../src/web/demo/showcase/script.ts';
@@ -59,7 +60,8 @@ for (const locale of docLocales) {
       await page.goto(`${locale}/user/live/feed.html`);
     });
     const panel = page.locator('.demo-frame');
-    const frame = (await (await panel.locator('iframe').elementHandle())!.contentFrame())!;
+    const frameHandle = defined(await panel.locator('iframe').elementHandle(), 'the demo iframe');
+    const frame = defined(await frameHandle.contentFrame(), 'the iframe content frame');
     await test.step('check the demo is isolated at laptop width and play its first step', async () => {
       await expect(frame.locator(selector.demoControls)).toBeHidden();
       await expect(panel.getByTestId(frameTestId.step)).toBeEnabled();
@@ -73,7 +75,7 @@ for (const locale of docLocales) {
       for (const [scale,width] of [['0.5',640],['0.75',960],['1',1280]] as const) {
         await panel.getByTestId(frameTestId.zoom).selectOption(scale);
         expect(await frame.evaluate(() => innerWidth)).toBe(viewport.laptop.width);
-        expect(Math.round((await panel.locator('iframe').boundingBox())!.width)).toBe(width);
+        expect(Math.round(defined(await panel.locator('iframe').boundingBox(), 'the iframe box').width)).toBe(width);
         expect(new URL(frame.url()).searchParams.get('instance')).toBe(instance);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       }
@@ -83,8 +85,9 @@ for (const locale of docLocales) {
       await panel.getByTestId(frameTestId.zoom).selectOption('fit');
       await expect(search).toHaveValue('Luna');
       const alignment = await frame.locator('.feed-page').evaluate(node => {
-        const stream=node.querySelector('.feed-page__stream')!.getBoundingClientRect();
-        const inspector=node.querySelector('.feed-page__inspector')!.getBoundingClientRect();
+        const stream = node.querySelector('.feed-page__stream')?.getBoundingClientRect();
+        const inspector = node.querySelector('.feed-page__inspector')?.getBoundingClientRect();
+        if (!stream || !inspector) throw new Error('The feed stream and inspector must both be rendered');
         return { top:Math.abs(stream.top-inspector.top), right:inspector.left >= stream.right };
       });
       expect(alignment.top).toBeLessThan(2);
@@ -114,7 +117,7 @@ for (const locale of docLocales) {
 
   test(`${locale}: product landing shows one quiet demo and keeps the guides reachable`, async ({ page, baseURL }) => {
     const errors = trackPageErrors(page);
-    const outbound = trackOutbound(page, baseURL!);
+    const outbound = trackOutbound(page, defined(baseURL, 'baseURL'));
     await page.setViewportSize(viewport.desktop);
     await page.goto(`${locale}/`);
     for (const retired of retiredLandingSelectors) {
@@ -129,7 +132,7 @@ for (const locale of docLocales) {
     await rose.scrollIntoViewIfNeeded();
     await expect(rose).toHaveAttribute('alt', 'Rose');
     await expect.poll(() => rose.evaluate(node => (node instanceof HTMLImageElement ? node.naturalWidth : 0))).toBeGreaterThan(0);
-    expect(new URL((await rose.getAttribute('src'))!,page.url()).origin).toBe(new URL(baseURL!).origin);
+    expect(new URL(defined(await rose.getAttribute('src'), 'the gift image src'), page.url()).origin).toBe(new URL(defined(baseURL, 'baseURL')).origin);
     await expect(page.locator(selector.stageGuideLink)).toHaveAttribute('href', guideLink('feed', `/${locale}`));
     await page.getByTestId(stageTestId.step('overlays')).click();
     await expect(frame.locator(guideTargetSelector('overlay-preview'))).toBeVisible();
@@ -137,7 +140,7 @@ for (const locale of docLocales) {
     const source = await page.locator(selector.stageFrame).getAttribute('src');
     await page.locator('.docs-home__actions a').first().click();
     await expect(page).toHaveURL(/#playground$/);
-    await expect(page.locator(selector.stageFrame)).toHaveAttribute('src',source!);
+    await expect(page.locator(selector.stageFrame)).toHaveAttribute('src', defined(source, 'the initial stage frame src'));
     expect(errors).toEqual([]);
     expect(outbound).toEqual([]);
   });
@@ -209,7 +212,7 @@ for (const locale of docLocales) {
     await page.goto(`${locale}/releases/`);
     await expect(page.locator('.release-card')).toHaveCount(snapshot.releases.length);
     const first = page.locator('.release-card').first();
-    await expect(first).toContainText(snapshot.releases[0]!.tag);
+    await expect(first).toContainText(defined(snapshot.releases[0], 'the first release').tag);
     for (const system of ['Windows', 'Linux']) {
       await page.getByRole('button', { name: system, exact: true }).click();
       const links = page.locator('.release-card__assets a');

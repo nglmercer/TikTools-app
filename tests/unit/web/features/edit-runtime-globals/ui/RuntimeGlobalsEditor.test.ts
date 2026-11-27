@@ -7,7 +7,7 @@ import { useGlobalsStore } from '@/entities/runtime-global/model/globals-store.t
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import RuntimeGlobalsEditor from '../../../../../../src/web/features/edit-runtime-globals/ui/RuntimeGlobalsEditor.vue';
-import { RPC } from '../../../../../shared/index.ts';
+import { RPC, defined } from '../../../../../shared/index.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -42,7 +42,7 @@ describe('RuntimeGlobalsEditor', () => {
     const { wrapper, calls } = await mountEditor((method) =>
       method === RPC.globalsList ? { globals: { commandPort: '46665' } } : { ok: true },
     );
-    await wrapper.findAll('input')[1]!.setValue('25575');
+    await defined(wrapper.findAll('input')[1]).setValue('25575');
     await saveButton(wrapper).trigger('click');
     await flushPromises();
     expect(calls.at(-1)).toEqual({ method: RPC.globalsSet, params: { key: 'commandPort', value: '25575' } });
@@ -53,14 +53,14 @@ describe('RuntimeGlobalsEditor', () => {
     const { wrapper } = await mountEditor(() => ({ globals: {} }));
     expect(wrapper.text()).toContain('No globals yet');
     await wrapper.get('button[aria-label="Add global"]').trigger('click');
-    await wrapper.findAll('input')[0]!.setValue('9lives');
+    await defined(wrapper.findAll('input')[0]).setValue('9lives');
     expect(wrapper.get('[role="alert"]').text()).toContain('Keys start with a letter');
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
   });
 
   it('removes the first global row and enables saving', async () => {
     const { wrapper } = await mountEditor(() => ({ globals: { a: '1', b: '2' } }));
-    await wrapper.findAll('button[aria-label="Remove global"]')[0]!.trigger('click');
+    await defined(wrapper.findAll('button[aria-label="Remove global"]')[0]).trigger('click');
     expect(wrapper.findAll('input').map((input) => input.element.value)).toEqual(['b', '2']);
     expect(saveButton(wrapper).attributes('disabled')).toBeUndefined();
   });
@@ -76,7 +76,7 @@ describe('RuntimeGlobalsEditor', () => {
 
   it('discards unsaved edits and returns to the stored values', async () => {
     const { wrapper, calls } = await mountEditor(() => ({ globals: { commandPort: '46665' } }));
-    await wrapper.findAll('input')[1]!.setValue('25575');
+    await defined(wrapper.findAll('input')[1]).setValue('25575');
     expect(discardButton(wrapper).attributes('disabled')).toBeUndefined();
     await discardButton(wrapper).trigger('click');
     expect(wrapper.findAll('input').map((input) => input.element.value)).toEqual(['commandPort', '46665']);
@@ -93,9 +93,9 @@ describe('RuntimeGlobalsEditor', () => {
       throw new Error(`unexpected method ${method}`);
     }, true);
     const rows = wrapper.findAll('[role="row"]').slice(1);
-    expect(rows[1]!.get('input[aria-label="Value"]').attributes('type')).toBe('password');
-    await rows[0]!.get('select[aria-label="Type"]').setValue('number');
-    await rows[0]!.get('input[aria-label="Value"]').setValue('46665');
+    expect(defined(rows[1]).get('input[aria-label="Value"]').attributes('type')).toBe('password');
+    await defined(rows[0]).get('select[aria-label="Type"]').setValue('number');
+    await defined(rows[0]).get('input[aria-label="Value"]').setValue('46665');
     await saveButton(wrapper).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === RPC.globalsTypedReplace)).toEqual({ method: RPC.globalsTypedReplace, params: {

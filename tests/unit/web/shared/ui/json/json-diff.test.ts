@@ -10,6 +10,7 @@ import {
   wordRanges,
 } from '../../../../../../src/web/shared/ui/json/json-diff.ts';
 import { tokenizeJson } from '../../../../../../src/web/shared/ui/json/json-tokens.ts';
+import { defined } from '../../../../../shared/index.ts';
 
 /** Replays an edit script to make sure it really turns `before` into `after`. */
 function apply(before: string[], after: string[], ops: string[]): string[] {
@@ -19,13 +20,13 @@ function apply(before: string[], after: string[], ops: string[]): string[] {
   for (const op of ops) {
     if (op === 'equal') {
       expect(before[i]).toBe(after[j]);
-      out.push(before[i]!);
+      out.push(defined(before[i]));
       i += 1;
       j += 1;
     }
     else if (op === 'delete') i += 1;
     else {
-      out.push(after[j]!);
+      out.push(defined(after[j]));
       j += 1;
     }
   }
@@ -105,12 +106,12 @@ describe('diffJson', () => {
     const diff = diffJson({ name: 'Old name', n: 1 }, { name: 'New name', n: 1 });
     const changed = diff.rows.filter((row) => row.kind === 'changed');
     expect(changed).toHaveLength(1);
-    const row = changed[0]!;
+    const row = defined(changed[0]);
     expect([row.oldNumber, row.newNumber]).toEqual([2, 2]);
     expect(row.oldText).toBe('  "name": "Old name",');
     expect(row.newText).toBe('  "name": "New name",');
-    expect(row.oldRanges.map(([s, e]) => row.oldText!.slice(s, e))).toEqual(['Old']);
-    expect(row.newRanges.map(([s, e]) => row.newText!.slice(s, e))).toEqual(['New']);
+    expect(row.oldRanges.map(([s, e]) => defined(row.oldText).slice(s, e))).toEqual(['Old']);
+    expect(row.newRanges.map(([s, e]) => defined(row.newText).slice(s, e))).toEqual(['New']);
     expect(diff.stats).toEqual({ added: 0, removed: 0, changed: 1, unchanged: 3 });
   });
 
@@ -139,7 +140,7 @@ describe('diffJson', () => {
   });
 
   it('does not mark words for lines that share too little', () => {
-    const row = diffJson({ alpha: 'one' }, { omega: 'two' }).rows.find((item) => item.kind === 'changed')!;
+    const row = defined(diffJson({ alpha: 'one' }, { omega: 'two' }).rows.find((item) => item.kind === 'changed'));
     expect(row.oldRanges).toEqual([]);
     expect(row.newRanges).toEqual([]);
   });
@@ -172,10 +173,10 @@ describe('wordRanges and segmentLine', () => {
 
   it('splits syntax tokens at changed boundaries', () => {
     const [line] = tokenizeJson('abcdef').lines;
-    const segments = segmentLine(line!, [[2, 4]]);
+    const segments = segmentLine(defined(line), [[2, 4]]);
     expect(segments.map((segment) => [segment.text, segment.changed])).toEqual([['"a', false], ['bc', true], ['def"', false]]);
     expect(segments.every((segment) => segment.kind === 'string')).toBe(true);
-    expect(segmentLine(line!, [])).toEqual([{ kind: 'string', text: '"abcdef"', changed: false }]);
+    expect(segmentLine(defined(line), [])).toEqual([{ kind: 'string', text: '"abcdef"', changed: false }]);
     const spanning = segmentLine([{ kind: 'key', text: '"ab"' }, { kind: 'punct', text: ': ' }, { kind: 'number', text: '12' }], [[3, 7]]);
     expect(spanning.map((segment) => [segment.kind, segment.text, segment.changed])).toEqual([
       ['key', '"ab', false], ['key', '"', true], ['punct', ': ', true], ['number', '1', true], ['number', '2', false],

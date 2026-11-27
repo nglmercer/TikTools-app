@@ -7,7 +7,7 @@ import type { UpdateStatus } from '../../../../../../src/web/features/app-update
 import { useAppUpdaterStore } from '../../../../../../src/web/features/app-updater/model/updater-store.ts';
 import AppUpdater from '../../../../../../src/web/features/app-updater/ui/AppUpdater.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
-import { RPC } from '../../../../../shared/index.ts';
+import { RPC, defined } from '../../../../../shared/index.ts';
 
 const t = (key: string): string => testMessage('en', key);
 
@@ -179,7 +179,7 @@ describe('AppUpdater', () => {
     const wrapper = mountWithPlugins(AppUpdater, { global: { plugins: harness.plugins } });
     const retry = wrapper.findAll('button').find((button) => button.text().includes(t('appUpdater.retryDownload')));
     expect(retry).toBeDefined();
-    await retry!.trigger('click');
+    await defined(retry).trigger('click');
     expect(calls.some((call) => call.method === 'app.update.download')).toBe(true);
   });
 
@@ -198,8 +198,8 @@ describe('AppUpdater', () => {
       const wrapper = mountWithPlugins(AppUpdater, { global: { plugins: harness.plugins } });
       const button = wrapper.findAll('button').find((item) => item.text().includes(t('appUpdater.install')));
       expect(button).toBeDefined();
-      await button!.trigger('click');
-      expect(JSON.parse(postMessage.mock.calls[0]![0])).toEqual({ type: 'app-update-install', locale: 'en' });
+      await defined(button).trigger('click');
+      expect(JSON.parse(defined(postMessage.mock.calls[0])[0])).toEqual({ type: 'app-update-install', locale: 'en' });
     } finally {
       window.ipc = previous;
     }
