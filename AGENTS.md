@@ -87,4 +87,7 @@
   the two workers share the work and a failure names its case.
 - Frame commands (`showcase-goto`, ...) are ignored until the demo reports ready: wait for a rendered
   event (`expectFirstChatMessage`) before sending one.
-
+- While iterating, `bunx playwright test -c playwright.site.config.ts --only-changed[=<ref>]` runs
+  only the spec files whose import graph touches the changed files (e.g. a tour definition selects
+  `tours.spec.ts`). It cannot see code the browser loads from the built site (demo, landing), so run the
+  full suite before committing a frontend change.
