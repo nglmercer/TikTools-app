@@ -1,6 +1,6 @@
 const t = (key: string): string => testMessage('en', key);
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import { countCalls, installFakeHost, readHostState, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
 
@@ -36,6 +36,11 @@ test('Variables preserves explicit types and keeps local secrets masked', async 
   consoleCapture.assertClean();
 });
 
+/** Open one variable's details in the Changes dialog: each change is an article headed by its name. */
+const openChange = (panel: Locator, name: string) => panel
+  .locator('article').filter({ has: panel.page().getByText(name, { exact: true }) })
+  .getByRole('button', { name: 'Show change details' }).click();
+
 test('Variables Changes adopts a reviewed value and withdraws a secret without replacing its local copy', async ({ page }, testInfo) => {
   const state = emptyState();
   state.announcedMethods = ['cloud.status', 'globals.typed.list', 'globals.typed.replace', 'sync.status', 'sync.v2.selected', 'sync.v2.variables.review', 'sync.v2.variables.send', 'sync.v2.variables.fetch', 'sync.v2.variables.apply', 'sync.v2.variables.withdraw'];
@@ -51,12 +56,12 @@ test('Variables Changes adopts a reviewed value and withdraws a secret without r
   await page.getByRole('button', { name: /Sync changes/ }).click();
   const panel = page.getByRole('dialog', { name: 'Changes · Variables', exact: true });
   await expect(panel).toBeVisible();
-  await panel.getByRole('button', { name: 'View port', exact: true }).click();
+  await openChange(panel, 'port');
   await panel.getByRole('button', { name: t('syncChanges.applyCloud'), exact: true }).click();
   await expect.poll(() => countCalls(page, 'sync.v2.variables.apply')).toBe(0);
   await panel.getByRole('alertdialog').getByRole('button', { name: t('syncChanges.confirm'), exact: true }).click();
   await expect.poll(async () => (await readHostState(page)).typedGlobals?.port).toEqual({ type: 'number', value: 46665 });
-  await panel.getByRole('button', { name: 'View ordinary', exact: true }).click();
+  await openChange(panel, 'ordinary');
   await expect(panel.getByRole('button', { name: t('syncChanges.applyCloud'), exact: true })).toHaveCount(0);
   await expect(panel).not.toContainText('local-browser-private-value');
   await expect(panel.getByRole('checkbox')).toHaveCount(0);
