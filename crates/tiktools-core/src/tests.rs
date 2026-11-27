@@ -414,11 +414,10 @@ async fn native_avatar_reaches_ui_points_and_room_tops() {
     assert!(saw_top, "room.stats must carry mapped top viewers");
 }
 
-#[tokio::test]
-async fn plugin_typed_event_runs_while_its_plugin_is_enabled() {
-    let emitter = Arc::new(RecordingEmitter::default());
-    let core = Arc::new(AppCore::new(emitter.clone()));
-    let snapshot = serde_json::json!({
+/// Automation snapshot with one enabled plugin-typed event (`hotkey.pressed`)
+/// that logs `key <data.key>`; the plugin is installed and enabled.
+fn plugin_hotkey_snapshot() -> serde_json::Value {
+    serde_json::json!({
         "actions": [{
             "id": "say-key",
             "name": "Say key",
@@ -448,7 +447,14 @@ async fn plugin_typed_event_runs_while_its_plugin_is_enabled() {
             "enabled": true,
             "available": true
         }]
-    });
+    })
+}
+
+#[tokio::test]
+async fn plugin_typed_event_runs_while_its_plugin_is_enabled() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter.clone()));
+    let snapshot = plugin_hotkey_snapshot();
     core.automation.replace_snapshot(&snapshot);
 
     core.publish_automation_event(AutomationEvent::owner(serde_json::json!({
@@ -545,37 +551,7 @@ async fn sequential_polled_presses_start_fresh_chains() {
     // further press exceeded the emit depth limit and was dropped forever.
     let emitter = Arc::new(RecordingEmitter::default());
     let core = Arc::new(AppCore::new(emitter));
-    core.automation.replace_snapshot(&json!({
-        "actions": [{
-            "id": "say-key",
-            "name": "Say key",
-            "typeId": "core.log",
-            "enabled": true,
-            "config": {"message": "key {{ event.data.key }}"}
-        }],
-        "events": [{
-            "id": "hotkey-event",
-            "name": "Hotkey event",
-            "enabled": true,
-            "trigger": "hotkey.pressed",
-            "filters": [],
-            "cooldownMs": 0,
-            "cooldownScope": "user",
-            "actionIds": ["say-key"],
-            "runMode": "all"
-        }],
-        "eventTypes": [{
-            "type": "hotkey.pressed",
-            "title": {"default": "Hotkey pressed"},
-            "source": {"kind": "plugin", "pluginId": "hotkeys"}
-        }],
-        "plugins": [{
-            "descriptor": {"id": "hotkeys"},
-            "installed": true,
-            "enabled": true,
-            "available": true
-        }]
-    }));
+    core.automation.replace_snapshot(&plugin_hotkey_snapshot());
 
     // Simulate sequential poll ticks, each building context from the last
     // published event exactly like poll_plugin_events does.
