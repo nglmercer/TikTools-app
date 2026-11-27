@@ -2109,6 +2109,33 @@ fn concurrent_operations_on_one_plugin_are_busy() {
         .unwrap();
 }
 
+/// An index writer over `dir`, signed by `index_key`, whose trust root is
+/// `root_key` and which trusts the index key and `publisher` (as `acme`).
+fn open_registry(
+    dir: impl Into<PathBuf>,
+    root_key: &SigningKey,
+    index_key: &SigningKey,
+    publisher: &SigningKey,
+) -> IndexWriter {
+    let writer = IndexWriter::open(
+        dir.into(),
+        "test",
+        Some(SigningKey::from_json(&index_key.to_json()).unwrap()),
+    );
+    writer
+        .init(
+            root_key,
+            vec![
+                TrustedKey::new(index_key.public_key(), KeyRole::Index),
+                TrustedKey::new(publisher.public_key(), KeyRole::Publisher).publisher("acme"),
+            ],
+            None,
+            None,
+        )
+        .unwrap();
+    writer
+}
+
 fn publisher_key() -> SigningKey {
     SigningKey::generate(KeyId::parse("acme-1").unwrap(), Some("acme".to_owned())).unwrap()
 }
@@ -2475,22 +2502,7 @@ async fn registry_loop_installs_by_id_and_reports_updates() {
     let root_key = SigningKey::generate(KeyId::parse("root-1").unwrap(), None).unwrap();
     let index_key = SigningKey::generate(KeyId::parse("index-1").unwrap(), None).unwrap();
     let publisher = publisher_key();
-    let writer = IndexWriter::open(
-        root.join("registry"),
-        "test",
-        Some(SigningKey::from_json(&index_key.to_json()).unwrap()),
-    );
-    writer
-        .init(
-            &root_key,
-            vec![
-                TrustedKey::new(index_key.public_key(), KeyRole::Index),
-                TrustedKey::new(publisher.public_key(), KeyRole::Publisher).publisher("acme"),
-            ],
-            None,
-            None,
-        )
-        .unwrap();
+    let writer = open_registry(root.join("registry"), &root_key, &index_key, &publisher);
     writer
         .add(
             &signed_package(&root, &publisher, "acme.demo", "1.0.0"),
@@ -2733,22 +2745,7 @@ async fn cloud_registry_installs_verified_package_and_update() {
     let publisher = publisher_key();
     let origin = root.join("origin");
     let gen1 = origin.join("api/v1/registry/generations/1/files");
-    let writer = IndexWriter::open(
-        &gen1,
-        "test",
-        Some(SigningKey::from_json(&index_key.to_json()).unwrap()),
-    );
-    writer
-        .init(
-            &root_key,
-            vec![
-                TrustedKey::new(index_key.public_key(), KeyRole::Index),
-                TrustedKey::new(publisher.public_key(), KeyRole::Publisher).publisher("acme"),
-            ],
-            None,
-            None,
-        )
-        .unwrap();
+    let writer = open_registry(&gen1, &root_key, &index_key, &publisher);
     writer
         .add(
             &signed_package(&root, &publisher, "acme.demo", "1.0.0"),
@@ -2841,22 +2838,7 @@ async fn cloud_registry_installs_verified_package_and_update() {
 
     // Publish 1.0.1 in a new generation, yank 1.0.0, advance the pointer.
     let gen2 = origin.join("api/v1/registry/generations/2/files");
-    let writer2 = IndexWriter::open(
-        &gen2,
-        "test",
-        Some(SigningKey::from_json(&index_key.to_json()).unwrap()),
-    );
-    writer2
-        .init(
-            &root_key,
-            vec![
-                TrustedKey::new(index_key.public_key(), KeyRole::Index),
-                TrustedKey::new(publisher.public_key(), KeyRole::Publisher).publisher("acme"),
-            ],
-            None,
-            None,
-        )
-        .unwrap();
+    let writer2 = open_registry(&gen2, &root_key, &index_key, &publisher);
     writer2
         .add(
             &signed_package(&root, &publisher, "acme.demo", "1.0.0"),
@@ -2942,22 +2924,7 @@ async fn fixed_cloud_refuses_yanked_version_after_independent_review() {
     let archive = signed_package(&root, &publisher, "acme.demo", "1.0.0");
     for generation in [1, 2] {
         let tree = origin.join(format!("api/v1/registry/generations/{generation}/files"));
-        let writer = IndexWriter::open(
-            tree,
-            "test",
-            Some(SigningKey::from_json(&index_key.to_json()).unwrap()),
-        );
-        writer
-            .init(
-                &root_key,
-                vec![
-                    TrustedKey::new(index_key.public_key(), KeyRole::Index),
-                    TrustedKey::new(publisher.public_key(), KeyRole::Publisher).publisher("acme"),
-                ],
-                None,
-                None,
-            )
-            .unwrap();
+        let writer = open_registry(tree, &root_key, &index_key, &publisher);
         writer.add(&archive, "stable", None).unwrap();
         if generation == 2 {
             writer.yank("acme.demo", "1.0.0", true).unwrap();
