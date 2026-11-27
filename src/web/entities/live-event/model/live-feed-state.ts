@@ -55,7 +55,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   const viewport = createFeedViewport(events, () => !disposed && presentationActive);
   const {
     filter, imagesEnabled, renderLimit, searchQuery, autoScroll, unreadCount, streamContainerRef,
-    scrollToBottom, handleToggleAutoScroll, setFilter, setSearchQuery, setStreamContainerRef,
+    scrollToBottom, handleToggleAutoScroll, setFilter, setSearchQuery, setStreamContainerRef, restoreScrollPosition,
   } = viewport;
   const topViewers = shallowRef<TopViewerPayload[]>([]);
   const likeLeaders = shallowRef<LikeLeaderPayload[]>([]);
@@ -354,6 +354,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     setFilter,
     setSearchQuery,
     setStreamContainerRef,
+    restoreScrollPosition,
     refresh,
     dispose,
   };

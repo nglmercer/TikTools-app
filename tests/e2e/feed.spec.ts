@@ -88,9 +88,7 @@ test('image-disabled diagnostic mode removes avatar and gift image requests', as
   capture.assertClean();
 });
 
-// FIXME: returning to the feed resets a paused reader to offset 0 (observed 18 -> 0); the title says the
-// position must survive. Decide whether the product should restore it, then drop the fixme.
-test.fixme('autoscroll and paused position survive feed navigation', async ({ page }) => {
+test('autoscroll and paused position survive feed navigation', async ({ page }) => {
   const capture = await installFakeHost(page, emptyState());
   await page.goto('/');
   await waitForFrontend(page);

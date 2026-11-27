@@ -17,6 +17,11 @@ export function createFeedViewport(events: Ref<DisplayEvent[]>, isActive: () => 
   const streamContainerRef = ref<HTMLDivElement | null>(null);
   let restoreScrollTop = savedFeed?.scrollTop;
   let scrollSaveHandler: DebouncedCallback | null = null;
+  // A detached container reports offset 0, so keep the last offset seen while it was mounted.
+  let lastScrollTop = savedFeed?.scrollTop ?? 0;
+  const trackScrollTop = (event: Event): void => {
+    if (event.currentTarget instanceof HTMLElement) lastScrollTop = event.currentTarget.scrollTop;
+  };
   let restoreFrame = 0;
   let restoreTimer: ReturnType<typeof setTimeout> | null = null;
   let scrollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -67,7 +72,7 @@ export function createFeedViewport(events: Ref<DisplayEvent[]>, isActive: () => 
       filter: filter.value,
       searchQuery: searchQuery.value,
       autoScroll: autoScroll.value,
-      scrollTop: streamContainerRef.value?.scrollTop ?? 0,
+      scrollTop: streamContainerRef.value?.scrollTop ?? lastScrollTop,
     });
   };
   const saveFeedStateDebounced = debounce(saveFeedState);
@@ -149,10 +154,16 @@ export function createFeedViewport(events: Ref<DisplayEvent[]>, isActive: () => 
     const next = element instanceof HTMLDivElement ? element : null;
     if (streamContainerRef.value === next) return;
     const previous = streamContainerRef.value;
+    if (previous) previous.removeEventListener('scroll', trackScrollTop);
     if (previous && scrollSaveHandler) {
       previous.removeEventListener('scroll', scrollSaveHandler);
       scrollSaveHandler.cancel();
       scrollSaveHandler = null;
+    }
+    // Leaving the feed while paused: remember where the reader was so the next mount restores it.
+    if (previous && !next && !autoScroll.value && lastScrollTop > 0) {
+      restoreScrollTop = lastScrollTop;
+      saveFeedState();
     }
     streamContainerRef.value = next;
     const container = streamContainerRef.value;
@@ -169,7 +180,19 @@ export function createFeedViewport(events: Ref<DisplayEvent[]>, isActive: () => 
     if (!autoScroll.value && restoreScrollTop !== undefined && restoreScrollTop > 0) restoreTimer = setTimeout(restore, 100);
     restoreFrame = scheduleFrame(restore);
     scrollSaveHandler = debounce(saveFeedState);
+    container.addEventListener('scroll', trackScrollTop);
     container.addEventListener('scroll', scrollSaveHandler);
+  };
+
+  /** A kept-alive feed is detached while hidden and the browser drops its offset; put a paused reader back. */
+  const restoreScrollPosition = (): void => {
+    if (autoScroll.value) return;
+    cancelFrame(restoreFrame);
+    restoreFrame = scheduleFrame(() => {
+      restoreFrame = 0;
+      const container = streamContainerRef.value;
+      if (!disposed && container && !autoScroll.value) container.scrollTop = lastScrollTop;
+    });
   };
 
   function pause(): void {
@@ -206,7 +229,7 @@ export function createFeedViewport(events: Ref<DisplayEvent[]>, isActive: () => 
   return {
     filter, imagesEnabled, renderLimit, searchQuery, autoScroll, unreadCount, streamContainerRef,
     scrollToBottom, handleToggleAutoScroll, setFilter, setSearchQuery, setStreamContainerRef,
-    pause, dispose,
+    pause, dispose, restoreScrollPosition,
     diagnostics: () => ({ timers: Number(scrollTimer !== null) + Number(restoreTimer !== null), frames: Number(scrollFrame !== 0) + Number(restoreFrame !== 0) }),
   };
 }

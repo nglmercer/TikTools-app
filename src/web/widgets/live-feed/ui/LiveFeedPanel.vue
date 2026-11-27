@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
-import { computed, markRaw, ref, shallowRef } from 'vue';
+import { computed, markRaw, onActivated, ref, shallowRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import GuideCatalogButton from '@/features/guided-help/ui/GuideCatalogButton.vue';
 import { eventFilters, filterEvents, windowEvents } from '@/entities/live-event/lib/event-filter.ts';
@@ -47,6 +47,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const store = useLiveFeedStore();
+onActivated(() => store.restoreScrollPosition());
 const connection = useConnectionStore();
 const { events, filter, searchQuery, autoScroll, unreadCount, renderLimit, imagesEnabled, liveViewers } = storeToRefs(store);
 const { status } = storeToRefs(connection);
