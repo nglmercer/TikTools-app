@@ -19,6 +19,7 @@ pub struct Fixture {
     pub core: Arc<AppCore>,
     pub api: ControlApi,
     pub root: std::path::PathBuf,
+    pub paths: AppPaths,
 }
 impl Fixture {
     /// `prefix` names the temp directory so concurrent test binaries do not collide.
@@ -49,15 +50,20 @@ impl Fixture {
         ] {
             std::fs::File::create(path).unwrap();
         }
+        Self::open(paths)
+    }
+    /// Starts a core over existing `paths`, e.g. to restart over the same data.
+    pub fn open(paths: AppPaths) -> Self {
         let core = Arc::new(AppCore::with_paths(
             Arc::new(Emitter),
             Arc::new(NoopMediaHost),
-            paths,
+            paths.clone(),
         ));
         Self {
             api: ControlApi::new(core.clone()),
             core,
-            root,
+            root: paths.root.clone(),
+            paths,
         }
     }
     /// Enables collaboration, redeems an invitation carrying `grant` and

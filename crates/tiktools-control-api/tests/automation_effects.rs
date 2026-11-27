@@ -1,7 +1,9 @@
 #![cfg(feature = "persistence")]
 use serde_json::{json, Value};
 use tiktools_control_api::{RemoteSession, RequestContext};
-use tiktools_core::collaboration::{hash_secret, Capability, ClientKind, Collect, Grant, InviteCreate, Redeem};
+use tiktools_core::collaboration::{
+    hash_secret, Capability, ClientKind, Collect, Grant, InviteCreate, Redeem,
+};
 
 mod support;
 use support::Fixture;
