@@ -62,7 +62,7 @@ jobs:
         run: node scripts/ci-scope.mjs
 
   frontend:
-    timeout-minutes: 20
+    timeout-minutes: 30
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
     name: frontend
@@ -97,6 +97,15 @@ jobs:
 
       - name: Test frontend
         run: bun scripts/task.ts frontend-test
+      # The app specs drive the real frontend against a fake native host
+      # (tests/e2e). They were never run here, which let them rot unnoticed.
+      - name: Install Chromium for the app browser specs
+        run: bun x --no-install playwright install --with-deps chromium
+
+      - name: Run the app browser specs
+        timeout-minutes: 10
+        run: bun scripts/task.ts e2e
+
       - name: Verify universal widget contracts
         run: bun scripts/check-universal.mjs
 
