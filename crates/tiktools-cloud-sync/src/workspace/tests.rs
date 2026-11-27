@@ -790,9 +790,20 @@ struct ProductUploadFixture {
     expire_eligibility: Option<Arc<std::sync::atomic::AtomicBool>>,
 }
 
+impl ProductUploadFixture {
+    /// Source generation 7 under consent 42, the pair `standard_decision` stages.
+    fn standard() -> Self {
+        Self {
+            generation: std::sync::atomic::AtomicU64::new(7),
+            consent: 42,
+            expire_eligibility: None,
+        }
+    }
+}
+
 #[tokio::test]
 async fn changed_source_after_prepare_is_not_sent() {
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::Ordering;
     struct ChangedOnEmission(ProductUploadFixture);
     impl crate::V2ProductUploadSource for ChangedOnEmission {
         fn acquire_emission_guard(&self) -> Result<Box<dyn Send>, WorkspaceCoordError> {
@@ -812,11 +823,7 @@ async fn changed_source_after_prepare_is_not_sent() {
     let temp = tempfile::tempdir().unwrap();
     let coordinator = coordinator(&temp.path().join("private"), &server, "account-a");
     let (target, _) = stage_product_fixture(&coordinator, &server);
-    let source = ChangedOnEmission(ProductUploadFixture {
-        generation: AtomicU64::new(7),
-        consent: 42,
-        expire_eligibility: None,
-    });
+    let source = ChangedOnEmission(ProductUploadFixture::standard());
     let eligibility =
         WorkspaceEligibility::new(session.clone(), || true).with_test_publication_guard();
     let admission = ProductUploadAdmission {
@@ -841,7 +848,7 @@ async fn changed_source_after_prepare_is_not_sent() {
 
 #[tokio::test]
 async fn product_review_barrier_rejects_a_cancelled_write_that_arrives_late() {
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::Ordering;
 
     let server = start_server().await;
     let session = Arc::new(connect(&server, "device-a").await);
@@ -852,11 +859,7 @@ async fn product_review_barrier_rejects_a_cancelled_write_that_arrives_late() {
         "account-a",
     ));
     let (target, decision) = stage_product_fixture(&coordinator, &server);
-    let source = Arc::new(ProductUploadFixture {
-        generation: AtomicU64::new(7),
-        consent: 42,
-        expire_eligibility: None,
-    });
+    let source = Arc::new(ProductUploadFixture::standard());
     let eligibility =
         WorkspaceEligibility::new(session.clone(), || true).with_test_publication_guard();
     let (entered_tx, entered_rx) = oneshot::channel();
@@ -1179,7 +1182,7 @@ async fn product_recovery_rebases_only_latest_staged_decision_without_replaying(
 
 #[tokio::test]
 async fn product_uncertain_keep_local_requires_fresh_review_source_and_publication_permit() {
-    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     let server = start_server().await;
     let session = Arc::new(connect(&server, "device-a").await);
@@ -1203,11 +1206,7 @@ async fn product_uncertain_keep_local_requires_fresh_review_source_and_publicati
                 publish()
             })
             .with_test_emission_guard();
-    let source = ProductUploadFixture {
-        generation: AtomicU64::new(7),
-        consent: 42,
-        expire_eligibility: None,
-    };
+    let source = ProductUploadFixture::standard();
     let admission = ProductUploadAdmission {
         source: &source,
         config_generation: 42,
@@ -1348,11 +1347,7 @@ async fn product_upload_requires_exact_receipt_source_and_current_eligibility() 
     let eligibility =
         WorkspaceEligibility::new(session.clone(), move || check.load(Ordering::SeqCst))
             .with_test_publication_guard();
-    let source = ProductUploadFixture {
-        generation: AtomicU64::new(7),
-        consent: 42,
-        expire_eligibility: None,
-    };
+    let source = ProductUploadFixture::standard();
     let admission = ProductUploadAdmission {
         source: &source,
         config_generation: 42,
@@ -1426,7 +1421,7 @@ async fn product_upload_requires_exact_receipt_source_and_current_eligibility() 
 
 #[tokio::test]
 async fn product_response_publication_requires_captured_session_and_consent() {
-    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     // Exercise both the acknowledged and conflict response. The first mode
     // simulates logout while HTTP is in flight. The second invalidates the
@@ -1475,11 +1470,7 @@ async fn product_response_publication_requires_captured_session_and_consent() {
                 publish()
             })
             .with_test_emission_guard();
-            let source = ProductUploadFixture {
-                generation: AtomicU64::new(7),
-                consent: 42,
-                expire_eligibility: None,
-            };
+            let source = ProductUploadFixture::standard();
             let admission = ProductUploadAdmission {
                 source: &source,
                 config_generation: 42,
@@ -1548,7 +1539,7 @@ struct BlockingProductSource {
 
 #[tokio::test(flavor = "current_thread")]
 async fn cancelled_while_last_eligibility_check_is_blocked_does_not_send() {
-    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     let server = start_server().await;
     let session = Arc::new(connect(&server, "device-a").await);
@@ -1559,11 +1550,7 @@ async fn cancelled_while_last_eligibility_check_is_blocked_does_not_send() {
         "account-a",
     ));
     let (target, _) = stage_product_fixture(&coordinator, &server);
-    let source = Arc::new(ProductUploadFixture {
-        generation: AtomicU64::new(7),
-        consent: 42,
-        expire_eligibility: None,
-    });
+    let source = Arc::new(ProductUploadFixture::standard());
     let (entered_tx, entered_rx) = oneshot::channel();
     let (release_tx, release_rx) = std::sync::mpsc::channel();
     let (checked_tx, checked_rx) = oneshot::channel();
@@ -1837,7 +1824,6 @@ async fn product_worker_deadline_returns_while_source_blocked_without_sending_la
 
 #[tokio::test(flavor = "current_thread")]
 async fn cancelled_product_worker_releases_http_lease_and_retains_unknown_result() {
-    use std::sync::atomic::AtomicU64;
     let server = start_server().await;
     let session = Arc::new(connect(&server, "device-a").await);
     let temp = tempfile::tempdir().unwrap();
@@ -1847,11 +1833,7 @@ async fn cancelled_product_worker_releases_http_lease_and_retains_unknown_result
         "account-a",
     ));
     let (target, _) = stage_product_fixture(&coordinator, &server);
-    let source = Arc::new(ProductUploadFixture {
-        generation: AtomicU64::new(7),
-        consent: 42,
-        expire_eligibility: None,
-    });
+    let source = Arc::new(ProductUploadFixture::standard());
     let (entered_tx, entered_rx) = oneshot::channel();
     let (release_tx, release_rx) = oneshot::channel();
     server.remote.lock().unwrap().pause_next_write = Some(Pause {
