@@ -1,5 +1,3 @@
-const t = (key: string): string => testMessage('en', key);
-import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 /**
  * Plugin iframe asset loading: the production failure mode the inline
  * broker fixture cannot reproduce.
@@ -19,6 +17,7 @@ import type { Page } from '@playwright/test';
 
 import {
   assertNoUnhandledCalls,
+  emitPush,
   installFakeHost,
   waitForFrontend,
 } from './fixtures/tiktools-host.ts';
@@ -131,8 +130,8 @@ async function expectScrollableInlineUi(
   await page.goto('/');
   await waitForFrontend(page);
 
-  // Narrow windows collapse navigation into the sidebar drawer.
-  await page.getByRole('button', { name: t('navigation.toggleSidebar') }).click();
+  // Narrow windows collapse navigation into the sidebar drawer; the native shell menu opens it.
+  await emitPush(page, { type: 'shell-menu-action', id: 'toggle-sidebar' });
   const tab = page.getByRole('link', { name: 'Text to Speech' });
   await expect(tab).toBeVisible();
   await tab.click();
