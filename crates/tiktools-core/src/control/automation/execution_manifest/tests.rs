@@ -49,6 +49,28 @@ impl Drop for Fixture {
         let _ = std::fs::remove_dir_all(&self.paths.root);
     }
 }
+/// Read, edit, toggle and live-read access, delegated for `log` effects only.
+fn log_delegation_grant() -> Grant {
+    Grant {
+        capabilities: [
+            Capability::AutomationRead,
+            Capability::AutomationEdit,
+            Capability::AutomationToggle,
+            Capability::LiveRead,
+        ]
+        .into(),
+        automation_delegation: Some(AutomationDelegation {
+            effects: [DelegatedAutomationEffect::Log].into(),
+            allow_dynamic_targets: false,
+            allow_owner_edits: false,
+            allow_owner_source: false,
+            allow_other_author_edits: false,
+            allow_other_author_source: false,
+        }),
+        ..Grant::default()
+    }
+}
+
 fn author(core: &AppCore) -> Authorization {
     let grant = Grant {
         capabilities: [Capability::AutomationRead, Capability::AutomationEdit].into(),
@@ -298,24 +320,7 @@ fn reusable_preflight_requires_policy_from_every_delegated_author() {
         AutomationMutation::Create { kind: AutomationKind::Action, record: json!({"id":"same","name":"Second author","enabled":false,"typeId":"core.log","config":{"message":"hello"}}) },
     ).unwrap();
     delegated(f.core(), &first, "proposal");
-    let grant = Grant {
-        capabilities: [
-            Capability::AutomationRead,
-            Capability::AutomationEdit,
-            Capability::AutomationToggle,
-            Capability::LiveRead,
-        ]
-        .into(),
-        automation_delegation: Some(AutomationDelegation {
-            effects: [DelegatedAutomationEffect::Log].into(),
-            allow_dynamic_targets: false,
-            allow_owner_edits: false,
-            allow_owner_source: false,
-            allow_other_author_edits: false,
-            allow_other_author_source: false,
-        }),
-        ..Grant::default()
-    };
+    let grant = log_delegation_grant();
     let service = f.core().collaboration().unwrap();
     service
         .set_grant(GrantSet {
@@ -377,24 +382,7 @@ fn reusable_runtime_candidate_pins_definition_and_current_subject_grant() {
         .with_current(|identities| capture().authorize(identities))
         .unwrap()
         .is_err());
-    let grant = Grant {
-        capabilities: [
-            Capability::AutomationRead,
-            Capability::AutomationEdit,
-            Capability::AutomationToggle,
-            Capability::LiveRead,
-        ]
-        .into(),
-        automation_delegation: Some(AutomationDelegation {
-            effects: [DelegatedAutomationEffect::Log].into(),
-            allow_dynamic_targets: false,
-            allow_owner_edits: false,
-            allow_owner_source: false,
-            allow_other_author_edits: false,
-            allow_other_author_source: false,
-        }),
-        ..Grant::default()
-    };
+    let grant = log_delegation_grant();
     service
         .set_grant(GrantSet {
             principal_id: identity.principal_id.clone(),

@@ -106,6 +106,38 @@ fn delegated_effect(record: Value, grant: &Grant) -> ExecutionManifest {
     .unwrap()
 }
 
+/// The manifest for `review` as seen by two authors, `a` (holding `first`) and
+/// `b` (holding `second`), both at revision 1.
+fn build_two_authors(
+    review: &Versioned<Value>,
+    first: &Grant,
+    second: &Grant,
+) -> ExecutionManifest {
+    build(
+        review,
+        ManifestSubjects {
+            host_id: "host",
+            subjects: &[
+                ManifestSubject {
+                    principal_id: "a",
+                    session_id: "s-a",
+                    grant_revision: "1",
+                    configuration_revision: "1",
+                    grant: first,
+                },
+                ManifestSubject {
+                    principal_id: "b",
+                    session_id: "s-b",
+                    grant_revision: "1",
+                    configuration_revision: "1",
+                    grant: second,
+                },
+            ],
+        },
+    )
+    .unwrap()
+}
+
 #[test]
 fn scoped_custom_trigger_requires_every_authors_exact_topic_and_capability() {
     let mut review = event_review(&[action("child", "core.log", json!({"message":"scoped"}))]);
@@ -114,31 +146,7 @@ fn scoped_custom_trigger_requires_every_authors_exact_topic_and_capability() {
     review.value["dependencies"][0]["provenance"] = provenance(Some(("b", "s-b")), "1");
     let first = effect_grant();
     let mut second = effect_grant();
-    let capture = |second: &Grant| {
-        build(
-            &review,
-            ManifestSubjects {
-                host_id: "host",
-                subjects: &[
-                    ManifestSubject {
-                        principal_id: "a",
-                        session_id: "s-a",
-                        grant_revision: "1",
-                        configuration_revision: "1",
-                        grant: &first,
-                    },
-                    ManifestSubject {
-                        principal_id: "b",
-                        session_id: "s-b",
-                        grant_revision: "1",
-                        configuration_revision: "1",
-                        grant: second,
-                    },
-                ],
-            },
-        )
-        .unwrap()
-    };
+    let capture = |second: &Grant| build_two_authors(&review, &first, second);
     let allowed = capture(&second);
     assert_eq!(allowed.reasons, [ManifestReason::ApprovalRequired]);
     assert!(!allowed.execution_authorized);
@@ -152,29 +160,7 @@ fn scoped_custom_trigger_requires_every_authors_exact_topic_and_capability() {
         .reasons
         .contains(&ManifestReason::MissingCapability));
     review.value["record"]["trigger"] = json!("MODERATOR.alert");
-    let malformed = build(
-        &review,
-        ManifestSubjects {
-            host_id: "host",
-            subjects: &[
-                ManifestSubject {
-                    principal_id: "a",
-                    session_id: "s-a",
-                    grant_revision: "1",
-                    configuration_revision: "1",
-                    grant: &first,
-                },
-                ManifestSubject {
-                    principal_id: "b",
-                    session_id: "s-b",
-                    grant_revision: "1",
-                    configuration_revision: "1",
-                    grant: &first,
-                },
-            ],
-        },
-    )
-    .unwrap();
+    let malformed = build_two_authors(&review, &first, &first);
     assert!(malformed
         .reasons
         .contains(&ManifestReason::InvalidConfiguration));
