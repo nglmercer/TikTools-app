@@ -544,6 +544,11 @@ export async function installFakeHost(
 }
 
 /** Reads the current fake-host state from the page. */
+/** Legacy shell messages of one type; the shell also posts housekeeping messages the page tests ignore. */
+export async function legacyMessagesOf(page: Page, type: string): Promise<Array<Record<string, unknown>>> {
+  return (await readHostState(page)).legacyMessages.filter((message) => message.type === type);
+}
+
 export async function readHostState(page: Page): Promise<E2EHostState> {
   return page.evaluate(() => {
     const w = window as unknown as { __TIKTOOLS_E2E_STATE__: E2EHostState };

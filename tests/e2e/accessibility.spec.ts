@@ -6,8 +6,8 @@ import { expect, test } from '@playwright/test';
 import {
   assertNoUnhandledCalls,
   installFakeHost,
+  legacyMessagesOf,
   waitForFrontend,
-  readHostState,
 } from './fixtures/tiktools-host.ts';
 import { installPluginUiOverride, routePluginFixture } from './fixtures/plugin-frame.ts';
 import { optionFailureState, ttsPageState, webviewPageState } from './fixtures/states.ts';
@@ -56,7 +56,7 @@ test('inline plugin frame exposes a keyboard-operable pop-out', async ({ page })
   await expect(popOut).toBeFocused();
   await page.keyboard.press('Enter');
   await expect
-    .poll(async () => (await readHostState(page)).legacyMessages.length)
+    .poll(async () => (await legacyMessagesOf(page, 'plugin-ui-open')).length)
     .toBe(1);
 
   await assertNoUnhandledCalls(page);

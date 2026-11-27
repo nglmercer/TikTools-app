@@ -8,6 +8,7 @@ import {
   emitTopic,
   installFakeHost,
   waitForFrontend,
+  legacyMessagesOf,
   readHostState,
 } from './fixtures/tiktools-host.ts';
 import { SONICBOOM_ID, SPEAK_ACTION } from './fixtures/plugins.ts';
@@ -89,10 +90,9 @@ test('inline page pops out through desktop host messages', async ({ page }) => {
 
   await page.getByRole('button', { name: t('plugins.page.openWindow') }).click();
   await expect
-    .poll(async () => (await readHostState(page)).legacyMessages.length)
+    .poll(async () => (await legacyMessagesOf(page, 'plugin-ui-open')).length)
     .toBe(1);
-  const host = await readHostState(page);
-  expect(host.legacyMessages[0]).toMatchObject({
+  expect((await legacyMessagesOf(page, 'plugin-ui-open'))[0]).toMatchObject({
     type: 'plugin-ui-open',
     pluginId: SONICBOOM_ID,
     pageId: 'tts',
