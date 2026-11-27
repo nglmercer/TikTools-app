@@ -1,15 +1,15 @@
 use super::*;
 use serde_json::Value;
 
-#[tokio::test]
-async fn typed_runtime_variables_are_atomic_owner_only_operations() {
-    use serde_json::json;
+/// An `AppCore` over a throwaway directory named after `prefix`, with the
+/// default crypto provider installed; the caller removes the returned root.
+fn test_core(prefix: &str) -> (Arc<AppCore>, std::path::PathBuf) {
     struct Emitter;
     impl tiktools_core::HostEmitter for Emitter {
         fn emit(&self, _: tiktools_core::ipc::messages::HostMessage) {}
     }
     let root = std::env::temp_dir().join(format!(
-        "tt-typed-variables-{}-{}",
+        "{prefix}-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -33,6 +33,13 @@ async fn typed_runtime_variables_are_atomic_owner_only_operations() {
         Arc::new(tiktools_core::NoopMediaHost),
         paths,
     ));
+    (core, root)
+}
+
+#[tokio::test]
+async fn typed_runtime_variables_are_atomic_owner_only_operations() {
+    use serde_json::json;
+    let (core, root) = test_core("tt-typed-variables");
     let mut router = ControlRouter::new();
     ControlApi::register_all(&mut router);
     let api = ControlApi {
@@ -150,35 +157,7 @@ fn cloud_login_deadlines_leave_time_for_callback_and_server_response() {
 
 #[tokio::test]
 async fn remote_storage_failures_omit_owner_diagnostics_but_local_failures_keep_them() {
-    struct Emitter;
-    impl tiktools_core::HostEmitter for Emitter {
-        fn emit(&self, _: tiktools_core::ipc::messages::HostMessage) {}
-    }
-    let root = std::env::temp_dir().join(format!(
-        "tt-private-error-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    let paths = tiktools_core::paths::AppPaths {
-        data: root.join("data"),
-        plugins: root.join("plugins"),
-        plugin_data: root.join("plugin-data"),
-        builtin_plugins: root.join("builtins"),
-        development_plugins: None,
-        logs: root.join("logs"),
-        temp: root.join("temp"),
-        root: root.clone(),
-    };
-    paths.ensure_directories().unwrap();
-    tiktools_tls::ensure_default_crypto_provider();
-    let core = Arc::new(AppCore::with_paths(
-        Arc::new(Emitter),
-        Arc::new(tiktools_core::NoopMediaHost),
-        paths,
-    ));
+    let (core, root) = test_core("tt-private-error");
     let mut router = ControlRouter::new();
     router.register_typed::<modules::Empty, Value, _, _>(
         "test.failure",
