@@ -34,6 +34,30 @@ fn templated_paths() -> AppPaths {
     crate::db::test_templates::materialize(&root())
 }
 
+/// Registers the `rank` aggregation (one point per `tiktok.chat` event) that
+/// the competition tests rank their participants by.
+fn insert_chat_ranking(db: &DatabaseManager) {
+    db.insert_aggregation_definition(&tiktools_aggregation::model::Definition {
+        schema_version: 1,
+        id: "rank".into(),
+        creator_id: "creator".into(),
+        room_id: "room".into(),
+        group_by: Default::default(),
+        window: Default::default(),
+        user_limits: None,
+        sources: vec![tiktools_aggregation::model::SourceRule {
+            source: "tiktok.chat".into(),
+            metric: "event.count".into(),
+            weight: 1,
+            enabled: true,
+            gift_multipliers: Default::default(),
+        }],
+        limit: 10,
+        capacity: 100,
+    })
+    .unwrap();
+}
+
 #[test]
 fn initializes_compatible_schemas_and_round_trips_records() {
     let paths = paths();
@@ -570,25 +594,7 @@ fn competition_definition_survives_reopen() {
         target_score: None,
         on_user_win: None,
     };
-    db.insert_aggregation_definition(&tiktools_aggregation::model::Definition {
-        schema_version: 1,
-        id: "rank".into(),
-        creator_id: "creator".into(),
-        room_id: "room".into(),
-        group_by: Default::default(),
-        window: Default::default(),
-        user_limits: None,
-        sources: vec![tiktools_aggregation::model::SourceRule {
-            source: "tiktok.chat".into(),
-            metric: "event.count".into(),
-            weight: 1,
-            enabled: true,
-            gift_multipliers: Default::default(),
-        }],
-        limit: 10,
-        capacity: 100,
-    })
-    .unwrap();
+    insert_chat_ranking(&db);
     db.insert_competition_definition(&definition).unwrap();
     let reopened = DatabaseManager::new(paths.clone());
     assert_eq!(
@@ -703,25 +709,7 @@ fn competition_command_votes_are_transactional_scoped_and_replay_safe() {
         target_score: None,
         on_user_win: None,
     };
-    db.insert_aggregation_definition(&tiktools_aggregation::model::Definition {
-        schema_version: 1,
-        id: "rank".into(),
-        creator_id: "creator".into(),
-        room_id: "room".into(),
-        group_by: Default::default(),
-        window: Default::default(),
-        user_limits: None,
-        sources: vec![tiktools_aggregation::model::SourceRule {
-            source: "tiktok.chat".into(),
-            metric: "event.count".into(),
-            weight: 1,
-            enabled: true,
-            gift_multipliers: Default::default(),
-        }],
-        limit: 10,
-        capacity: 100,
-    })
-    .unwrap();
+    insert_chat_ranking(&db);
     let input = |participant_id, event_identity, command, received_at| CommandParticipation {
         creator_id: "creator",
         room_id: "room",
