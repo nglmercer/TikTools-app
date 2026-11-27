@@ -462,7 +462,64 @@ fn only_the_exact_owner_library_submit_gets_the_large_local_request_budget() {
     }
 }
 
+type Forwarded = std::sync::Arc<std::sync::Mutex<Vec<String>>>;
+
+/// Runs the domain event forwarder over `receiver` and collects every
+/// notification it emits.
+fn spawn_forwarder(
+    core: &Arc<AppCore>,
+    receiver: tiktools_core::events::DomainSubscription,
+) -> (Forwarded, tokio::task::JoinHandle<()>) {
+    let forwarded = Forwarded::default();
+    let task = {
+        let forwarded = std::sync::Arc::clone(&forwarded);
+        let core = Arc::clone(core);
+        tokio::spawn(forward_domain_events(
+            receiver,
+            core,
+            test_projection(),
+            move |notification, _generation| {
+                forwarded
+                    .lock()
+                    .expect("forwarded lock poisoned")
+                    .push(notification.to_string());
+            },
+        ))
+    };
+    (forwarded, task)
+}
+
+/// Waits (up to 5 s) until at least `count` notifications were forwarded.
+async fn wait_for_forwarded(forwarded: &Forwarded, count: usize, what: &str) {
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let delivered = forwarded.lock().expect("forwarded lock poisoned").len();
+            if delivered >= count {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect(what);
+}
+
+/// Publishes `Shutdown` and expects the forwarder to terminate cleanly.
+async fn shut_down_forwarder(
+    bus: &tiktools_core::events::EventBus,
+    task: tokio::task::JoinHandle<()>,
+) {
+    bus.publish_domain(tiktools_core::events::DomainEvent::Shutdown);
+    tokio::time::timeout(std::time::Duration::from_secs(5), task)
+        .await
+        .expect("forwarder must terminate after Shutdown")
+        .expect("forwarder panicked");
+}
+
 fn forwarder_test_core(tag: &str) -> (Arc<AppCore>, std::path::PathBuf) {
+    // The core builds HTTP clients, which need the process-wide TLS provider
+    // the application installs at startup.
+    tiktools_tls::ensure_default_crypto_provider();
     struct Emitter;
     impl tiktools_core::HostEmitter for Emitter {
         fn emit(&self, _message: tiktools_core::ipc::messages::HostMessage) {}
@@ -488,40 +545,16 @@ async fn lagged_burst_emits_gap_and_forwarder_survives() {
     for _ in 0..600 {
         bus.publish_domain(tiktools_core::events::DomainEvent::LiveDisconnected);
     }
-    let forwarded = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-    let task = {
-        let forwarded = std::sync::Arc::clone(&forwarded);
-        let core = Arc::clone(&core);
-        tokio::spawn(forward_domain_events(
-            receiver,
-            core,
-            test_projection(),
-            move |notification, _generation| {
-                forwarded
-                    .lock()
-                    .expect("forwarded lock poisoned")
-                    .push(notification.to_string());
-            },
-        ))
-    };
+    let (forwarded, task) = spawn_forwarder(&core, receiver);
     // Only terminate once the post-burst message is through, so the
     // Shutdown cannot collapse into the lagged burst itself.
-    tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        loop {
-            let delivered = forwarded.lock().expect("forwarded lock poisoned").len();
-            if delivered >= 2 {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("forwarder must deliver gap plus backlog after lag");
-    bus.publish_domain(tiktools_core::events::DomainEvent::Shutdown);
-    tokio::time::timeout(std::time::Duration::from_secs(5), task)
-        .await
-        .expect("forwarder must terminate after Shutdown")
-        .expect("forwarder panicked");
+    wait_for_forwarded(
+        &forwarded,
+        2,
+        "forwarder must deliver gap plus backlog after lag",
+    )
+    .await;
+    shut_down_forwarder(&bus, task).await;
     let forwarded = forwarded.lock().expect("forwarded lock poisoned");
     // Reliable lag is explicit, never silent: a gap notification heads
     // the retained backlog, later events still arrive, and Shutdown
@@ -554,39 +587,10 @@ async fn lossy_burst_forwards_without_gap_signal() {
             event: serde_json::json!({"n": index}),
         });
     }
-    let forwarded = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-    let task = {
-        let forwarded = std::sync::Arc::clone(&forwarded);
-        let core = Arc::clone(&core);
-        tokio::spawn(forward_domain_events(
-            receiver,
-            core,
-            test_projection(),
-            move |notification, _generation| {
-                forwarded
-                    .lock()
-                    .expect("forwarded lock poisoned")
-                    .push(notification.to_string());
-            },
-        ))
-    };
+    let (forwarded, task) = spawn_forwarder(&core, receiver);
     // Wait for the retained lossy backlog, then terminate cleanly.
-    tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        loop {
-            let delivered = forwarded.lock().expect("forwarded lock poisoned").len();
-            if delivered >= 1 {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("forwarder must deliver the retained backlog");
-    bus.publish_domain(tiktools_core::events::DomainEvent::Shutdown);
-    tokio::time::timeout(std::time::Duration::from_secs(5), task)
-        .await
-        .expect("forwarder must terminate after Shutdown")
-        .expect("forwarder panicked");
+    wait_for_forwarded(&forwarded, 1, "forwarder must deliver the retained backlog").await;
+    shut_down_forwarder(&bus, task).await;
     let forwarded = forwarded.lock().expect("forwarded lock poisoned");
     assert!(
         !forwarded.iter().any(|line| line.contains("event.gap")),
