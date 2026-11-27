@@ -2,7 +2,10 @@
 //! isolated `tiktools` command environment and the JSON-RPC call helper.
 
 use serde_json::Value;
-use std::{path::Path, process::Stdio};
+use std::{
+    path::{Path, PathBuf},
+    process::Stdio,
+};
 use tokio::process::Command;
 
 pub fn command(home: &Path) -> Command {
@@ -62,4 +65,29 @@ pub fn port() -> u16 {
         .local_addr()
         .unwrap()
         .port()
+}
+
+/// An isolated home under `temporary` holding empty database files, and the
+/// packaged web frontend and the repository root, returned as
+/// `(home, assets, repo)`. Panics when `dist/web` has not been built.
+pub fn packaged_home(temporary: &Path) -> (PathBuf, PathBuf, PathBuf) {
+    let home = temporary.join("home");
+    std::fs::create_dir_all(home.join("data")).unwrap();
+    for file in [
+        "tiktok-points.db",
+        "tiktok-automation.db",
+        "tiktok-analytics.db",
+    ] {
+        std::fs::File::create(home.join("data").join(file)).unwrap();
+    }
+    let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .unwrap();
+    let assets = repo.join("dist/web");
+    assert!(
+        assets.join("index.html").is_file(),
+        "build the packaged web frontend first"
+    );
+    (home, assets, repo)
 }

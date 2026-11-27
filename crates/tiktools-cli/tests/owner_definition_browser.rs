@@ -1,11 +1,7 @@
 //! Actual packaged Owner browser → local adapter → IPC → native definition journal.
 #![cfg(all(target_os = "linux", feature = "local-web"))]
 use serde_json::{json, Value};
-use std::{
-    path::{Path, PathBuf},
-    process::Stdio,
-    time::Duration,
-};
+use std::{path::Path, process::Stdio, time::Duration};
 mod common;
 use common::{command, port};
 use tokio::process::Command;
@@ -37,24 +33,7 @@ async fn actual_owner_definition_writes_reload_and_recovery_keep_original_result
 {
     tokio::time::timeout(Duration::from_secs(300), async {
         let temporary = tempfile::tempdir().unwrap();
-        let home = temporary.path().join("home");
-        std::fs::create_dir_all(home.join("data")).unwrap();
-        for file in [
-            "tiktok-points.db",
-            "tiktok-automation.db",
-            "tiktok-analytics.db",
-        ] {
-            std::fs::File::create(home.join("data").join(file)).unwrap();
-        }
-        let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../..")
-            .canonicalize()
-            .unwrap();
-        let assets = repo.join("dist/web");
-        assert!(
-            assets.join("index.html").is_file(),
-            "build the packaged web frontend first"
-        );
+        let (home, assets, repo) = common::packaged_home(temporary.path());
         let mut host = command(&home)
             .args(["host", "--ipc"])
             .stdout(Stdio::null())

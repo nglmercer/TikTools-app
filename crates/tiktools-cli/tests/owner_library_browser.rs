@@ -1,11 +1,7 @@
 //! Packaged Owner Vue → authenticated local adapter → IPC → atomic library writer.
 #![cfg(all(target_os = "linux", feature = "local-web"))]
 use serde_json::{json, Value};
-use std::{
-    path::{Path, PathBuf},
-    process::Stdio,
-    time::Duration,
-};
+use std::{path::Path, process::Stdio, time::Duration};
 mod common;
 use common::{command, port};
 use tokio::process::Command;
@@ -29,11 +25,7 @@ fn template(locale: &str) -> Value {
 async fn actual_owner_library_transactions_recover_original_identity_and_preserve_newer_candidates()
 {
     tokio::time::timeout(Duration::from_secs(360),async {
-        let temporary=tempfile::tempdir().unwrap();let home=temporary.path().join("home");
-        std::fs::create_dir_all(home.join("data")).unwrap();
-        for file in ["tiktok-points.db","tiktok-automation.db","tiktok-analytics.db"] {std::fs::File::create(home.join("data").join(file)).unwrap();}
-        let repo=PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();let assets=repo.join("dist/web");
-        assert!(assets.join("index.html").is_file(),"build packaged frontend first");
+        let temporary=tempfile::tempdir().unwrap();let (home, assets, repo) = common::packaged_home(temporary.path());
         let mut host=command(&home).args(["host","--ipc"]).stdout(Stdio::null()).spawn().unwrap();
         let info=tokio::time::timeout(Duration::from_secs(20),async {loop {
             assert!(host.try_wait().unwrap().is_none(),"library host stopped at startup");

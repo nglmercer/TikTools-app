@@ -5,7 +5,7 @@ mod common;
 use common::{command_with_cloud as command, port};
 use serde_json::{json, Value};
 use std::{
-    path::{Path, PathBuf},
+    path::Path,
     process::Stdio,
     sync::{Arc, Mutex},
     time::Duration,
@@ -136,24 +136,7 @@ async fn catalog_fixture() -> (String, Arc<Mutex<Vec<String>>>, tokio::task::Joi
 async fn packaged_cloud_catalog_uses_native_http_and_pinned_pagination() {
     tokio::time::timeout(Duration::from_secs(240), async {
         let temporary = tempfile::tempdir().unwrap();
-        let home = temporary.path().join("home");
-        std::fs::create_dir_all(home.join("data")).unwrap();
-        for file in [
-            "tiktok-points.db",
-            "tiktok-automation.db",
-            "tiktok-analytics.db",
-        ] {
-            std::fs::File::create(home.join("data").join(file)).unwrap();
-        }
-        let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../..")
-            .canonicalize()
-            .unwrap();
-        let assets = repo.join("dist/web");
-        assert!(
-            assets.join("index.html").is_file(),
-            "build the packaged frontend first"
-        );
+        let (home, assets, repo) = common::packaged_home(temporary.path());
         let (cloud, requests, server) = catalog_fixture().await;
         let mut host = command(&home, &cloud)
             .args(["host", "--ipc"])
