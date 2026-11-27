@@ -12,14 +12,11 @@ import TestRunList from '@/entities/automation/ui/TestRunList.vue';
 import { fieldOptionsFor, optionContext, optionContextSignature, optionSources } from '@/entities/plugin/lib/plugin-options.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
+import RecordEditorActions from '@/features/edit-automation-record/ui/RecordEditorActions.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
-import IconCheck from '@/shared/ui/icon/icons/IconCheck.vue';
 import IconFlask from '@/shared/ui/icon/icons/IconFlask.vue';
-import IconGitMerge from '@/shared/ui/icon/icons/IconGitMerge.vue';
 import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
-import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
-import IconUndo from '@/shared/ui/icon/icons/IconUndo.vue';
 import { vTooltip } from '@/shared/ui/tooltip/v-tooltip.ts';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import BaseSchemaForm from '@/shared/ui/schema-form/BaseSchemaForm.vue';
@@ -146,55 +143,26 @@ function confirmDelete(): void {
       <slot name="leading" />
     </template>
     <template #actions>
-      <BaseIconButton
-        :label="t('automations.conflict.compare')"
-        variant="default"
-        size="sm"
-        :disabled="busy"
-        @click="emit('compare')"
+      <RecordEditorActions
+        :busy="busy"
+        :changed="changed"
+        :is-new="isNew"
+        :can-save="canSave"
+        :save-blocked="saveBlocked"
+        @compare="emit('compare')"
+        @discard="draft = cloneRecord(baseline ?? action)"
+        @save="emit('save', draft)"
+        @delete="deleteOpen = true"
       >
-        <IconGitMerge />
-      </BaseIconButton>
-      <BaseIconButton
-        :label="t('automations.editor.test')"
-        variant="default"
-        size="sm"
-        @click="emit('test', draft)"
-      >
-        <IconFlask />
-      </BaseIconButton>
-      <span
-        class="action-editor__divider"
-        aria-hidden="true"
-      />
-      <BaseIconButton
-        :label="t('automations.editor.discard')"
-        variant="default"
-        size="sm"
-        :disabled="!changed || isNew || busy"
-        @click="draft = cloneRecord(baseline ?? action)"
-      >
-        <IconUndo />
-      </BaseIconButton>
-      <BaseIconButton
-        :label="t('automations.editor.save')"
-        variant="primary"
-        size="sm"
-        :disabled="!canSave || busy || saveBlocked"
-        @click="emit('save', draft)"
-      >
-        <IconCheck />
-      </BaseIconButton>
-      <BaseIconButton
-        v-if="!isNew"
-        :label="t('automations.editor.delete')"
-        variant="danger"
-        size="sm"
-        :disabled="busy || saveBlocked"
-        @click="deleteOpen = true"
-      >
-        <IconTrash />
-      </BaseIconButton>
+        <BaseIconButton
+          :label="t('automations.editor.test')"
+          variant="default"
+          size="sm"
+          @click="emit('test', draft)"
+        >
+          <IconFlask />
+        </BaseIconButton>
+      </RecordEditorActions>
     </template>
     <div class="action-editor__body">
       <BaseAlert
@@ -352,13 +320,6 @@ function confirmDelete(): void {
   flex-direction: column;
   gap: var(--space-4);
   min-width: 0;
-}
-
-.action-editor__divider {
-  align-self: stretch;
-  width: var(--border-width);
-  margin: var(--space-1) var(--space-2);
-  background: var(--color-border);
 }
 
 .action-editor__permissions {

@@ -8,15 +8,12 @@ import TestRunList from '@/entities/automation/ui/TestRunList.vue';
 import { blankEventForType } from '../../../../automation/event-registry.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
+import RecordEditorActions from '@/features/edit-automation-record/ui/RecordEditorActions.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
-import IconCheck from '@/shared/ui/icon/icons/IconCheck.vue';
 import IconCode from '@/shared/ui/icon/icons/IconCode.vue';
 import IconFlask from '@/shared/ui/icon/icons/IconFlask.vue';
-import IconGitMerge from '@/shared/ui/icon/icons/IconGitMerge.vue';
-import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
-import IconUndo from '@/shared/ui/icon/icons/IconUndo.vue';
 import BaseMenu from '@/shared/ui/menu/BaseMenu.vue';
 import type { MenuAction, MenuEntry } from '@/shared/ui/menu/menu-types.ts';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
@@ -161,58 +158,29 @@ function runCustom(kind: 'test' | 'fire'): void {
       <slot name="leading" />
     </template>
     <template #actions>
-      <BaseIconButton
-        :label="t('automations.conflict.compare')"
-        variant="default"
-        size="sm"
-        :disabled="busy"
-        @click="emit('compare')"
+      <RecordEditorActions
+        :busy="busy"
+        :changed="changed"
+        :is-new="isNew"
+        :can-save="canSave"
+        :save-blocked="saveBlocked"
+        @compare="emit('compare')"
+        @discard="discard"
+        @save="emit('save', draft)"
+        @delete="deleteOpen = true"
       >
-        <IconGitMerge />
-      </BaseIconButton>
-      <BaseIconButton
-        :label="t('automations.runMenu.label')"
-        :hint="t('automations.runMenu.hint')"
-        variant="default"
-        size="sm"
-        aria-haspopup="menu"
-        :aria-expanded="runMenuOpen"
-        @click="openRunMenu"
-      >
-        <IconFlask />
-      </BaseIconButton>
-      <span
-        class="event-editor__divider"
-        aria-hidden="true"
-      />
-      <BaseIconButton
-        :label="t('automations.editor.discard')"
-        variant="default"
-        size="sm"
-        :disabled="!changed || isNew || busy"
-        @click="discard"
-      >
-        <IconUndo />
-      </BaseIconButton>
-      <BaseIconButton
-        :label="t('automations.editor.save')"
-        variant="primary"
-        size="sm"
-        :disabled="!canSave || busy || saveBlocked"
-        @click="emit('save', draft)"
-      >
-        <IconCheck />
-      </BaseIconButton>
-      <BaseIconButton
-        v-if="!isNew"
-        :label="t('automations.editor.delete')"
-        variant="danger"
-        size="sm"
-        :disabled="busy || saveBlocked"
-        @click="deleteOpen = true"
-      >
-        <IconTrash />
-      </BaseIconButton>
+        <BaseIconButton
+          :label="t('automations.runMenu.label')"
+          :hint="t('automations.runMenu.hint')"
+          variant="default"
+          size="sm"
+          aria-haspopup="menu"
+          :aria-expanded="runMenuOpen"
+          @click="openRunMenu"
+        >
+          <IconFlask />
+        </BaseIconButton>
+      </RecordEditorActions>
     </template>
     <div class="event-editor__body">
       <p
