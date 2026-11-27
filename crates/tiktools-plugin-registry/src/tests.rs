@@ -8,12 +8,12 @@ use std::{
 };
 
 use tiktools_plugin_api::PluginRuntimeKind;
-use tiktools_plugin_package::{
-    KeyId, KeyRole, PackageArchive, Sha256Digest, SigningKey, TrustStore, TrustedKey,
-};
+use tiktools_plugin_package::{KeyId, KeyRole, Sha256Digest, SigningKey, TrustStore, TrustedKey};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use crate::test_support::{host, init_registry, keys, package, Keys, StaticServer, TempDir};
+use crate::test_support::{
+    host, init_registry, keys, package, verify_downloaded, Keys, StaticServer, TempDir,
+};
 use crate::{
     join_url, latest_compatible, resolve, shard_path, Advisory, AdvisorySeverity, DownloadRequest,
     Downloader, IndexWriter, PackageDocument, RegistriesConfig, RegistryClient, RegistryError,
@@ -452,21 +452,7 @@ async fn signed_registry_round_trip_with_search_download_and_cache() {
         .unwrap();
     assert!(!downloaded.cached);
     assert_eq!(progress.load(Ordering::Acquire), resolved.artifact.size);
-    let inspection = PackageArchive::open(&downloaded.path)
-        .unwrap()
-        .inspect()
-        .unwrap();
-    let trust = client.trust();
-    let verified = trust
-        .read()
-        .unwrap()
-        .verify_package(
-            inspection.signature.as_ref().unwrap(),
-            inspection.checksums.as_ref().unwrap(),
-            "acme.tts",
-            0,
-        )
-        .unwrap();
+    let verified = verify_downloaded(&client, &downloaded.path);
     assert_eq!(verified.publisher, "acme");
     assert_eq!(verified.source, "test");
 

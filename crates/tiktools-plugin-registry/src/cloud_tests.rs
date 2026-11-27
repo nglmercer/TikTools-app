@@ -9,7 +9,8 @@ use tiktools_plugin_package::{
 };
 
 use crate::test_support::{
-    host, init_registry, keys, keys_with, package as support_package, Keys, StaticServer, TempDir,
+    host, init_registry, keys, keys_with, package as support_package, verify_downloaded, Keys,
+    StaticServer, TempDir,
 };
 use crate::{
     cloud_source, generation_files_url, join_url, latest_compatible, resolve, Advisory,
@@ -241,21 +242,7 @@ async fn cloud_signed_download_verifies_and_updates_across_generations() {
         )
         .await
         .unwrap();
-    let inspection = PackageArchive::open(&downloaded.path)
-        .unwrap()
-        .inspect()
-        .unwrap();
-    let trust = client.trust();
-    let verified = trust
-        .read()
-        .unwrap()
-        .verify_package(
-            inspection.signature.as_ref().unwrap(),
-            inspection.checksums.as_ref().unwrap(),
-            "acme.tts",
-            0,
-        )
-        .unwrap();
+    let verified = verify_downloaded(&client, &downloaded.path);
     assert_eq!(verified.publisher, "acme");
 
     // Publish generation 2 and advance the pointer: the next operation picks

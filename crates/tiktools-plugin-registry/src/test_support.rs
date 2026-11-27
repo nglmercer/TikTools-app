@@ -242,3 +242,27 @@ pub(crate) fn init_registry(tree: PathBuf, keys: &Keys, description: &str) -> In
         .unwrap();
     writer
 }
+
+/// Opens a downloaded `acme.tts` archive and verifies its signature against the
+/// trust store `client` holds, returning the verified signature.
+pub(crate) fn verify_downloaded(
+    client: &crate::RegistryClient,
+    path: &std::path::Path,
+) -> tiktools_plugin_package::VerifiedSignature {
+    let inspection = tiktools_plugin_package::PackageArchive::open(path)
+        .unwrap()
+        .inspect()
+        .unwrap();
+    let trust = client.trust();
+    let verified = trust
+        .read()
+        .unwrap()
+        .verify_package(
+            inspection.signature.as_ref().unwrap(),
+            inspection.checksums.as_ref().unwrap(),
+            "acme.tts",
+            0,
+        )
+        .unwrap();
+    verified
+}
