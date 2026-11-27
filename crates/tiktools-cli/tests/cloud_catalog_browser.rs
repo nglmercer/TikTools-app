@@ -1,6 +1,8 @@
 //! Packaged Vue -> local adapter -> IPC -> native catalog -> disposable HTTP.
 #![cfg(all(target_os = "linux", feature = "local-web", debug_assertions))]
 
+mod common;
+use common::{command_with_cloud as command, port};
 use serde_json::{json, Value};
 use std::{
     path::{Path, PathBuf},
@@ -17,28 +19,6 @@ use tokio::{
 const GENERATION: i64 = 9_007_199_254_740_993;
 const SUMMARY_CURSOR: &str = "eyJraW5kIjoic3VtbWFyeSIsImdlbmVyYXRpb24iOjkwMDcxOTkyNTQ3NDA5OTMsInEiOiIiLCJ0YXJnZXQiOm51bGwsImxhc3QiOiJjYXRhbG9nLnA0OSJ9";
 const VERSION_CURSOR: &str = "eyJraW5kIjoidmVyc2lvbnMiLCJnZW5lcmF0aW9uIjo5MDA3MTk5MjU0NzQwOTkzLCJpZCI6ImNhdGFsb2cucDAwIiwidGFyZ2V0IjpudWxsLCJ2ZXJzaW9uIjoiMS4wLjArYnVpbGQ0OSIsImxhc3RfdGFyZ2V0IjoiYW55In0";
-
-fn command(home: &Path, cloud: &str) -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_tiktools"));
-    command
-        .current_dir(home)
-        .env("TIKTOOLS_HOME", home)
-        .env("TIKTOOLS_CLOUD_ORIGIN", cloud)
-        .env_remove("TIKTOOLS_SESSION_COOKIE");
-    for (key, directory) in [
-        ("TIKTOOLS_DATA_DIR", "data"),
-        ("TIKTOOLS_PLUGINS_DIR", "plugins"),
-        ("TIKTOOLS_PLUGIN_DATA_DIR", "plugin-data"),
-        ("TIKTOOLS_BUILTIN_PLUGINS_DIR", "builtins"),
-        ("TIKTOOLS_DEV_PLUGINS_DIR", "dev-plugins"),
-        ("TIKTOOLS_LOG_DIR", "logs"),
-        ("TIKTOOLS_TEMP_DIR", "temp"),
-    ] {
-        command.env(key, home.join(directory));
-    }
-    command.kill_on_drop(true).stderr(Stdio::null());
-    command
-}
 
 async fn rpc(home: &Path, cloud: &str, method: &str, params: Value) -> Option<Value> {
     let output = command(home, cloud)
@@ -149,14 +129,6 @@ async fn catalog_fixture() -> (String, Arc<Mutex<Vec<String>>>, tokio::task::Joi
         }
     });
     (origin, requests, server)
-}
-
-fn port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

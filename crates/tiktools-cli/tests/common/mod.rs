@@ -6,11 +6,15 @@ use std::{path::Path, process::Stdio};
 use tokio::process::Command;
 
 pub fn command(home: &Path) -> Command {
+    command_with_cloud(home, "")
+}
+/// Like [`command`], with `cloud` as the Cloud origin the command talks to.
+pub fn command_with_cloud(home: &Path, cloud: &str) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_tiktools"));
     command
         .current_dir(home)
         .env("TIKTOOLS_HOME", home)
-        .env("TIKTOOLS_CLOUD_ORIGIN", "")
+        .env("TIKTOOLS_CLOUD_ORIGIN", cloud)
         .env_remove("TIKTOOLS_SESSION_COOKIE");
     for (key, directory) in [
         ("TIKTOOLS_DATA_DIR", "data"),
