@@ -1,7 +1,13 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { assertNoUnhandledCalls, emitTopic, installFakeHost, readHostState, waitForFrontend, writeHostState } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
+
+/** The edit notices float over the editor's header actions; close them so those actions are reachable. */
+async function dismissNotices(page: Page): Promise<void> {
+  const toast = page.locator('.automation-edit-notice__toast');
+  while (await toast.count() > 0) await toast.first().getByRole('button').click();
+}
 
 for (const locale of ['en', 'es'] as const) {
   test(`owner editor retains conflicts and reviews recreation (${locale})`, async ({ page }, info) => {
@@ -26,11 +32,13 @@ for (const locale of ['en', 'es'] as const) {
     const t = (key: string): string => testMessage(locale, key);
     await expect(page.getByText(t('automations.conflict.hostChanged'))).toBeVisible();
     await expect(name).toHaveValue('My retained draft');
+    await dismissNotices(page);
     const save = page.getByRole('button', { name: t('automations.editor.save'), exact: true });
     await save.click();
     await expect(save).toBeDisabled();
     const failed = await readHostState(page);
     expect(failed.calls.find((r) => r.method === 'automation.update')?.meta?.['expectedRevision']).toBe('1');
+    await dismissNotices(page);
     await page.getByRole('button', { name: t('automations.conflict.compare'), exact: true }).click();
     const dialog = page.getByRole('dialog').filter({ has: page.locator('.change-review') });
     await expect(dialog.locator('.change-review__card')).toHaveCount(2);
@@ -53,21 +61,22 @@ for (const locale of ['en', 'es'] as const) {
     await dialog.getByRole('button', { name: t('automations.conflict.useBase'), exact: true }).click();
     await expect(dialog).not.toBeVisible();
     expect((await readHostState(page)).calls.filter((r) => r.method === 'automation.update')).toHaveLength(1);
-    await expect(name).toHaveValue('My retained draft'); await save.click();
+    await expect(name).toHaveValue('My retained draft'); await dismissNotices(page); await save.click();
     await expect(save).toBeDisabled();
     await expect.poll(async () => (await readHostState(page)).automationVersions?.['event:same']).toBe('3');
     const afterSave = await readHostState(page);
     expect(afterSave.calls.filter((r) => r.method === 'automation.update').at(-1)?.meta?.['expectedRevision']).toBe('2');
     afterSave.automationSnapshot['events'] = []; afterSave.automationVersions!['event:same'] = '4';
     await writeHostState(page, afterSave); await emitTopic(page, 'workflow.changed', { kind: 'event', id: 'same', change: 'deleted' });
-    await name.fill('Draft after deletion'); await save.click();
+    await name.fill('Draft after deletion'); await dismissNotices(page); await save.click();
     await expect(save).toBeDisabled();
+    await dismissNotices(page);
     await page.getByRole('button', { name: t('automations.conflict.compare'), exact: true }).click();
     await expect(dialog).toContainText(t('automations.conflict.recreateLead'));
     await expect(dialog.locator('.change-review__card--deleted')).toHaveCount(1);
     await dialog.getByRole('button', { name: t('automations.conflict.prepareRecreate'), exact: true }).click();
     expect((await readHostState(page)).calls.some((r) => r.method === 'automation.create')).toBe(false);
-    await save.click();
+    await dismissNotices(page); await save.click();
     await expect.poll(async () => (await readHostState(page)).automationVersions?.['event:same']).toBe('5');
     const final = await readHostState(page);
     expect(final.calls.find((r) => r.method === 'automation.create')?.meta?.['expectedRevision']).toBe('4');
