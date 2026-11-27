@@ -93,3 +93,22 @@ pub(crate) fn pair_service(
         .authenticate_live(&credentials.access_token, false, false)
         .unwrap()
 }
+
+/// The accessors every owner journal test fixture shares. The fixture has
+/// `core: Option<Arc<AppCore>>` and `paths: AppPaths` fields; `reopen` drops
+/// the core and opens a new one over the same data, as after a restart.
+macro_rules! owner_fixture_core_methods {
+    () => {
+        fn core(&self) -> &std::sync::Arc<crate::AppCore> {
+            self.core.as_ref().unwrap()
+        }
+        fn db(&self) -> rusqlite::Connection {
+            rusqlite::Connection::open(self.paths.automation_database()).unwrap()
+        }
+        fn reopen(&mut self) {
+            drop(self.core.take());
+            self.core = Some($crate::control::test_support::open_core(&self.paths));
+        }
+    };
+}
+pub(crate) use owner_fixture_core_methods;

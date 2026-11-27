@@ -5,7 +5,6 @@ use crate::{
     control::{AutomationMutation, CommandCaller, OwnerAdoptionSubmit, OwnerApprovalSubmit},
     paths::AppPaths,
 };
-use rusqlite::Connection;
 use serde_json::json;
 use std::{path::PathBuf, sync::Arc};
 
@@ -26,16 +25,7 @@ impl Fixture {
             paths,
         }
     }
-    fn core(&self) -> &Arc<AppCore> {
-        self.core.as_ref().unwrap()
-    }
-    fn db(&self) -> Connection {
-        Connection::open(self.paths.automation_database()).unwrap()
-    }
-    fn reopen(&mut self) {
-        drop(self.core.take());
-        self.core = Some(open_core(&self.paths));
-    }
+    crate::control::test_support::owner_fixture_core_methods!();
     fn seed(&self, kind: AutomationKind) {
         self.core()
             .automation_create_versioned(kind, source(kind, SOURCE), Some("0"))

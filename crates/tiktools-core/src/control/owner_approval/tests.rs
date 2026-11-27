@@ -6,7 +6,7 @@ use crate::{
     paths::AppPaths,
     AppCore,
 };
-use rusqlite::{params, Connection};
+use rusqlite::params;
 use serde_json::{json, Value};
 use std::sync::Arc;
 const SOURCE: &str = "private-native-approval-source";
@@ -45,16 +45,7 @@ impl Fixture {
             author,
         }
     }
-    fn core(&self) -> &Arc<AppCore> {
-        self.core.as_ref().unwrap()
-    }
-    fn db(&self) -> Connection {
-        Connection::open(self.paths.automation_database()).unwrap()
-    }
-    fn reopen(&mut self) {
-        drop(self.core.take());
-        self.core = Some(open_core(&self.paths));
-    }
+    crate::control::test_support::owner_fixture_core_methods!();
     fn graph(&self) {
         for (kind, id, record) in [
             (

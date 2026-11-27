@@ -21,12 +21,7 @@ impl Fixture {
             paths,
         }
     }
-    fn core(&self) -> &Arc<AppCore> {
-        self.core.as_ref().unwrap()
-    }
-    fn db(&self) -> Connection {
-        Connection::open(self.paths.automation_database()).unwrap()
-    }
+    crate::control::test_support::owner_fixture_core_methods!();
     fn input(&self, mutation: OwnerLibraryMutation) -> OwnerLibrarySubmit {
         input(self.core(), mutation)
     }
@@ -34,10 +29,6 @@ impl Fixture {
         self.core()
             .owner_library_submit(self.input(mutation))
             .unwrap()
-    }
-    fn reopen(&mut self) {
-        drop(self.core.take());
-        self.core = Some(open_core(&self.paths));
     }
     fn seed(&self) {
         self.core()

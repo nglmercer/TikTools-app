@@ -6,7 +6,7 @@ use crate::{
     paths::AppPaths,
     AppCore,
 };
-use rusqlite::{params, Connection};
+use rusqlite::params;
 use serde_json::{json, Value};
 use std::sync::Arc;
 
@@ -41,16 +41,7 @@ impl Fixture {
             author,
         }
     }
-    fn core(&self) -> &Arc<AppCore> {
-        self.core.as_ref().unwrap()
-    }
-    fn db(&self) -> Connection {
-        Connection::open(self.paths.automation_database()).unwrap()
-    }
-    fn reopen(&mut self) {
-        drop(self.core.take());
-        self.core = Some(open_core(&self.paths));
-    }
+    crate::control::test_support::owner_fixture_core_methods!();
     fn delegated(&self, kind: AutomationKind, id: &str, action_ids: &[&str]) {
         self.core().automation_command(CommandCaller::Remote(self.author.clone()),CommandRequest {
             command_id:format!("draft-{}-{id}",match kind {AutomationKind::Action=>"action",AutomationKind::Event=>"event"}),
