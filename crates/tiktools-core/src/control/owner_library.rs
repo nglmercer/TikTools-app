@@ -210,15 +210,11 @@ pub struct OwnerLibraryReceipt {
     pub affected_resources: u32,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct OwnerLibraryRecord {
-    pub intent: OwnerLibraryIntent,
-    pub outcome: OwnerLibraryOutcome,
-    pub receipt: Option<OwnerLibraryReceipt>,
-    pub error_code: Option<String>,
-    pub recorded_at: i64,
-}
+super::owner_outcome::journal_record!(OwnerLibraryRecord {
+    intent: OwnerLibraryIntent,
+    outcome: OwnerLibraryOutcome,
+    receipt: Option<OwnerLibraryReceipt>
+});
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

@@ -16,15 +16,11 @@ pub struct OwnerAdoptionIntent {
     pub created_at: i64,
 }
 super::owner_outcome::journal_outcome!(OwnerAdoptionOutcome);
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct OwnerAdoptionRecord {
-    pub intent: OwnerAdoptionIntent,
-    pub outcome: OwnerAdoptionOutcome,
-    pub revision: Option<String>,
-    pub error_code: Option<String>,
-    pub recorded_at: i64,
-}
+super::owner_outcome::journal_record!(OwnerAdoptionRecord {
+    intent: OwnerAdoptionIntent,
+    outcome: OwnerAdoptionOutcome,
+    revision: Option<String>
+});
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OwnerAdoptionState {

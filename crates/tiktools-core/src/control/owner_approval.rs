@@ -33,15 +33,11 @@ pub struct OwnerApprovalReceipt {
     pub policy_version: Option<u32>,
     pub manifest_digest: Option<String>,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct OwnerApprovalRecord {
-    pub intent: OwnerApprovalIntent,
-    pub outcome: OwnerApprovalOutcome,
-    pub receipt: Option<OwnerApprovalReceipt>,
-    pub error_code: Option<String>,
-    pub recorded_at: i64,
-}
+super::owner_outcome::journal_record!(OwnerApprovalRecord {
+    intent: OwnerApprovalIntent,
+    outcome: OwnerApprovalOutcome,
+    receipt: Option<OwnerApprovalReceipt>
+});
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OwnerApprovalState {

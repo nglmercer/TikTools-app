@@ -44,15 +44,11 @@ pub struct OwnerDefinitionReceipt {
     pub affected_resources: u32,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct OwnerDefinitionRecord {
-    pub intent: OwnerDefinitionIntent,
-    pub outcome: OwnerDefinitionOutcome,
-    pub receipt: Option<OwnerDefinitionReceipt>,
-    pub error_code: Option<String>,
-    pub recorded_at: i64,
-}
+super::owner_outcome::journal_record!(OwnerDefinitionRecord {
+    intent: OwnerDefinitionIntent,
+    outcome: OwnerDefinitionOutcome,
+    receipt: Option<OwnerDefinitionReceipt>
+});
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

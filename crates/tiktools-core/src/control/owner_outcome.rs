@@ -40,3 +40,23 @@ macro_rules! journal_outcome {
     };
 }
 pub(crate) use journal_outcome;
+
+/// Defines the record a journal keeps for a finished entry: the frozen intent,
+/// how it ended, the journal-specific result (`$result`, a receipt or a
+/// revision), the error code for rejections and when it was recorded.
+macro_rules! journal_record {
+    ($name:ident { intent: $intent:ty, outcome: $outcome:ty, $result:ident: $result_ty:ty }) => {
+        #[derive(
+            Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+        )]
+        #[serde(rename_all = "camelCase", deny_unknown_fields)]
+        pub struct $name {
+            pub intent: $intent,
+            pub outcome: $outcome,
+            pub $result: $result_ty,
+            pub error_code: Option<String>,
+            pub recorded_at: i64,
+        }
+    };
+}
+pub(crate) use journal_record;
