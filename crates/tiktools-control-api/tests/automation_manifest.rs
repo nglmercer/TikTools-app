@@ -3,7 +3,7 @@
 use serde_json::{json, Value};
 use tiktools_control_api::{RemoteSession, RequestContext, RpcResponse};
 use tiktools_core::{
-    collaboration::{hash_secret, Capability, ClientKind, Collect, Grant, InviteCreate, Redeem},
+    collaboration::{hash_secret, ClientKind, Collect, InviteCreate, Redeem},
     control::AutomationKind,
 };
 
@@ -27,33 +27,7 @@ impl Fixture {
         config.enabled = true;
         config.advertised_origin = Some("http://127.0.0.1:8788".into());
         service.configure(config).unwrap();
-        let grant = Grant {
-            capabilities: [
-                Capability::LiveRead,
-                Capability::PointsRead,
-                Capability::PointsAdjust,
-                Capability::RankingsRead,
-                Capability::RankingsManage,
-                Capability::CompetitionsRead,
-                Capability::CompetitionsManage,
-                Capability::WorkflowsRead,
-                Capability::WorkflowsEdit,
-                Capability::WorkflowsToggle,
-                Capability::AutomationRead,
-                Capability::AutomationEdit,
-                Capability::AutomationToggle,
-                Capability::PluginsRead,
-                Capability::PluginsToggle,
-                Capability::PluginSettingsRead,
-                Capability::PluginSettingsWrite,
-                Capability::PluginActionExecute,
-                Capability::WidgetsRead,
-                Capability::WidgetsConfigure,
-                Capability::CommandsRead,
-            ]
-            .into(),
-            ..Grant::default()
-        };
+        let grant = support::broad_grant();
         let invite = service.create_invitation(InviteCreate { grant }).unwrap();
         let exchange = "c".repeat(64);
         let request = service

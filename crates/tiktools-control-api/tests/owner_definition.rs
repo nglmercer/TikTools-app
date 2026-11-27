@@ -2,10 +2,7 @@
 //! Actual native write adapters, original-result recovery and Owner-only policy.
 use serde_json::{json, Value};
 use tiktools_control_api::{RequestContext, RpcResponse};
-use tiktools_core::{
-    collaboration::{Capability, Grant},
-    control::AutomationKind,
-};
+use tiktools_core::control::AutomationKind;
 
 mod support;
 use support::Fixture;
@@ -26,37 +23,7 @@ impl Fixture {
         json!({"hostId":service.host_id(),"hostInstanceId":service.instance_id()})
     }
     fn paired_all_capabilities(&self) -> RequestContext {
-        let grant = Grant {
-            capabilities: [
-                Capability::LiveRead,
-                Capability::PointsRead,
-                Capability::PointsAdjust,
-                Capability::RankingsRead,
-                Capability::RankingsManage,
-                Capability::CompetitionsRead,
-                Capability::CompetitionsManage,
-                Capability::WorkflowsRead,
-                Capability::WorkflowsEdit,
-                Capability::WorkflowsToggle,
-                Capability::AutomationRead,
-                Capability::AutomationEdit,
-                Capability::AutomationToggle,
-                Capability::PluginsRead,
-                Capability::PluginsToggle,
-                Capability::PluginSettingsRead,
-                Capability::PluginSettingsWrite,
-                Capability::PluginActionExecute,
-                Capability::WidgetsRead,
-                Capability::WidgetsConfigure,
-                Capability::CommandsRead,
-                Capability::HttpRequest,
-                Capability::AudioPlay,
-                Capability::EventsEmit,
-                Capability::ScriptsExecute,
-            ]
-            .into(),
-            ..Grant::default()
-        };
+        let grant = support::all_capabilities_grant();
         self.pair_with(grant, "Owner definition API fixture", 'f')
     }
     async fn owner(&self, method: &str, params: Value) -> RpcResponse {

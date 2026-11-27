@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use tiktools_control_api::{ControlApi, RemoteSession, RequestContext, RpcResponse};
 use tiktools_core::{
-    collaboration::{hash_secret, ClientKind, Collect, Grant, InviteCreate, Redeem},
+    collaboration::{hash_secret, Capability, ClientKind, Collect, Grant, InviteCreate, Redeem},
     paths::AppPaths,
     AppCore, HostEmitter, NoopMediaHost,
 };
@@ -117,4 +117,48 @@ impl Fixture {
         }
         self.api.execute_value_with_context(context, &request).await
     }
+}
+
+/// The capabilities a broad remote client is paired with in these tests:
+/// everything except HTTP, audio, event emission and script execution.
+pub fn broad_grant() -> Grant {
+    Grant {
+        capabilities: [
+            Capability::LiveRead,
+            Capability::PointsRead,
+            Capability::PointsAdjust,
+            Capability::RankingsRead,
+            Capability::RankingsManage,
+            Capability::CompetitionsRead,
+            Capability::CompetitionsManage,
+            Capability::WorkflowsRead,
+            Capability::WorkflowsEdit,
+            Capability::WorkflowsToggle,
+            Capability::AutomationRead,
+            Capability::AutomationEdit,
+            Capability::AutomationToggle,
+            Capability::PluginsRead,
+            Capability::PluginsToggle,
+            Capability::PluginSettingsRead,
+            Capability::PluginSettingsWrite,
+            Capability::PluginActionExecute,
+            Capability::WidgetsRead,
+            Capability::WidgetsConfigure,
+            Capability::CommandsRead,
+        ]
+        .into(),
+        ..Grant::default()
+    }
+}
+
+/// [`broad_grant`] plus HTTP, audio, event emission and script execution.
+pub fn all_capabilities_grant() -> Grant {
+    let mut grant = broad_grant();
+    grant.capabilities.extend([
+        Capability::HttpRequest,
+        Capability::AudioPlay,
+        Capability::EventsEmit,
+        Capability::ScriptsExecute,
+    ]);
+    grant
 }

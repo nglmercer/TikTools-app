@@ -3,10 +3,7 @@
 //! choose durable identities, or retrieve the Owner's native journal.
 use serde_json::{json, Value};
 use tiktools_control_api::{RequestContext, RpcResponse};
-use tiktools_core::{
-    collaboration::{Capability, Grant},
-    control::AutomationKind,
-};
+use tiktools_core::control::AutomationKind;
 
 mod support;
 use support::Fixture;
@@ -24,33 +21,7 @@ impl Fixture {
         Self::with_prefix("tt-owner-approval-api")
     }
     fn pair(&self) -> RequestContext {
-        let grant = Grant {
-            capabilities: [
-                Capability::LiveRead,
-                Capability::PointsRead,
-                Capability::PointsAdjust,
-                Capability::RankingsRead,
-                Capability::RankingsManage,
-                Capability::CompetitionsRead,
-                Capability::CompetitionsManage,
-                Capability::WorkflowsRead,
-                Capability::WorkflowsEdit,
-                Capability::WorkflowsToggle,
-                Capability::AutomationRead,
-                Capability::AutomationEdit,
-                Capability::AutomationToggle,
-                Capability::PluginsRead,
-                Capability::PluginsToggle,
-                Capability::PluginSettingsRead,
-                Capability::PluginSettingsWrite,
-                Capability::PluginActionExecute,
-                Capability::WidgetsRead,
-                Capability::WidgetsConfigure,
-                Capability::CommandsRead,
-            ]
-            .into(),
-            ..Grant::default()
-        };
+        let grant = support::broad_grant();
         self.pair_with(grant, "Owner approval API fixture", 'e')
     }
     async fn owner(&self, method: &str, params: Value, meta: Value) -> RpcResponse {
