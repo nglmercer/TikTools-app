@@ -193,43 +193,12 @@ function actionLabel(node: PluginUiNode): string {
     v-else-if="node.type === 'card'"
     :title="title"
   >
-    <div class="plugin-node__stack">
-      <template
-        v-for="item in childItems"
-        :key="item.key"
-      >
-        <div
-          v-if="item.buttons"
-          class="plugin-node__actions"
-        >
-          <template
-            v-for="entry in item.entries"
-            :key="entry.index"
-          >
-            <BaseButton
-              size="sm"
-              :variant="entry.node.type === 'button' ? (entry.node.variant ?? 'default') : 'default'"
-              :disabled="isActionDisabled(entry.node)"
-              @click="pressNode(entry.node)"
-            >
-              {{ actionLabel(entry.node) }}
-            </BaseButton>
-            <span
-              v-if="feedbackText(entry.node)"
-              class="plugin-node__action-feedback"
-              :class="{ 'plugin-node__action-feedback--error': feedbackFor(entry.node)?.outcome?.ok === false }"
-              role="status"
-            >{{ feedbackText(entry.node) }}</span>
-          </template>
-        </div>
-        <PluginUiNode
-          v-else
-          :node="item.node.node"
-          :context="context"
-          :node-key="`${nodeKey}/${item.node.index}`"
-        />
-      </template>
-    </div>
+    <!-- A card is a titled stack: draw its children through the stack branch instead of repeating it. -->
+    <PluginUiNode
+      :node="{ type: 'stack', children: node.children }"
+      :context="context"
+      :node-key="nodeKey"
+    />
   </BaseGroupBox>
   <section
     v-else-if="node.type === 'text'"

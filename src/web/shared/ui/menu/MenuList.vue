@@ -137,7 +137,7 @@ onBeforeUnmount(() => {
   <Teleport to="body">
     <ul
       ref="list"
-      class="menu-list"
+      class="menu-list popup-list"
       role="menu"
       tabindex="-1"
       :data-menu-root="context.rootId"
@@ -219,17 +219,6 @@ onBeforeUnmount(() => {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  margin: 0;
-  padding: var(--space-1) 0;
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-overlay);
-  box-shadow: var(--shadow-popup);
-  color: var(--color-text);
-  font-family: var(--font-family);
-  font-size: var(--font-size-md);
-  list-style: none;
-  outline: none;
   user-select: none;
 }
 

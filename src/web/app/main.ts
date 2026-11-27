@@ -9,6 +9,7 @@ import './styles/base.css';
 import './styles/local-browser.css';
 import './styles/responsive.css';
 import './styles/motion.css';
+import './styles/popup.css';
 
 declare global {
   interface Window {

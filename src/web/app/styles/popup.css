@@ -1,0 +1,18 @@
+/*
+ * The surface shared by every popup list (menus, combo-box and search-select listboxes): bordered, raised, with the
+ * app's text. A component adds only what is its own (z-index, size limits, scrolling).
+ */
+.popup-list {
+  margin: 0;
+  padding: var(--space-1) 0;
+  overflow-y: auto;
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-overlay);
+  box-shadow: var(--shadow-popup);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  list-style: none;
+  outline: none;
+}

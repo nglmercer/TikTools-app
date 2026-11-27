@@ -1,5 +1,6 @@
 /** Data-only host fixtures shared by the public demo and browser tests. No IPC globals or Playwright. */
 import type { VariableComparison } from '@/features/edit-runtime-globals/model/variable-sync-adapter.ts';
+import { defaultPointsConfig } from '@/entities/points/model/default-config.ts';
 import type { RuntimeVariable } from '@/entities/runtime-global/lib/runtime-variable.ts';
 
 export interface MemoryHostState {
@@ -100,23 +101,7 @@ export function baseHostState(overrides: Partial<MemoryHostState> = {}): MemoryH
       translations: {},
     },
     automationRuns: [],
-    pointsConfig: {
-      currencyName: 'Points',
-      pointsPerCoin: 1.0,
-      pointsPerCoinEnabled: true,
-      pointsPerShare: 3.0,
-      pointsPerShareEnabled: true,
-      pointsPerChat: 1.0,
-      pointsPerChatEnabled: true,
-      pointsPerLike: 0.1,
-      pointsPerLikeEnabled: true,
-      pointsPerFollow: 5.0,
-      pointsPerFollowEnabled: true,
-      pointsPerJoin: 0.5,
-      pointsPerJoinEnabled: false,
-      subBonusMultiplier: 0.0,
-      pointsPerLevel: 100,
-    },
+    pointsConfig: { ...defaultPointsConfig },
     leaderboard: [],
     creator: null,
     recentCreators: [],

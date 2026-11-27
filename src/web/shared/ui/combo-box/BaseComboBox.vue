@@ -169,7 +169,7 @@ defineExpose({ focus: () => trigger.value?.focus() });
         v-if="open"
         :id="`${id}-listbox`"
         ref="listbox"
-        class="base-combo-box__listbox"
+        class="base-combo-box__listbox popup-list"
         role="listbox"
         tabindex="-1"
         :style="style"
@@ -306,18 +306,6 @@ defineExpose({ focus: () => trigger.value?.focus() });
 .base-combo-box__listbox {
   z-index: var(--z-dropdown);
   max-height: 320px;
-  margin: 0;
-  padding: var(--space-1) 0;
-  overflow-y: auto;
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-overlay);
-  box-shadow: var(--shadow-popup);
-  color: var(--color-text);
-  font-family: var(--font-family);
-  font-size: var(--font-size-md);
-  list-style: none;
-  outline: none;
 }
 
 .base-combo-box__option {

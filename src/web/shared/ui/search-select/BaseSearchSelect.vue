@@ -143,7 +143,7 @@ function onKeydown(event: KeyboardEvent): void {
         v-if="open"
         :id="`${id}-listbox`"
         ref="listbox"
-        class="base-search-select__listbox"
+        class="base-search-select__listbox popup-list"
         role="listbox"
         :style="style"
       >
@@ -268,17 +268,6 @@ function onKeydown(event: KeyboardEvent): void {
 .base-search-select__listbox {
   z-index: var(--z-dropdown);
   max-height: 320px;
-  margin: 0;
-  padding: var(--space-1) 0;
-  overflow-y: auto;
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-overlay);
-  box-shadow: var(--shadow-popup);
-  color: var(--color-text);
-  font-family: var(--font-family);
-  font-size: var(--font-size-md);
-  list-style: none;
 }
 
 .base-search-select__option {

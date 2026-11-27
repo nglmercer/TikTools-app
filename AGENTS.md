@@ -166,3 +166,12 @@
 - Specs: `playwright.config.ts` runs with `reducedMotion: 'reduce'` so end-state assertions stay instant; a spec that
   tests motion opts in with `test.use({ reducedMotion: 'no-preference' })` (see `tests/e2e/motion.spec.ts`).
 
+## Finding duplicated code
+
+- There is no clone detector in the repo. When asked to DRY, compare files that look alike by hand: normalise lines
+  (trim, drop imports and braces), hash windows of 8 lines across `src/web`, and read the groups that repeat in
+  more than one file. Ignore generated files, locale catalogs, icon components and fixtures.
+- Shared pieces added from the last pass: `AutomationLibraryTable` (events and actions tables), `RecordEditorActions`
+  (editor header buttons), `AnalyticsSlotChart` (hourly and weekday charts), `useEventDisplay` (feed card and row),
+  `BaseBackButton`, and the `.popup-list` surface in `app/styles/popup.css`.
+

@@ -12,6 +12,7 @@ import '@/app/styles/tokens.css';
 import '@/app/styles/base.css';
 import '@/app/styles/responsive.css';
 import '@/app/styles/motion.css';
+import '@/app/styles/popup.css';
 import { startTour, stopTour, type GuideSession } from '@/features/guided-help/index.ts';
 import { guideCatalogContextKey } from '@/features/guided-help/model/catalog-context.ts';
 import { configureAppClock } from '@/shared/lib/app-clock.ts';
