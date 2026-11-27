@@ -215,21 +215,7 @@ async fn session(
 ) -> Result<(), OperationError> {
     let ticket = teams.issue_ticket(auth, host_id, device_id).await?;
     let (origin, _) = cloud_teams::credentials(auth).await?;
-    let url = socket_url(&origin)?;
-    let (mut socket, _) = timeout(
-        Duration::from_secs(15),
-        tokio_tungstenite::connect_async(url.as_str()),
-    )
-    .await
-    .map_err(|_| OperationError::unavailable("the relay did not answer"))?
-    .map_err(|_| OperationError::unavailable("could not reach the relay"))?;
-
-    socket
-        .send(Message::Text(
-            json!({"type": "auth", "ticket": ticket}).to_string().into(),
-        ))
-        .await
-        .map_err(|_| OperationError::unavailable("could not send the ticket"))?;
+    let mut socket = connect_relay(&origin, &ticket).await?;
     let ready = timeout(READY_TIMEOUT, next_json(&mut socket))
         .await
         .map_err(|_| OperationError::unavailable("the relay did not confirm the session"))??;
@@ -285,8 +271,28 @@ async fn session(
     }
 }
 
-type Socket =
+pub(crate) type Socket =
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+
+/// Opens the relay socket and presents the ticket. The caller then waits for
+/// the `ready` frame and checks that its role and host match the request.
+pub(crate) async fn connect_relay(origin: &str, ticket: &str) -> Result<Socket, OperationError> {
+    let url = socket_url(origin)?;
+    let (mut socket, _) = timeout(
+        Duration::from_secs(15),
+        tokio_tungstenite::connect_async(url.as_str()),
+    )
+    .await
+    .map_err(|_| OperationError::unavailable("the relay did not answer"))?
+    .map_err(|_| OperationError::unavailable("could not reach the relay"))?;
+    socket
+        .send(Message::Text(
+            json!({"type": "auth", "ticket": ticket}).to_string().into(),
+        ))
+        .await
+        .map_err(|_| OperationError::unavailable("could not send the ticket"))?;
+    Ok(socket)
+}
 
 async fn next_json(socket: &mut Socket) -> Result<Value, OperationError> {
     loop {

@@ -17,7 +17,7 @@ use tokio::time::timeout;
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::{
-    cloud_remote_host::{now_millis, socket_url},
+    cloud_remote_host::{connect_relay, now_millis, Socket},
     cloud_teams::{self, CloudTeams},
     control::OperationError,
 };
@@ -47,8 +47,6 @@ pub struct CommandOutcome {
     pub result: Option<Value>,
 }
 
-type Socket =
-    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 fn valid_operation(value: &str) -> bool {
     (1..=64).contains(&value.len()) && value.bytes().all(|b| b.is_ascii_lowercase() || b == b'.')
@@ -85,21 +83,7 @@ pub async fn run_command(
         .issue_ticket_as(auth, "controller", &host_id, &controller)
         .await?;
     let (origin, _) = cloud_teams::credentials(auth).await?;
-    let url = socket_url(&origin)?;
-    let (mut socket, _) = timeout(
-        Duration::from_secs(15),
-        tokio_tungstenite::connect_async(url.as_str()),
-    )
-    .await
-    .map_err(|_| OperationError::unavailable("the relay did not answer"))?
-    .map_err(|_| OperationError::unavailable("could not reach the relay"))?;
-
-    socket
-        .send(Message::Text(
-            json!({"type": "auth", "ticket": ticket}).to_string().into(),
-        ))
-        .await
-        .map_err(|_| OperationError::unavailable("could not send the ticket"))?;
+    let mut socket = connect_relay(&origin, &ticket).await?;
     let ready = timeout(READY_TIMEOUT, next_json(&mut socket))
         .await
         .map_err(|_| OperationError::unavailable("the relay did not confirm the session"))??;
