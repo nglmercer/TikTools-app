@@ -447,11 +447,13 @@ describe('versioned registry and localized copy', () => {
 
 describe('declared action example requirements', () => {
   it('fails closed when a requirement-bearing tour starts without a satisfying automation snapshot', async () => {
+    // The bounded wait for the targets runs on the fake clock instead of costing 2.4 s per case.
+    vi.useFakeTimers();
     for (const automationSnapshot of [undefined, { actions: [], actionTypes: [], plugins: [] }] as const) {
       const test = setup();
       const root = mountGuideTargets('automations', tourRegistry.automationActionHttp.steps.map((step) => step.target));
       const session = test.coordinator.startTour('automationActionHttp', { scope: root, locale: 'en', automationSnapshot });
-      await flushPromises();
+      await vi.advanceTimersByTimeAsync(MAX_GUIDE_WAIT_MS);
       expect(await session.ready).toBe(false);
       expect(await session.done).toBe('unavailable');
       expect(test.loadDriver).not.toHaveBeenCalled();
