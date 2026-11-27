@@ -1,18 +1,12 @@
 //! Real direct/IPC library calls preserve reviewed snapshots and original receipts.
+mod support;
 use serde_json::{json, Value};
 use std::{sync::Arc, time::Duration};
 use tiktools_client::{
     automation_library::{OwnerLibrarySnapshot, OwnerLibrarySubmit},
     TikToolsClient,
 };
-use tiktools_core::{
-    control::AutomationKind, ipc::messages::HostMessage, paths::AppPaths, AppCore, HostEmitter,
-    NoopMediaHost,
-};
-struct Emitter;
-impl HostEmitter for Emitter {
-    fn emit(&self, _: HostMessage) {}
-}
+use tiktools_core::control::AutomationKind;
 fn input(snapshot: &OwnerLibrarySnapshot, mutation: Value) -> OwnerLibrarySubmit {
     serde_json::from_value(json!({"mutation":mutation,"expectedRevision":snapshot.revision,"definitionDigest":snapshot.definition_digest,"hostId":snapshot.host_id,"hostInstanceId":snapshot.host_instance_id})).unwrap()
 }
@@ -20,51 +14,8 @@ fn input(snapshot: &OwnerLibrarySnapshot, mutation: Value) -> OwnerLibrarySubmit
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn library_sdk_preserves_large_owner_transactions_and_metadata_only_recovery_over_ipc() {
     let temporary = tempfile::tempdir().unwrap();
-    let root = temporary.path().join("home");
-    std::env::set_var("TIKTOOLS_HOME", &root);
-    std::env::set_var(
-        "TIKTOOLS_IPC_NAME",
-        format!(
-            "tiktools-library-sdk-{}-{}",
-            std::process::id(),
-            temporary.path().file_name().unwrap().to_string_lossy()
-        ),
-    );
-    let paths = AppPaths {
-        data: root.join("data"),
-        plugins: root.join("plugins"),
-        plugin_data: root.join("plugin-data"),
-        builtin_plugins: root.join("builtins"),
-        development_plugins: None,
-        logs: root.join("logs"),
-        temp: root.join("temp"),
-        root,
-    };
-    paths.ensure_directories().unwrap();
-    for path in [
-        paths.points_database(),
-        paths.automation_database(),
-        paths.analytics_database(),
-    ] {
-        std::fs::File::create(path).unwrap();
-    }
-    let core = Arc::new(AppCore::with_paths(
-        Arc::new(Emitter),
-        Arc::new(NoopMediaHost),
-        paths,
-    ));
-    let api = Arc::new(tiktools_client::ControlApi::new(core.clone()));
-    let (ready, started) = tokio::sync::oneshot::channel();
-    let server = tokio::spawn(tiktools_control_api::run_ipc_shared_with_ready(
-        api.clone(),
-        move || {
-            let _ = ready.send(());
-        },
-    ));
-    tokio::time::timeout(Duration::from_secs(5), started)
-        .await
-        .unwrap()
-        .unwrap();
+    let support::IpcHost { core, api, server } =
+        support::start_ipc_host(temporary.path(), "library-sdk").await;
     let connected = tokio::time::timeout(Duration::from_secs(5), TikToolsClient::connect())
         .await
         .unwrap()

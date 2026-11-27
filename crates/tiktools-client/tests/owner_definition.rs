@@ -1,66 +1,16 @@
 //! The strict native definition SDK validates real direct and IPC replies.
+mod support;
 use serde_json::json;
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 use tiktools_client::{automation_definition::OwnerDefinitionSubmit, TikToolsClient};
-use tiktools_core::{
-    control::AutomationKind, ipc::messages::HostMessage, paths::AppPaths, AppCore, HostEmitter,
-    NoopMediaHost,
-};
-
-struct Emitter;
-impl HostEmitter for Emitter {
-    fn emit(&self, _: HostMessage) {}
-}
+use tiktools_core::control::AutomationKind;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn native_definition_sdk_keeps_fresh_acknowledgements_and_historical_recovery_distinct_over_ipc(
 ) {
     let temporary = tempfile::tempdir().unwrap();
-    let home = temporary.path().join("home");
-    std::env::set_var("TIKTOOLS_HOME", &home);
-    std::env::set_var(
-        "TIKTOOLS_IPC_NAME",
-        format!(
-            "tiktools-definition-sdk-{}-{}",
-            std::process::id(),
-            temporary.path().file_name().unwrap().to_string_lossy()
-        ),
-    );
-    let paths = AppPaths {
-        data: home.join("data"),
-        plugins: home.join("plugins"),
-        plugin_data: home.join("plugin-data"),
-        builtin_plugins: home.join("builtins"),
-        development_plugins: None,
-        logs: home.join("logs"),
-        temp: home.join("temp"),
-        root: home,
-    };
-    paths.ensure_directories().unwrap();
-    for path in [
-        paths.points_database(),
-        paths.automation_database(),
-        paths.analytics_database(),
-    ] {
-        std::fs::File::create(path).unwrap();
-    }
-    let core = Arc::new(AppCore::with_paths(
-        Arc::new(Emitter),
-        Arc::new(NoopMediaHost),
-        paths,
-    ));
-    let api = Arc::new(tiktools_client::ControlApi::new(core.clone()));
-    let (ready, started) = tokio::sync::oneshot::channel();
-    let server = tokio::spawn(tiktools_control_api::run_ipc_shared_with_ready(
-        api.clone(),
-        move || {
-            let _ = ready.send(());
-        },
-    ));
-    tokio::time::timeout(Duration::from_secs(5), started)
-        .await
-        .unwrap()
-        .unwrap();
+    let support::IpcHost { core, api, server } =
+        support::start_ipc_host(temporary.path(), "definition-sdk").await;
     let direct = TikToolsClient::direct(api.clone());
     let connected = tokio::time::timeout(Duration::from_secs(5), TikToolsClient::connect())
         .await
