@@ -168,11 +168,9 @@ async fn connected_concurrent_calls_share_clients() {
     }
 }
 
-#[tokio::test]
-async fn connected_subscribe_receives_domain_events() {
-    let home = HomeGuard::set("host");
-    let _host = HostChild::spawn(&home.path).await;
-    let client = TikToolsClient::connect().await.expect("connect");
+/// Subscribes, adjusts a viewer's points and expects the `points.changed`
+/// domain event on a fresh stream, with no gap or remote projection.
+async fn assert_points_adjust_emits_points_changed(client: &TikToolsClient) {
     let mut events = client.subscribe();
     client
         .points_adjust(PointsAdjustParams {
@@ -193,6 +191,14 @@ async fn connected_subscribe_receives_domain_events() {
         }
         ControlEvent::Gap { lost } => panic!("unexpected gap of {lost} on a fresh stream"),
     }
+}
+
+#[tokio::test]
+async fn connected_subscribe_receives_domain_events() {
+    let home = HomeGuard::set("host");
+    let _host = HostChild::spawn(&home.path).await;
+    let client = TikToolsClient::connect().await.expect("connect");
+    assert_points_adjust_emits_points_changed(&client).await;
 }
 
 #[tokio::test]
@@ -217,26 +223,7 @@ async fn direct_concurrent_calls_and_events() {
     for task in tasks {
         task.await.expect("task joins").expect("direct call ok");
     }
-    let mut events = client.subscribe();
-    client
-        .points_adjust(PointsAdjustParams {
-            expected_currency: None,
-            unique_id: "verify-bot".to_owned(),
-            delta: 1.0,
-        })
-        .await
-        .expect("points.adjust triggers an event");
-    let event = tokio::time::timeout(Duration::from_secs(10), events.recv())
-        .await
-        .expect("event arrives within budget")
-        .expect("stream stays open");
-    match event {
-        ControlEvent::Domain(event) => assert_eq!(event.topic(), "points.changed"),
-        ControlEvent::Reliable(_) => {
-            panic!("local IPC must not receive remote subscription projections")
-        }
-        ControlEvent::Gap { lost } => panic!("unexpected gap of {lost} on a fresh stream"),
-    }
+    assert_points_adjust_emits_points_changed(&client).await;
 }
 
 #[tokio::test]
