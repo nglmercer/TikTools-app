@@ -12,12 +12,36 @@ import { automationActionExampleGuideAction } from './tour-requirements.ts';
 
 /** Driver.js chrome copy per locale, recovered from the pre-module catalogs. */
 export const controlCopy = {
-  es: { next: 'Siguiente', previous: 'Anterior', done: 'Terminar guía', close: 'Cerrar guía', progress: '{{current}} de {{total}}' },
-  en: { next: 'Next', previous: 'Previous', done: 'Finish guide', close: 'Close guide', progress: '{{current}} of {{total}}' },
-  pt: { next: 'Próximo', previous: 'Anterior', done: 'Concluir guia', close: 'Fechar guia', progress: '{{current}} de {{total}}' },
-  fr: { next: 'Suivant', previous: 'Précédent', done: 'Terminer le guide', close: 'Fermer le guide', progress: '{{current}} sur {{total}}' },
-  ja: { next: '次へ', previous: '前へ', done: 'ガイドを完了', close: 'ガイドを閉じる', progress: '{{total}}件中{{current}}件目' },
-  zh: { next: '下一步', previous: '上一步', done: '完成指南', close: '关闭指南', progress: '第 {{current}} 步，共 {{total}} 步' },
+  es: {
+    next: 'Siguiente', previous: 'Anterior', done: 'Terminar guía', close: 'Cerrar guía', progress: '{{current}} de {{total}}',
+    moved: 'Cambiamos a: {{section}}', back: 'Volvemos a: {{section}}', skipped: 'Omitimos {{count}} paso(s) que no aplican a tu configuración.',
+    zones: { toolbar: 'Barra de herramientas', tabs: 'Pestañas', list: 'Lista', editor: 'Editor', preview: 'Vista previa', detail: 'Panel de detalle', footer: 'Pie de página' },
+  },
+  en: {
+    next: 'Next', previous: 'Previous', done: 'Finish guide', close: 'Close guide', progress: '{{current}} of {{total}}',
+    moved: 'Now in: {{section}}', back: 'Back to: {{section}}', skipped: 'Skipped {{count}} step(s) that do not apply to your setup.',
+    zones: { toolbar: 'Toolbar', tabs: 'Tabs', list: 'List', editor: 'Editor', preview: 'Preview', detail: 'Detail panel', footer: 'Footer' },
+  },
+  pt: {
+    next: 'Próximo', previous: 'Anterior', done: 'Concluir guia', close: 'Fechar guia', progress: '{{current}} de {{total}}',
+    moved: 'Agora em: {{section}}', back: 'Voltamos a: {{section}}', skipped: 'Ignoramos {{count}} passo(s) que não se aplicam à sua configuração.',
+    zones: { toolbar: 'Barra de ferramentas', tabs: 'Abas', list: 'Lista', editor: 'Editor', preview: 'Pré-visualização', detail: 'Painel de detalhes', footer: 'Rodapé' },
+  },
+  fr: {
+    next: 'Suivant', previous: 'Précédent', done: 'Terminer le guide', close: 'Fermer le guide', progress: '{{current}} sur {{total}}',
+    moved: 'Maintenant dans : {{section}}', back: 'Retour à : {{section}}', skipped: '{{count}} étape(s) ignorée(s) : elles ne concernent pas votre configuration.',
+    zones: { toolbar: 'Barre d’outils', tabs: 'Onglets', list: 'Liste', editor: 'Éditeur', preview: 'Aperçu', detail: 'Panneau de détails', footer: 'Pied de page' },
+  },
+  ja: {
+    next: '次へ', previous: '前へ', done: 'ガイドを完了', close: 'ガイドを閉じる', progress: '{{total}}件中{{current}}件目',
+    moved: '次の場所に移動しました: {{section}}', back: '前の場所に戻りました: {{section}}', skipped: '設定に当てはまらない{{count}}件のステップを省略しました。',
+    zones: { toolbar: 'ツールバー', tabs: 'タブ', list: '一覧', editor: 'エディター', preview: 'プレビュー', detail: '詳細パネル', footer: 'フッター' },
+  },
+  zh: {
+    next: '下一步', previous: '上一步', done: '完成指南', close: '关闭指南', progress: '第 {{current}} 步，共 {{total}} 步',
+    moved: '现在位于：{{section}}', back: '返回到：{{section}}', skipped: '已跳过 {{count}} 个不适用于你当前设置的步骤。',
+    zones: { toolbar: '工具栏', tabs: '标签页', list: '列表', editor: '编辑器', preview: '预览', detail: '详情面板', footer: '页脚' },
+  },
 } as const;
 
 // Catalog order, not supportedLocales order: built catalog key order follows it.

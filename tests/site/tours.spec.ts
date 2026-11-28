@@ -187,10 +187,13 @@ test('automation events tour reaches the editor step through the prepare action'
   // The editor only exists after interaction: the tour selects an existing stored record itself.
   await expect(page.locator(driver.title)).toHaveText(tourCatalogs.en.automationEvents.editor.title, { timeout: timeout.step });
   await expect(page.locator(guideTargetSelector('automation-editor'))).toBeVisible();
+  // The tour opened the editor on its own, so the popover says where the interface moved to.
+  await expect(page.locator('.tiktools-guide__note')).toHaveText(tourCatalogs.en.controls.moved.replace('{{section}}', tourCatalogs.en.controls.zones.editor));
   // Backward: the events table only returns after the editor closes — the tour presses back itself.
   await page.locator(driver.prev).click();
   await expect(page.locator(driver.title)).toHaveText(tourCatalogs.en.automationEvents.events.title, { timeout: timeout.step });
   await expect(page.locator(guideTargetSelector('automation-events'))).toBeVisible();
+  await expect(page.locator('.tiktools-guide__note')).toHaveText(tourCatalogs.en.controls.back.replace('{{section}}', tourCatalogs.en.controls.zones.list));
   await page.locator(driver.close).click();
 });
 
@@ -226,7 +229,7 @@ for (const id of ['automationActionMedia', 'automationActionTts', 'automationAct
 }
 
 for (const id of [
-  'automationEventChat', 'automationTemplates',
+  'automationEventChat', 'automationEventGift', 'automationEventSocial', 'automationEventRoom', 'automationTemplates',
   'connection', 'connectionRecovery', 'plugin', 'overlay', 'overlayObs',
   'points', 'analytics', 'diagnostics', 'feed', 'settings',
 ] as const) {

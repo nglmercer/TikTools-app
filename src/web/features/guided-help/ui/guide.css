@@ -13,3 +13,5 @@
 }
 .driver-active-element { animation: tiktools-guide-pulse 1.6s ease-in-out infinite; border-radius: 4px; }
 @media (prefers-reduced-motion: reduce) { .driver-active-element { animation: none; } }
+
+.tiktools-guide .tiktools-guide__note { margin: 0 0 8px; padding: 4px 8px; border-left: 3px solid var(--color-accent, #4f7cff); background: var(--color-bg-panel-header); color: var(--color-text-muted); font-size: 0.85em; }

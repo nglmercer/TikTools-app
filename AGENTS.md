@@ -175,3 +175,18 @@
   (editor header buttons), `AnalyticsSlotChart` (hourly and weekday charts), `useEventDisplay` (feed card and row),
   `BaseBackButton`, and the `.popup-list` surface in `app/styles/popup.css`.
 
+## Guided tours (driver.js)
+
+- Tours live in `src/web/features/guided-help/tours/` (one module each) and run through `model/coordinator.ts`. A step's
+  zone (`toolbar`, `tabs`, `list`, `editor`, ...) comes from `model/guide-targets.ts`.
+- When a step lands in another zone, or its prepare action changed what is on screen, the popover opens with a
+  `.tiktools-guide__note` ("Now in: Editor", "Back to: List"). The copy is in `controlCopy` (`model/define-tour.ts`), six locales.
+- The progress counter counts only steps that apply. A step skipped because it is unavailable or its target is missing leaves
+  the total, and the next popover says how many were skipped.
+- A route change or an open dialog does not end a guide silently: the coordinator reports a `GuidePause` through
+  `onPausedChange`, `pausedGuide` holds it and `GuidePausedNotice` (mounted in `AppNotifications`) offers "Resume", which
+  reopens the step it stopped on. The user closing the guide never produces a pause.
+- Coverage: `tests/unit/web/features/guided-help` (coordinator, contract, notice) and `tests/site/tours.spec.ts`, which walks
+  every demo tour step by step. `cloudOverlays`, `backup`, `backupRestore` and `rankings` are not in the demo, so only the
+  unit contract covers them.
+

@@ -54,6 +54,7 @@ function start(event: MouseEvent): void {
     ...context, id: props.id ?? 'inline', steps: () => props.steps ?? [], completed: () => props.completed === true,
     onActiveChange: (value) => { active.value = value; },
     labels: {
+      ...tourCatalogs[guideLocale.value].controls,
       progress: t('guides.progress', { current: '{{current}}', total: '{{total}}' }),
       next: t('guides.next'), previous: t('guides.previous'), done: t('guides.done'), close: t('common.close'),
     },

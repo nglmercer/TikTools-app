@@ -2044,7 +2044,7 @@ export default {
     noEvents: 'No events received yet.',
     truncated: 'Older events were not shown to keep this view within its size limit.',
   },
-  guides: { progress: '{current} of {total}', help: 'Show guide', next: 'Next', previous: 'Previous', done: 'Done', pluginsSearchTitle: 'Search plugins', pluginsSearch: 'Find plugins in this section.', changesTitle: 'Changes', changes: 'Review changes and conflicts before synchronizing.', installTitle: 'Install a plugin', install: 'Select a package to review and install.', catalog: {
+  guides: { paused: 'Guide paused at “{step}”', resume: 'Resume', progress: '{current} of {total}', help: 'Show guide', next: 'Next', previous: 'Previous', done: 'Done', pluginsSearchTitle: 'Search plugins', pluginsSearch: 'Find plugins in this section.', changesTitle: 'Changes', changes: 'Review changes and conflicts before synchronizing.', installTitle: 'Install a plugin', install: 'Select a package to review and install.', catalog: {
     button: 'Guides and tutorials', title: 'Guides and tutorials',
     search: 'Search tutorials', tagsLabel: 'Tutorial filters', allTags: 'All', start: 'Start guide', steps: '{count} step | {count} steps',
     back: 'Back', overview: 'Overview',

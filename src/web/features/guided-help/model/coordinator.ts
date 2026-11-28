@@ -8,14 +8,18 @@ import { isTourId, tourRegistry } from './registry.ts';
 import { readTourProgress, writeTourProgress } from './progress.ts';
 import { hasGuideAction, runGuideAction } from './guide-actions.ts';
 import { guideScopeSelector, guideTargetSelector, isVisible, queryGuide } from './guide-dom.ts';
+import { guideTargetMetadata, type GuideLayoutZone } from './guide-targets.ts';
+import { pausedGuide } from './paused-guide.ts';
 import { automationActionExampleAvailable, automationActionTypeAvailable } from './tour-requirements.ts';
-import type { GuideOutcome, GuideSession, GuideStep, StartTourOptions, TourDefinition, TourLocale, TourStepDefinition, TourTaskState } from './types.ts';
+import type { GuideOutcome, GuidePause, GuidePauseCause, GuideSession, GuideStep, StartTourOptions, TourDefinition, TourLocale, TourStepDefinition, TourTaskState } from './types.ts';
 
 type DriverFactory = (config: Config) => Driver;
 export interface CoordinatorDependencies {
   loadDriver?: () => Promise<{ driver: DriverFactory }>;
   storage?: () => Storage | undefined;
   locale?: () => TourLocale;
+  /** Called with the interrupted guide, and with `undefined` when a new guide starts. */
+  onPausedChange?: (pause: GuidePause | undefined) => void;
 }
 export interface InlineGuideOptions {
   id: string;
@@ -26,7 +30,7 @@ export interface InlineGuideOptions {
   labels?: TourCatalog['controls'];
   onActiveChange?: (active: boolean) => void;
 }
-interface RunStep extends GuideStep { version?: number; missingTargetPolicy?: 'skip' | 'cancel'; prepareClick?: readonly string[]; prepareActions?: readonly string[]; popoverSide?: 'top' | 'right' | 'bottom' | 'left'; popoverAlign?: 'start' | 'center' | 'end'; available?: () => boolean; availabilityPending?: () => boolean }
+interface RunStep extends GuideStep { zone?: GuideLayoutZone; version?: number; missingTargetPolicy?: 'skip' | 'cancel'; prepareClick?: readonly string[]; prepareActions?: readonly string[]; popoverSide?: 'top' | 'right' | 'bottom' | 'left'; popoverAlign?: 'start' | 'center' | 'end'; available?: () => boolean; availabilityPending?: () => boolean }
 interface RunOptions extends StartTourOptions {
   id: string;
   version?: number;
@@ -42,6 +46,7 @@ interface RunOptions extends StartTourOptions {
 export const MAX_GUIDE_WAIT_MS = 5_000;
 const DEFAULT_WAIT_MS = 2_000;
 const escaped = (value: string) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
+const guideNotes = (...notes: string[]) => notes.filter(Boolean).map((note) => `<p class="tiktools-guide__note" role="status">${escaped(note)}</p>`).join('');
 const modalOpen = () => document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]');
 
 /** One observer, one deadline and one abort listener per wait, all removed on every exit. */
@@ -116,6 +121,7 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
 
   function run(options: RunOptions): GuideSession {
     current?.stop('replaced');
+    dependencies.onPausedChange?.(undefined);
     const abort = new AbortController();
     const waitMs = Math.min(MAX_GUIDE_WAIT_MS, Math.max(0, Number.isFinite(options.waitMs) ? options.waitMs! : DEFAULT_WAIT_MS));
     const progressStorage = storage();
@@ -131,6 +137,9 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
     let activeIndex = -1;
     let lastStepId = '';
     let reachedFinalStep = false;
+    /** Steps that did not apply on this run (unavailable or target missing); the progress counter leaves them out. */
+    const skippedSteps = new Set<string>();
+    let skippedSinceShown = 0;
     let suppliedTaskState: TourTaskState | undefined;
     let resolveReady!: (active: boolean) => void;
     let resolveDone!: (outcome: GuideOutcome) => void;
@@ -175,6 +184,22 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
       resolveReady(false);
       resolveDone(outcome);
     }
+    /** Stops a versioned guide that the app, not the user, interrupted, and offers to pick it up again. */
+    function interrupt(cause: GuidePauseCause): void {
+      if (finished) return;
+      if (options.version !== undefined && active && lastStepId) {
+        const title = options.steps().find((step) => step.id === lastStepId)?.title ?? '';
+        dependencies.onPausedChange?.({ id: options.id, stepId: lastStepId, title, cause, resume: () => run(options) });
+      }
+      finish(cause === 'navigation' ? 'navigation' : 'dismissed');
+    }
+    /** Tells the user the interface moved: a different zone, or a prepare action changed what is on screen. */
+    function sectionNotice(from: RunStep | undefined, to: RunStep, prepared: boolean, direction: number): string {
+      if (!from || !to.zone || (from.zone === to.zone && !prepared)) return '';
+      const section = options.labels.zones?.[to.zone];
+      const template = direction < 0 ? options.labels.back : options.labels.moved;
+      return section && template ? template.replace('{{section}}', section) : '';
+    }
     function target(step: GuideStep): HTMLElement | undefined {
       if (!scope || (scope instanceof Element && !scope.isConnected)) return;
       const element = queryGuide(scope, step.selector);
@@ -193,7 +218,7 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
     function installObserver(): void {
       observer = new MutationObserver(() => {
         if (finished) return;
-        if (modalOpen()) { finish('dismissed'); return; }
+        if (modalOpen()) { interrupt('dialog'); return; }
         if (options.version === undefined && taskComplete()) { finish('task-completed'); return; }
         if (scope instanceof Element && !scope.isConnected) { finish('unavailable'); return; }
         const element = engine?.getActiveElement?.();
@@ -262,6 +287,8 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
         for (let index = first; index >= 0 && index < steps.length; index += direction) {
           if (finished || ticket !== moveGeneration) return;
           const step = steps[index]!;
+          let prepared = false;
+          const skip = () => { if (!skippedSteps.has(step.id)) { skippedSteps.add(step.id); skippedSinceShown++; } };
           // Availability has two failure kinds. Static failures (signed-out
           // account, denied capability) never resolve and the step skips
           // instantly. Requirement failures can be async-pending: the
@@ -270,9 +297,9 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
           // requirement-bearing tour before its first popover. Only the
           // pending kind gets the wait deadline targets already had.
           if (step.available?.() === false) {
-            if (!step.availabilityPending?.()) continue;
+            if (!step.availabilityPending?.()) { skip(); continue; }
             const available = await waitFor(() => step.available!() ? true : undefined, pending.signal, Math.min(waitMs, 600));
-            if (!available) continue;
+            if (!available) { skip(); continue; }
           }
           let element = await waitFor(() => target(step), pending.signal, Math.min(waitMs, 600));
           // Targets can be several interactions away. Prefer semantic operations
@@ -292,26 +319,36 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
               }
             }
             if (!acted) break;
+            prepared = true;
             element = await waitFor(() => target(step), pending.signal, waitMs);
           }
           if (finished || pending.signal.aborted || ticket !== moveGeneration) return;
           if (!element) {
             if (step.missingTargetPolicy === 'cancel') { finish('unavailable'); return; }
+            skip();
             continue;
           }
-          if (modalOpen()) { finish('dismissed'); return; }
+          if (modalOpen()) { interrupt('dialog'); return; }
           if (!await ensureEngine() || finished || ticket !== moveGeneration) return;
           // Inactive missing steps use detached sentinels, never a global selector or another workspace.
+          const planned = steps.filter((item) => item.id === step.id || (!skippedSteps.has(item.id) && item.available?.() !== false));
+          const position = (item: RunStep) => options.labels.progress
+            .replace('{{current}}', String(planned.indexOf(item) + 1)).replace('{{total}}', String(planned.length));
+          const notice = sectionNotice(steps[activeIndex], step, prepared, direction);
+          const skippedNotice = skippedSinceShown > 0 ? (options.labels.skipped ?? '').replace('{{count}}', String(skippedSinceShown)) : '';
           engine!.setSteps(steps.map((item) => ({
             element: target(item) ?? document.createElement('span'),
             data: { id: item.id, version: item.version },
             popover: {
-              title: escaped(item.title), description: escaped(item.description),
+              title: escaped(item.title),
+              description: (item === step ? guideNotes(notice, skippedNotice) : '') + escaped(item.description),
+              ...(planned.includes(item) ? { progressText: position(item) } : {}),
               ...(item.popoverSide ? { side: item.popoverSide } : {}),
               ...(item.popoverAlign ? { align: item.popoverAlign } : {}),
             },
           })));
-          engine!.setConfig({ ...engine!.getConfig(), showProgress: steps.length > 1, showButtons: ['next', 'previous', 'close'] });
+          engine!.setConfig({ ...engine!.getConfig(), showProgress: planned.length > 1, showButtons: ['next', 'previous', 'close'] });
+          skippedSinceShown = 0;
           activeIndex = index;
           lastStepId = step.id;
           active = true;
@@ -349,7 +386,7 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
         if (typeof document === 'undefined' || !document.body) { finish('unavailable'); return; }
         if (options.router) {
           const destination = options.route ? options.router.resolve(options.route).fullPath : options.router.currentRoute.value.fullPath;
-          removeNavigation = options.router.afterEach((to) => { if (to.fullPath !== destination) finish('navigation'); });
+          removeNavigation = options.router.afterEach((to) => { if (to.fullPath !== destination) interrupt('navigation'); });
           if (options.route && options.router.currentRoute.value.fullPath !== destination) {
             const moved = await within(options.router.push(options.route).then(() => true), abort.signal, waitMs);
             if (moved !== true || finished) { finish('unavailable'); return; }
@@ -401,7 +438,7 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
       ...options, id: definition.id, version: definition.version, route: existingScope?.isConnected ? undefined : definition.route, scopeName: definition.scope, task: definition.task,
       labels: controls,
       steps: () => (definition.steps as readonly TourStepDefinition[]).map((step) => ({
-        id: step.id, version: step.version, selector: guideTargetSelector(step.target),
+        id: step.id, version: step.version, selector: guideTargetSelector(step.target), zone: guideTargetMetadata(step.target).zone,
         title: textAt(step.titleKey), description: textAt(step.descriptionKey), missingTargetPolicy: step.missingTargetPolicy, prepareClick: step.prepareClick, prepareActions: step.prepareActions,
         popoverSide: step.popoverSide, popoverAlign: step.popoverAlign,
         available: () => accountAvailable() && requirementsAvailable() && step.requiredCapabilities.every((method) => !options.capabilities || ('supports' in options.capabilities ? options.capabilities.supports(method) !== false : options.capabilities.includes(method))),
@@ -438,7 +475,7 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
 }
 
 let shared: ReturnType<typeof createTourCoordinator> | undefined;
-const coordinator = () => shared ??= createTourCoordinator();
+const coordinator = () => shared ??= createTourCoordinator({ onPausedChange: (pause) => { pausedGuide.value = pause; } });
 export const startTour = (id: string, options?: StartTourOptions) => coordinator().startTour(id, options);
 export const startDynamicTour = (tour: DynamicTour, options?: StartTourOptions) => coordinator().startDynamicTour(tour, options);
 export const startInlineGuide = (options: InlineGuideOptions) => coordinator().startInlineGuide(options);

@@ -2044,7 +2044,7 @@ export default {
     noEvents: "尚未收到事件。",
     truncated: "为保持此视图在大小限制内，较早的事件未显示。",
   },
-  guides: { progress: "第 {current} 步，共 {total} 步", help: "显示指南", next: "下一步", previous: "上一步", done: "完成", pluginsSearchTitle: "搜索插件", pluginsSearch: "在此部分查找插件。", changesTitle: "更改", changes: "同步前请审查更改和冲突。", installTitle: "安装插件", install: "选择一个包进行审查并安装。", catalog: {
+  guides: { paused: '指南已暂停于“{step}”', resume: '继续', progress: "第 {current} 步，共 {total} 步", help: "显示指南", next: "下一步", previous: "上一步", done: "完成", pluginsSearchTitle: "搜索插件", pluginsSearch: "在此部分查找插件。", changesTitle: "更改", changes: "同步前请审查更改和冲突。", installTitle: "安装插件", install: "选择一个包进行审查并安装。", catalog: {
     button: "指南和教程", title: "指南和教程",
     search: "搜索教程", tagsLabel: "教程筛选", allTags: "全部", start: "开始指南", steps: "{count} 个步骤 | {count} 个步骤",
     back: "返回", overview: "概览",

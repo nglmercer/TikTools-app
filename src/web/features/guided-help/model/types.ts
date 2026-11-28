@@ -82,6 +82,18 @@ export interface StartTourOptions {
   /** Always capped by the coordinator; missing targets never wait indefinitely. */
   waitMs?: number;
 }
+/** Why a running guide stopped without the user closing it. */
+export type GuidePauseCause = 'navigation' | 'dialog';
+/** A guide that was interrupted at a known step and can be picked up again. */
+export interface GuidePause {
+  id: string;
+  stepId: string;
+  /** Title of the step the guide stopped on, for the notice. */
+  title: string;
+  cause: GuidePauseCause;
+  /** Starts the same guide again; it reopens at the step it stopped on. */
+  resume(): GuideSession;
+}
 export interface GuideSession {
   readonly id: string;
   readonly ready: Promise<boolean>;

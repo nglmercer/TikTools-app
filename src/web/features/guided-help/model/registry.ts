@@ -4,6 +4,7 @@
  */
 import { mergeCatalog, registryEntry, tourLocales, type TourCopyLocale } from './define-tour.ts';
 import { tourModules, type TourId } from '../tours/index.ts';
+import type { GuideLayoutZone } from './guide-targets.ts';
 import type { TourDefinition } from './types.ts';
 
 export type { TourId };
@@ -13,7 +14,12 @@ export const tourRegistry = Object.fromEntries(
 ) as Record<TourId, TourDefinition>;
 
 type StepText = { title: string; description: string };
-type ControlText = { next: string; previous: string; done: string; close: string; progress: string };
+type ControlText = {
+  next: string; previous: string; done: string; close: string; progress: string;
+  /** Section-change notices: `{{section}}` is the zone name; `{{count}}` is how many steps were skipped. */
+  moved: string; back: string; skipped: string;
+  zones: Readonly<Record<GuideLayoutZone, string>>;
+};
 
 /** Catalog shape mapped from the literal tour modules, so consumers get
  *  concrete deep access (tourCatalogs.en.automationEvents.eventsTab.title)

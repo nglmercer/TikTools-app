@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
 import { usePluginsStore } from '@/entities/plugin/model/plugins-store.ts';
 import { useAppUpdaterStore } from '@/features/app-updater/model/updater-store.ts';
+import GuidePausedNotice from '@/features/guided-help/ui/GuidePausedNotice.vue';
 import BaseNotification from '@/shared/ui/notification/BaseNotification.vue';
 import PluginProgressToast from '@/widgets/plugin-progress/ui/PluginProgressToast.vue';
 const emit = defineEmits<{ openSettings: [] }>();
@@ -15,6 +16,7 @@ const dismissedUpdate = ref('');
 </script>
 
 <template>
+  <GuidePausedNotice />
   <PluginProgressToast
     v-if="pluginProgress"
     :progress="pluginProgress"

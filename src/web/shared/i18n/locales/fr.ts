@@ -2046,7 +2046,7 @@ export default {
     noEvents: 'Aucun événement reçu pour l\'instant.',
     truncated: 'Les événements les plus anciens ne sont pas affichés pour respecter la taille maximale de cette vue.',
   },
-  guides: { progress: '{current} sur {total}', help: 'Afficher le guide', next: 'Suivant', previous: 'Précédent', done: 'Terminé', pluginsSearchTitle: 'Rechercher des plugins', pluginsSearch: 'Recherchez les plugins dans cette section.', changesTitle: 'Modifications', changes: 'Examinez les modifications et conflits avant de synchroniser.', installTitle: 'Installer un plugin', install: 'Sélectionnez un paquet à examiner et installer.', catalog: {
+  guides: { paused: 'Guide en pause à « {step} »', resume: 'Reprendre', progress: '{current} sur {total}', help: 'Afficher le guide', next: 'Suivant', previous: 'Précédent', done: 'Terminé', pluginsSearchTitle: 'Rechercher des plugins', pluginsSearch: 'Recherchez les plugins dans cette section.', changesTitle: 'Modifications', changes: 'Examinez les modifications et conflits avant de synchroniser.', installTitle: 'Installer un plugin', install: 'Sélectionnez un paquet à examiner et installer.', catalog: {
     button: 'Guides et tutoriels', title: 'Guides et tutoriels',
     search: 'Rechercher des tutoriels', tagsLabel: 'Filtres de tutoriels', allTags: 'Toutes', start: 'Démarrer le guide', steps: '{count} étape | {count} étapes',
     back: 'Retour', overview: "Vue d'ensemble",

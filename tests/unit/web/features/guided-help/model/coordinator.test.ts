@@ -3,6 +3,7 @@ import { flushPromises } from '@vue/test-utils';
 import { ref } from 'vue';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import type { Config, DriveStep, Driver } from 'driver.js';
+import type { GuidePause } from '../../../../../../src/web/features/guided-help/model/types.ts';
 import { createTourCoordinator, MAX_GUIDE_WAIT_MS } from '../../../../../../src/web/features/guided-help/model/coordinator.ts';
 import { registerGuideActions } from '../../../../../../src/web/features/guided-help/model/guide-actions.ts';
 import { readTourProgress, writeTourProgress } from '../../../../../../src/web/features/guided-help/model/progress.ts';
@@ -724,4 +725,103 @@ it('backward navigation presses chained prepare triggers until the target return
   expect(tabClick).toHaveBeenCalled();
   expect(test.steps()[2]?.element).toBe(root.querySelector('[data-guide="automation-events"]'));
   session.stop();
+});
+
+describe('section changes and interruptions', () => {
+  const popoverOf = (test: ReturnType<typeof setup>, index: number) => defined(test.steps()[index]?.popover);
+
+  it('counts only the steps that apply and says how many were skipped', async () => {
+    vi.useFakeTimers();
+    const test = setup();
+    // The feed tour has four steps; this layout has no stage, so that step is skipped.
+    const root = mountGuideTargets('feed', ['feed-view', 'feed-filters', 'feed-controls']);
+    const session = test.coordinator.startTour('feed', { scope: root, locale: 'en' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await session.ready).toBe(true);
+    expect(popoverOf(test, 0).progressText).toBe('1 of 4');
+    test.next();
+    await vi.advanceTimersByTimeAsync(700);
+    test.next();
+    await vi.advanceTimersByTimeAsync(700);
+    // filters → (stage skipped) → controls: the counter reads 3 of 3, not 4 of 4.
+    expect(test.drive.mock.calls.at(-1)?.[0]).toBe(3);
+    expect(popoverOf(test, 3).progressText).toBe('3 of 3');
+    expect(popoverOf(test, 3).description).toContain('Skipped 1 step(s)');
+    session.stop();
+  });
+
+  it('announces the zone the guide moved to, forwards and back', async () => {
+    const test = setup();
+    const root = mountGuideTargets('feed', ['feed-view', 'feed-filters', 'feed-stage', 'feed-controls']);
+    const session = test.coordinator.startTour('feed', { scope: root, locale: 'en' });
+    await flushPromises();
+    expect(await session.ready).toBe(true);
+    expect(popoverOf(test, 0).description).not.toContain('tiktools-guide__note');
+    test.next();
+    await flushPromises();
+    // feed-view is a list; feed-filters is a toolbar.
+    expect(popoverOf(test, 1).description).toContain('Now in: Toolbar');
+    const previous = test.config().onPrevClick;
+    previous?.(undefined, defined(test.steps()[1]), { driver: test.engine, config: test.config(), state: {}, index: 1 });
+    await flushPromises();
+    expect(popoverOf(test, 0).description).toContain('Back to: List');
+    session.stop();
+  });
+
+  it('pauses with a way back when the user navigates away, and resumes on the step it stopped at', async () => {
+    const paused: Array<GuidePause | undefined> = [];
+    const fixture = driverFixture();
+    const coordinator = createTourCoordinator({ loadDriver: fixture.loadDriver, storage: () => sessionStorage, onPausedChange: (pause) => paused.push(pause) });
+    owned.push(coordinator);
+    mountGuideTargets('points', ['points-rules', 'points-leaderboard']);
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: ['/points', '/connections'].map((path) => ({ path, component: { template: '<div />' } })),
+    });
+    const session = coordinator.startTour('points', { router, locale: 'en' });
+    expect(await session.ready).toBe(true);
+    fixture.next();
+    await flushPromises();
+    await router.push('/connections');
+    expect(await session.done).toBe('navigation');
+    const pause = defined(paused.at(-1));
+    expect(pause).toMatchObject({ id: 'points', stepId: 'leaderboard', cause: 'navigation' });
+    expect(pause.title).toBe(tourCatalogs.en.points.leaderboard.title);
+    const resumed = pause.resume();
+    expect(await resumed.ready).toBe(true);
+    expect(router.currentRoute.value.path).toBe('/points');
+    expect(fixture.drive.mock.calls.at(-1)?.[0]).toBe(1);
+    // Starting the guide again clears the notice.
+    expect(paused.at(-1)).toBeUndefined();
+    resumed.stop();
+  });
+
+  it('pauses instead of silently closing when a dialog opens over the guide', async () => {
+    const paused: Array<GuidePause | undefined> = [];
+    const fixture = driverFixture();
+    const coordinator = createTourCoordinator({ loadDriver: fixture.loadDriver, storage: () => sessionStorage, onPausedChange: (pause) => paused.push(pause) });
+    owned.push(coordinator);
+    mountGuideTargets('points', ['points-rules', 'points-leaderboard']);
+    const session = coordinator.startTour('points', { locale: 'en' });
+    expect(await session.ready).toBe(true);
+    const dialog = document.createElement('dialog');
+    dialog.setAttribute('open', '');
+    dialog.setAttribute('data-test-guide', '');
+    document.body.append(dialog);
+    expect(await session.done).toBe('dismissed');
+    expect(paused.at(-1)).toMatchObject({ id: 'points', stepId: 'rules', cause: 'dialog' });
+  });
+
+  it('does not offer to resume when the user closes the guide', async () => {
+    const paused: Array<GuidePause | undefined> = [];
+    const fixture = driverFixture();
+    const coordinator = createTourCoordinator({ loadDriver: fixture.loadDriver, storage: () => sessionStorage, onPausedChange: (pause) => paused.push(pause) });
+    owned.push(coordinator);
+    mountGuideTargets('points', ['points-rules', 'points-leaderboard']);
+    const session = coordinator.startTour('points', { locale: 'en' });
+    expect(await session.ready).toBe(true);
+    fixture.close();
+    expect(await session.done).toBe('dismissed');
+    expect(paused.filter((pause) => pause !== undefined)).toEqual([]);
+  });
 });
