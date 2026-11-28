@@ -33,6 +33,10 @@ pub enum DesktopCommand {
     ShellMenuModel {
         menus: serde_json::Value,
     },
+    /// Frontend-owned native menu command emitted by a host menu.
+    ShellMenuAction {
+        id: String,
+    },
     ShowWindow,
     HideWindow,
     OpenDevtools,
@@ -386,7 +390,12 @@ pub(crate) fn install_menu_event_handler(
                 if let Err(error) = proxy.send_coalesced(DesktopEvent::Command(command)) {
                     tracing::debug!(%error, %id, "could not forward native menu command");
                 }
-            } else {
+            } else if let Err(error) =
+                proxy.send_coalesced(DesktopEvent::Command(DesktopCommand::ShellMenuAction {
+                    id: id.clone(),
+                }))
+            {
+                tracing::debug!(%error, %id, "could not forward shell menu action");
                 emitter.emit(HostMessage::ShellMenuAction { id });
             }
         },

@@ -338,6 +338,38 @@ fn append_windows_items(menu: &muda::Submenu, entries: &[serde_json::Value]) {
     }
 }
 
+/// Whether a frontend menu action is rendered as a check item. Win32 toggles
+/// check items before the host receives their activation, so the window uses
+/// this to restore the frontend-owned state when an action does not change it.
+#[cfg(target_os = "windows")]
+pub fn is_check_menu_action(model: &serde_json::Value, id: &str) -> bool {
+    model
+        .as_array()
+        .is_some_and(|menus| menus.iter().any(|menu| menu_has_check_action(menu, id)))
+}
+
+#[cfg(target_os = "windows")]
+fn menu_has_check_action(menu: &serde_json::Value, id: &str) -> bool {
+    menu.get("items")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|items| entries_have_check_action(items, id))
+}
+
+#[cfg(target_os = "windows")]
+fn entries_have_check_action(entries: &[serde_json::Value], id: &str) -> bool {
+    entries.iter().any(|entry| {
+        if entry.get("id").and_then(serde_json::Value::as_str) == Some(id)
+            && entry.get("checked").is_some()
+        {
+            return true;
+        }
+        entry
+            .get("children")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|children| entries_have_check_action(children, id))
+    })
+}
+
 #[cfg(target_os = "windows")]
 fn append_windows_item(menu: &muda::Submenu, item: &dyn muda::IsMenuItem) {
     if let Err(error) = menu.append(item) {

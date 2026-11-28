@@ -17,6 +17,7 @@ use crate::{
     platform,
 };
 use std::{sync::atomic::Ordering, time::Instant};
+use tiktools_core::HostEmitter;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -128,6 +129,23 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
                 }
                 #[cfg(not(any(target_os = "linux", target_os = "windows")))]
                 let _ = menus;
+            }
+            DesktopEvent::Command(DesktopCommand::ShellMenuAction { id }) => {
+                self.emitter
+                    .emit(tiktools_core::ipc::messages::HostMessage::ShellMenuAction {
+                        id: id.clone(),
+                    });
+                // Win32 toggles check items before emitting their activation.
+                // Restore the frontend-owned model immediately; when the
+                // action does change state, the following model push rebuilds
+                // the menu again. This matters when reselecting the active
+                // locale intentionally produces no frontend state change.
+                #[cfg(target_os = "windows")]
+                if let Some(model) = self.native_menu_model.clone() {
+                    if crate::shell::is_check_menu_action(&model, &id) {
+                        self.rebuild_windows_menu(&model);
+                    }
+                }
             }
             DesktopEvent::Command(DesktopCommand::MainWindowCloseRequested) => {
                 // Same policy as the Winit CloseRequested arm: hide to the
