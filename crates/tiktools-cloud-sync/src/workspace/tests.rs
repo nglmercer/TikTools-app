@@ -427,6 +427,38 @@ fn standard_decision(server: &Server) -> crate::V2ProductDecision {
     }
 }
 
+/// Everything a product upload test needs: a server, a signed-in session, a
+/// bootstrapped coordinator with the standard decision staged, and the directory
+/// that keeps its state alive.
+struct StagedProduct {
+    server: Server,
+    session: Arc<Session>,
+    coordinator: Arc<WorkspaceCoordinator>,
+    target: WorkspaceKey,
+    decision: crate::V2ProductDecision,
+    temp: tempfile::TempDir,
+}
+
+async fn staged_product() -> StagedProduct {
+    let server = start_server().await;
+    let session = Arc::new(connect(&server, "device-a").await);
+    let temp = tempfile::tempdir().unwrap();
+    let coordinator = Arc::new(coordinator(
+        &temp.path().join("private"),
+        &server,
+        "account-a",
+    ));
+    let (target, decision) = stage_product_fixture(&coordinator, &server);
+    StagedProduct {
+        server,
+        session,
+        coordinator,
+        target,
+        decision,
+        temp,
+    }
+}
+
 /// Bootstraps `coordinator`, guards it for product uploads and stages the
 /// standard decision (plugin `acme.plugin`, consent 42, source generation 7).
 fn stage_product_fixture(
@@ -850,15 +882,14 @@ async fn changed_source_after_prepare_is_not_sent() {
 async fn product_review_barrier_rejects_a_cancelled_write_that_arrives_late() {
     use std::sync::atomic::Ordering;
 
-    let server = start_server().await;
-    let session = Arc::new(connect(&server, "device-a").await);
-    let temp = tempfile::tempdir().unwrap();
-    let coordinator = Arc::new(coordinator(
-        &temp.path().join("private"),
-        &server,
-        "account-a",
-    ));
-    let (target, decision) = stage_product_fixture(&coordinator, &server);
+    let StagedProduct {
+        server,
+        session,
+        coordinator,
+        target,
+        decision,
+        temp: _temp,
+    } = staged_product().await;
     let source = Arc::new(ProductUploadFixture::standard());
     let eligibility =
         WorkspaceEligibility::new(session.clone(), || true).with_test_publication_guard();
@@ -1541,15 +1572,14 @@ struct BlockingProductSource {
 async fn cancelled_while_last_eligibility_check_is_blocked_does_not_send() {
     use std::sync::atomic::{AtomicBool, Ordering};
 
-    let server = start_server().await;
-    let session = Arc::new(connect(&server, "device-a").await);
-    let temp = tempfile::tempdir().unwrap();
-    let coordinator = Arc::new(coordinator(
-        &temp.path().join("private"),
-        &server,
-        "account-a",
-    ));
-    let (target, _) = stage_product_fixture(&coordinator, &server);
+    let StagedProduct {
+        server,
+        session,
+        coordinator,
+        target,
+        decision: _,
+        temp: _temp,
+    } = staged_product().await;
     let source = Arc::new(ProductUploadFixture::standard());
     let (entered_tx, entered_rx) = oneshot::channel();
     let (release_tx, release_rx) = std::sync::mpsc::channel();
@@ -1678,15 +1708,14 @@ impl crate::V2ProductUploadSource for BlockingProductSource {
 
 #[tokio::test(flavor = "current_thread")]
 async fn product_worker_cancellation_does_not_block_executor_or_send_after_source_unblocks() {
-    let server = start_server().await;
-    let session = Arc::new(connect(&server, "device-a").await);
-    let temp = tempfile::tempdir().unwrap();
-    let coordinator = Arc::new(coordinator(
-        &temp.path().join("private"),
-        &server,
-        "account-a",
-    ));
-    let (target, _) = stage_product_fixture(&coordinator, &server);
+    let StagedProduct {
+        server,
+        session,
+        coordinator,
+        target,
+        decision: _,
+        temp: _temp,
+    } = staged_product().await;
     let (entered_tx, entered_rx) = oneshot::channel();
     let (finished_tx, finished_rx) = oneshot::channel();
     let (release_tx, release_rx) = std::sync::mpsc::channel();
@@ -1733,15 +1762,14 @@ async fn product_worker_cancellation_does_not_block_executor_or_send_after_sourc
 #[tokio::test(flavor = "current_thread")]
 async fn product_worker_deadline_returns_while_source_blocked_without_sending_later() {
     use std::sync::atomic::Ordering;
-    let server = start_server().await;
-    let session = Arc::new(connect(&server, "device-a").await);
-    let temp = tempfile::tempdir().unwrap();
-    let coordinator = Arc::new(coordinator(
-        &temp.path().join("private"),
-        &server,
-        "account-a",
-    ));
-    let (target, _) = stage_product_fixture(&coordinator, &server);
+    let StagedProduct {
+        server,
+        session,
+        coordinator,
+        target,
+        decision: _,
+        temp: _temp,
+    } = staged_product().await;
     let (entered_tx, entered_rx) = oneshot::channel();
     let (finished_tx, finished_rx) = oneshot::channel();
     let (release_tx, release_rx) = std::sync::mpsc::channel();
@@ -1824,15 +1852,14 @@ async fn product_worker_deadline_returns_while_source_blocked_without_sending_la
 
 #[tokio::test(flavor = "current_thread")]
 async fn cancelled_product_worker_releases_http_lease_and_retains_unknown_result() {
-    let server = start_server().await;
-    let session = Arc::new(connect(&server, "device-a").await);
-    let temp = tempfile::tempdir().unwrap();
-    let coordinator = Arc::new(coordinator(
-        &temp.path().join("private"),
-        &server,
-        "account-a",
-    ));
-    let (target, _) = stage_product_fixture(&coordinator, &server);
+    let StagedProduct {
+        server,
+        session,
+        coordinator,
+        target,
+        decision: _,
+        temp: _temp,
+    } = staged_product().await;
     let source = Arc::new(ProductUploadFixture::standard());
     let (entered_tx, entered_rx) = oneshot::channel();
     let (release_tx, release_rx) = oneshot::channel();
