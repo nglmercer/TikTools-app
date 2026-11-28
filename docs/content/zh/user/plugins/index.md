@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "2892162f1f2ec94f8e5072f6689382b3c32c8546f2ad667a4651c721f597e84a"
-translationRevision: "44e8d6aae86ca2c477032e7ab3b41b069b05cb5519a335abc0e5ff54b39d568c"
+sourceRevision: "6a7e7179831fc08751d9c6c96c573e518610f7aa6dedddc2e18de2a9fb2a2e3a"
+translationRevision: "33dbe5940a436f61e11d801127f73181bca90e101240112903ea9d746abc2ca9"
 order: 10
 ---
 
@@ -50,3 +50,5 @@ order: 10
 <!--@include: ../../../../.generated/cli-domain-processor.zh.md-->
 
 查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。
+
+<TourFrame id="pluginSetup" locale="zh" title="交互式指南：配置插件" />

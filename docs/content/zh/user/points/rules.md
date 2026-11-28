@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "ab201868f1511c20d8d26bb222e53b871620b44d591f083abf2d1b61bb340e31"
-translationRevision: "10c79e51bf15c1d48a68663989f92f599c477d0c2b4ef0bf716b2ca771878ab2"
+sourceRevision: "7a5005919428a41f471ef978adcefa865ab0ffb09f8d80cff8fee2b0464773ef"
+translationRevision: "d802729440fd1938e4726f60f45b5e4485a7d951d58d13ba00ab3d15f8f02772"
 order: 10
 ---
 
@@ -72,3 +72,5 @@ order: 10
 <!--@include: ../../../../.generated/cli-domain-points.zh.md-->
 
 查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。
+
+<TourFrame id="points" locale="zh" title="交互式指南：积分" />

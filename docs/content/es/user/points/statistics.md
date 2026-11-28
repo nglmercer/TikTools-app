@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a7333d75baa9aec6e0c4afb69d1c773575a56ee8da982f0fa5a11a73b903ec2d"
-translationRevision: "ca77e6883eafb2541f8405005c4ccad0d8277176b2782c661b5302879cb625d0"
+sourceRevision: "605f8a666c941b82692838af03c00bf6e679e9e39e8d66f974505884e812c5e8"
+translationRevision: "ae3f51dea43571df963091b2bcc0c07c4e1ce78d192076e22be749466b83a1ea"
 order: 20
 ---
 
@@ -42,3 +42,5 @@ Si faltan datos, borra la búsqueda, amplía las fechas, confirma el creador y a
 ## Detalles de operación {#operational-details}
 
 Analytics solicita actualmente 10 contribuyentes principales para el creador y fechas elegidos. La búsqueda filtra ese subconjunto, no consulta todos los espectadores. Estos agregados persistentes tienen períodos y unidades distintos de los rankings de diamantes/likes de la sesión y del saldo de puntos. Conserva creador, fechas y métrica al exportar o comparar.
+
+<TourFrame id="analytics" locale="es" title="Guía interactiva: Estadísticas" />

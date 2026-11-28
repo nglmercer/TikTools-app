@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "ab201868f1511c20d8d26bb222e53b871620b44d591f083abf2d1b61bb340e31"
-translationRevision: "6568459d5532d1927941a2dde62654d70c5c95b38e83f35ee82389ec014cfd49"
+sourceRevision: "7a5005919428a41f471ef978adcefa865ab0ffb09f8d80cff8fee2b0464773ef"
+translationRevision: "b4d80db51c4c9ed014b57ba48dde47249e9b0fa5395b53316cd68b4dcbb44b5c"
 order: 10
 ---
 
@@ -72,3 +72,5 @@ Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne,
 <!--@include: ../../../../.generated/cli-domain-points.fr.md-->
 
 Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.
+
+<TourFrame id="points" locale="fr" title="Guide interactif : Points" />

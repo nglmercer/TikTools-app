@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a7333d75baa9aec6e0c4afb69d1c773575a56ee8da982f0fa5a11a73b903ec2d"
-translationRevision: "bf19680ae5ceef35d0e67c06563e497a8474884dca93e99bcb5821c98420814c"
+sourceRevision: "605f8a666c941b82692838af03c00bf6e679e9e39e8d66f974505884e812c5e8"
+translationRevision: "faf4ee620d4377178f8651a619a169cafb75454cfd4fec707973bbd478cf7bbb"
 order: 20
 ---
 
@@ -42,3 +42,5 @@ order: 20
 ## 運用の詳細 {#operational-details}
 
 Analytics は選択した配信者と日付範囲の上位貢献者を現在 10 人取得します。検索対象は受信した部分集合で、全視聴者検索ではありません。永続集計の期間・単位は、フィードのセッション内ダイヤ・いいねランキングやポイント残高とは異なります。書き出しや比較では配信者・日付・指標も残してください。
+
+<TourFrame id="analytics" locale="ja" title="インタラクティブガイド: 分析" />

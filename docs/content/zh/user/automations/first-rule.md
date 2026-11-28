@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "13b4b7b3cb8eba95257ec9738934813266414f504eec8b43090b73e74ad50c10"
-translationRevision: "ffb3980c52e6ce4cae9eb068948c03410c83d7489a501213fdc511ee258035dd"
+sourceRevision: "64e2d140d4c3150730dbfd25b908ed58cb44ff8d7471ddc719aa15637c24f83a"
+translationRevision: "0989da18e67a24c0253dd4b7839b49bae1db19a39de163f5bcc9abe8cfe882d0"
 order: 20
 ---
 
@@ -68,3 +68,7 @@ order: 20
 ## 恢复方法 {#recovery}
 
 添加筛选后，如果样例不再匹配，可能是它提供的评论并非 `!hello`。请检查真实事件字段、当前配置方案及启用状态，不要反复触发。测试会执行实际操作；此规则仅写日志，便于预测效果。完成后禁用事件，或继续阅读[实用配方](recipes.md)。
+
+<TourFrame id="automationEvents" locale="zh" title="交互式指南：自动化:事件" />
+
+<TourFrame id="automationActions" locale="zh" title="交互式指南：自动化:操作" />

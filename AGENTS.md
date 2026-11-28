@@ -189,4 +189,8 @@
 - Coverage: `tests/unit/web/features/guided-help` (coordinator, contract, notice) and `tests/site/tours.spec.ts`, which walks
   every demo tour step by step. `cloudOverlays`, `backup`, `backupRestore` and `rankings` are not in the demo, so only the
   unit contract covers them.
+- Docs coverage: `bun docs/scripts/check.ts` fails when a demo tour is not embedded (`<TourFrame id="...">`) in at least one
+  article of every locale. Add the embed to the article of that feature, then run `bun docs/scripts/record-review.ts user/<article>.md`.
+  Do not add embeds to `user/live/feed.md` or `user/first-live.md`: the landing learning paths expect exactly one and two
+  demo panels there (`tests/site/interactive-guides.spec.ts`).
 

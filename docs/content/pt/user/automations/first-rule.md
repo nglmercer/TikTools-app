@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "13b4b7b3cb8eba95257ec9738934813266414f504eec8b43090b73e74ad50c10"
-translationRevision: "80a335d6f406af8694c88174e224fb4cc6c345f68fbe0a4c15c53a11751c8d64"
+sourceRevision: "64e2d140d4c3150730dbfd25b908ed58cb44ff8d7471ddc719aa15637c24f83a"
+translationRevision: "88b2eb00b7fe6634c7532a0eb08977a76f619147d6e4703ec4b333fdf73f467e"
 order: 20
 ---
 
@@ -63,3 +63,7 @@ Se uma amostra deixar de corresponder após adicionar o filtro, seu comentário 
 Confira primeiro o resultado da ação de registro sem filtros. Depois adicione `!hello` e verifique uma mensagem correspondente. Um resultado da demonstração é uma simulação; a validação de uma LIVE acontece no aplicativo conectado.
 
 </DocCallout>
+
+<TourFrame id="automationEvents" locale="pt" title="Guia interativo: Automações: eventos" />
+
+<TourFrame id="automationActions" locale="pt" title="Guia interativo: Automações: ações" />

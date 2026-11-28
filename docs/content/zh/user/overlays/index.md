@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "3141f778f3bf0e5c9e01415122e7863e9342c266a57bee9811d7a6b75b2c842b"
-translationRevision: "6e039c4e954bc3921ce6b837ace0ff58f1e3243802117ed9b2332a30c7cc3197"
+sourceRevision: "adcc61cea71f04065e245e5e618c285a2956f57d07b2015b87c30cef39e56236"
+translationRevision: "07834988473e8ae94e13edb038ee287f21dc90f8577f6827b2afee341a9119cb"
 order: 10
 ---
 
@@ -66,3 +66,7 @@ order: 10
 ## 运行细节 {#operational-details}
 
 添加实时 OBS 来源前，先单独安装 Event Gateway 插件，启用并确认运行。各状态对应的恢复方法：missing → 安装；disabled → 启用并检查可用性；stopped → 启动；credentialUnavailable → 重启网关一次；assetsMissing → 修复或重建打包的小组件资源；starting → 稍后重试；unreachable → 检查回环端口及服务。ready 状态或本地预览都不能证明真实直播事件已送达或 OBS 已接收。
+
+<TourFrame id="overlay" locale="zh" title="交互式指南：叠加层" />
+
+<TourFrame id="overlayObs" locale="zh" title="交互式指南：将悬浮层添加到 OBS" />

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "6790ab7171a90bda1df882c0f88626a5875da68bf4f624968b0e54815842030f"
-translationRevision: "4691d90fd30812c78b7ffc502213c6488b6af975dbde62ed22a7f82813cc87b6"
+sourceRevision: "1e1917dbdb8b579aad4195e79adda85a75466b1c827319e13f57b03ca609fe5e"
+translationRevision: "c4be851d51045460daf485a1629e1a95c2aeeef89fcf411712c2563e89276e31"
 order: 10
 ---
 
@@ -39,3 +39,5 @@ order: 10
 这些设置和本地键盘交互均可使用，但不声称已完成全部无障碍或平台验收。优先使用有标签的按钮、易读的窗口尺寸；动态内容干扰阅读时，可暂停事件流滚动。设置似乎缺失时，先检查所属页面和宿主能力，再考虑重置数据。不可用控件见[故障排查](troubleshooting.md)，常见区别见[常见问题](faq.md)。
 
 <DemoFrame scenario="settings" locale="zh" title="演示：设置" />
+
+<TourFrame id="settings" locale="zh" title="交互式指南：设置" />

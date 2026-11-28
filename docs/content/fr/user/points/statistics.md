@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a7333d75baa9aec6e0c4afb69d1c773575a56ee8da982f0fa5a11a73b903ec2d"
-translationRevision: "c7716c33d0e7770701883e19c813694b26c7931bc4f388146508d67a89ac3aeb"
+sourceRevision: "605f8a666c941b82692838af03c00bf6e679e9e39e8d66f974505884e812c5e8"
+translationRevision: "77483018ebf8dd1c50d846656d8448d0dcd70c8560220cb933ef78df925661c5"
 order: 20
 ---
 
@@ -42,3 +42,5 @@ Si les données semblent absentes, effacez la recherche de contributeur, élargi
 ## Détails de fonctionnement {#operational-details}
 
 Analytics demande actuellement les 10 principaux contributeurs pour le créateur et les dates choisis. La recherche filtre ce sous-ensemble, sans rechercher tous les spectateurs. Ces agrégats persistants ont une période et une unité différentes des diamants/likes de la session et des soldes de points. Conservez créateur, dates et mesure lors des exports et comparaisons.
+
+<TourFrame id="analytics" locale="fr" title="Guide interactif : Analytique" />

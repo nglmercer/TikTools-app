@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "3141f778f3bf0e5c9e01415122e7863e9342c266a57bee9811d7a6b75b2c842b"
-translationRevision: "6ee9433054bc94f58084d3f2788e5e813c322f156395359d2c0c633c6f3026ed"
+sourceRevision: "adcc61cea71f04065e245e5e618c285a2956f57d07b2015b87c30cef39e56236"
+translationRevision: "0cdd9dbb7f77ad3a7198018a1b4bd1212acff3c914566491807c73bab3e2e876"
 order: 10
 ---
 
@@ -79,3 +79,7 @@ Instala el plugin Event Gateway por separado, habilítalo y comprueba que se est
 | `unreachable` | Revisa el puerto y el servicio de la dirección local. |
 
 Usa la credencial del widget incluida en la URL generada. Un estado listo o una vista previa local no prueban el LIVE ni la recepción en OBS: realiza una prueba inocua en la fuente prevista.
+
+<TourFrame id="overlay" locale="es" title="Guía interactiva: Overlays" />
+
+<TourFrame id="overlayObs" locale="es" title="Guía interactiva: Overlay hacia OBS" />

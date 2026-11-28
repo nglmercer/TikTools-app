@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "74217892395ddea29ed42ae4105097d815949c11029e1598a32cd2e978963f11"
-translationRevision: "1606358225000643706921b8107a480656645e6c2a8764a087ac36c6bd8feec3"
+sourceRevision: "cb641d861de9695872dcf68b8f5da0c56916364120be5a72729757e7d9327bc8"
+translationRevision: "44e9c99601e2d5686941ac4f53022d2e593eb6c34af46e8d3eaff1e81522951d"
 order: 50
 ---
 
@@ -58,3 +58,5 @@ order: 50
 <!--@include: ../../../../.generated/cli-domain-template.ja.md-->
 
 規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。
+
+<TourFrame id="automationTemplates" locale="ja" title="インタラクティブガイド: ルールテンプレート" />

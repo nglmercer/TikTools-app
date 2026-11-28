@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "74217892395ddea29ed42ae4105097d815949c11029e1598a32cd2e978963f11"
-translationRevision: "fa2bc77eeeb4ab8a49d2e3144865a58ab1b3f3fd894d58782fdd3b64c6daa36c"
+sourceRevision: "cb641d861de9695872dcf68b8f5da0c56916364120be5a72729757e7d9327bc8"
+translationRevision: "d99821e722f0f039c9fbc9c8da65c8c9dfffbe0cbec7618641502e035b884502"
 order: 50
 ---
 
@@ -58,3 +58,5 @@ Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne,
 <!--@include: ../../../../.generated/cli-domain-template.fr.md-->
 
 Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.
+
+<TourFrame id="automationTemplates" locale="fr" title="Guide interactif : Modèles de règles" />

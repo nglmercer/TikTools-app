@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "446118d4c202b645dd93867f1715484cbd9876f940ba229ac26e4b7f24bc4cbc"
-translationRevision: "c7753dbf5f8630bf5fbaec65d02370c405f5e7e33d34b3583d935a7e312bb4d2"
+sourceRevision: "e0d1fec65d919e7ca9946024142bbbe1bca8b3851f7e66246dcaddd101cd5215"
+translationRevision: "1d2fabd8b851574030b71db38057adacd4a70f7a8acf5866f3d983ee5cf518e9"
 order: 10
 ---
 
@@ -49,3 +49,11 @@ order: 10
 <!--@include: ../../../../.generated/cli-domain-live.ja.md-->
 
 規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。
+
+<TourFrame id="feed" locale="ja" title="インタラクティブガイド: ライブフィード" />
+
+<TourFrame id="feedInspector" locale="ja" title="インタラクティブガイド: フィードインスペクター" />
+
+<TourFrame id="connection" locale="ja" title="インタラクティブガイド: クリエイターに接続" />
+
+<TourFrame id="connectionRecovery" locale="ja" title="インタラクティブガイド: 接続の復旧" />

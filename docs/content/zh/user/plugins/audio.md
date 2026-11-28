@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e0e5014682213e36dda2e4c02293b8f960f3c107bdb1679327fb00b92e02604b"
-translationRevision: "56613ba24ddf31fc0a99f140b6a4451097169261713afd71976c0d293c416c19"
+sourceRevision: "116cd7a6c7a48b62cb5ec92b41e8bc3869652ef552f920a92b97722c68779b9d"
+translationRevision: "16f85db81b6c8e3d1cad12fb9c9bd4ff544df285fcc17c13344c64180e44e129"
 order: 20
 ---
 
@@ -45,3 +45,7 @@ order: 20
 <!--@include: ../../../../.generated/cli-domain-media.zh.md-->
 
 查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。
+
+<TourFrame id="automationActionMedia" locale="zh" title="交互式指南：overlay 和声音操作" />
+
+<TourFrame id="automationActionTts" locale="zh" title="交互式指南：语音操作 (TTS)" />

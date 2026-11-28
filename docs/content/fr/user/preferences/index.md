@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "6790ab7171a90bda1df882c0f88626a5875da68bf4f624968b0e54815842030f"
-translationRevision: "fd118aea8302443fc3b89b7fc4c9a7b63de7133ed2049d3bfadad4034bc84745"
+sourceRevision: "1e1917dbdb8b579aad4195e79adda85a75466b1c827319e13f57b03ca609fe5e"
+translationRevision: "a9eb300654c575de7852603b0d5b644ba9a62a1a7549b3e5de49d0c39267e85c"
 order: 10
 ---
 
@@ -39,3 +39,5 @@ Utilisez Tab et Shift+Tab pour déplacer le focus entre les commandes ordinaires
 Ces paramètres et interactions clavier locales sont disponibles ; aucune validation complète d’accessibilité ou de plateforme n’est affirmée. Préférez des boutons libellés, des tailles de fenêtre lisibles et le défilement du flux en pause lorsque le mouvement distrait. Si un paramètre semble absent, vérifiez sa page propriétaire et la capacité de l’hôte avant de réinitialiser les données. Consultez le [dépannage](troubleshooting.md) pour les commandes indisponibles et la [FAQ](faq.md) pour les distinctions courantes.
 
 <DemoFrame scenario="settings" locale="fr" title="Démo : paramètres" />
+
+<TourFrame id="settings" locale="fr" title="Guide interactif : Paramètres" />

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "afcdc4049fccbd2bc17c1040a9f84efb749a8d6291212cfe8809c22728e5c0fb"
-translationRevision: "e9e11c3ff88ae1095fb685edd00b0b79275ce5f5565951a3dcea713f707ad518"
+sourceRevision: "1c64b76271cba5b5bb23ef1f671be2bd5bf6c286afb710d2bf85ccf8cecc66b0"
+translationRevision: "299d3d12e0f1619be270f451349cfa638f1513021ab9b75cc0e29191d6c9081b"
 order: 40
 ---
 
@@ -58,3 +58,5 @@ order: 40
 <!--@include: ../../../../.generated/cli-domain-globals.ja.md-->
 
 規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。
+
+<TourFrame id="automationVariables" locale="ja" title="インタラクティブガイド: オートメーション:変数" />

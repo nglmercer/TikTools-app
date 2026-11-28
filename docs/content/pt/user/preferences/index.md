@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "6790ab7171a90bda1df882c0f88626a5875da68bf4f624968b0e54815842030f"
-translationRevision: "f109df7c60a73f42085174df738e19d5775ed761fd83df23a62b942b67ab744d"
+sourceRevision: "1e1917dbdb8b579aad4195e79adda85a75466b1c827319e13f57b03ca609fe5e"
+translationRevision: "3f1f220dd0fa7e2e7b892a2d4b644573561f86a9da285c01378e72f406b8c497"
 order: 10
 ---
 
@@ -39,3 +39,5 @@ Escape fecha a gaveta de navegação estreita quando outro controle não o consu
 Essas configurações e interações locais por teclado estão disponíveis; não se afirma aceitação completa de acessibilidade/plataforma. Prefira botões rotulados, tamanhos de janela legíveis e rolagem do feed pausada quando o movimento distrair. Se uma configuração parecer ausente, confira a página responsável e a capacidade do host antes de redefinir dados. Consulte [solução de problemas](troubleshooting.md) para controles indisponíveis e [perguntas frequentes](faq.md) para distinções comuns.
 
 <DemoFrame scenario="settings" locale="pt" title="Demonstração: configurações" />
+
+<TourFrame id="settings" locale="pt" title="Guia interativo: Configurações" />

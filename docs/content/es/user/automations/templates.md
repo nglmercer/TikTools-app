@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "74217892395ddea29ed42ae4105097d815949c11029e1598a32cd2e978963f11"
-translationRevision: "b59ccf352faff1ab16c509529e22edada5284665261ff415e53ab498a76f6dbd"
+sourceRevision: "cb641d861de9695872dcf68b8f5da0c56916364120be5a72729757e7d9327bc8"
+translationRevision: "81114e6591786a373c96d5527814090bf20cbf88b383bc0d0c1b0a54ba6df487"
 order: 50
 ---
 
@@ -58,3 +58,5 @@ Cada operación de esta guía también está disponible desde la CLI: sin conexi
 <!--@include: ../../../../.generated/cli-domain-template.es.md-->
 
 Consulta la [referencia completa de comandos](../../developer/cli.md) para las convenciones, la salida JSON y los marcadores de operaciones destructivas.
+
+<TourFrame id="automationTemplates" locale="es" title="Guía interactiva: Plantillas de reglas" />

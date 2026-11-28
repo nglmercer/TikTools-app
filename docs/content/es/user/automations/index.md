@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "08bb26a20687b58094e908a4e8395abeae3b9adc3932c86d9c3b08f5ebbf8ce3"
-translationRevision: "e07b6c18b1612695a62ba9139ffa993b4f6dac943ff75b63e0bda15618f3568a"
+sourceRevision: "4b3afb8ff9602033e4ffeba505da980bc2a9d617796853f59645c0f40eaf53ad"
+translationRevision: "9f81dd55bf99ad4139ffbbca008e2d860cfeaf1848ee2c519a7b2004457f86d2"
 order: 10
 ---
 
@@ -58,3 +58,7 @@ Cada operación de esta guía también está disponible desde la CLI: sin conexi
 <!--@include: ../../../../.generated/cli-domain-workflow.es.md-->
 
 Consulta la [referencia completa de comandos](../../developer/cli.md) para las convenciones, la salida JSON y los marcadores de operaciones destructivas.
+
+<TourFrame id="automationFilters" locale="es" title="Guía interactiva: Filtros y condiciones" />
+
+<TourFrame id="automationCooldowns" locale="es" title="Guía interactiva: Cooldowns y modos" />

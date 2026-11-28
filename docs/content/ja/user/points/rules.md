@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "ab201868f1511c20d8d26bb222e53b871620b44d591f083abf2d1b61bb340e31"
-translationRevision: "f12aa69445979e77bdc1e789192eb7d8961523bb4cf7ed252430e6a5448442cd"
+sourceRevision: "7a5005919428a41f471ef978adcefa865ab0ffb09f8d80cff8fee2b0464773ef"
+translationRevision: "a47d18fc3ee3c6863dd3d979dfeb3a39c0e74fdc947eef1d1e35630384e67668"
 order: 10
 ---
 
@@ -72,3 +72,5 @@ order: 10
 <!--@include: ../../../../.generated/cli-domain-points.ja.md-->
 
 規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。
+
+<TourFrame id="points" locale="ja" title="インタラクティブガイド: ポイント" />

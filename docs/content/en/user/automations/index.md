@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "08bb26a20687b58094e908a4e8395abeae3b9adc3932c86d9c3b08f5ebbf8ce3"
-translationRevision: "08bb26a20687b58094e908a4e8395abeae3b9adc3932c86d9c3b08f5ebbf8ce3"
+sourceRevision: "4b3afb8ff9602033e4ffeba505da980bc2a9d617796853f59645c0f40eaf53ad"
+translationRevision: "4b3afb8ff9602033e4ffeba505da980bc2a9d617796853f59645c0f40eaf53ad"
 order: 10
 ---
 
@@ -58,3 +58,7 @@ Every operation in this guide is also available from the CLI — offline, script
 <!--@include: ../../../../.generated/cli-domain-workflow.en.md-->
 
 See the [full command reference](../../developer/cli.md) for conventions, JSON output and destructive-operation markers.
+
+<TourFrame id="automationFilters" locale="en" title="Guided tour: Filters and conditions" />
+
+<TourFrame id="automationCooldowns" locale="en" title="Guided tour: Cooldowns and run modes" />

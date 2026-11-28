@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "74217892395ddea29ed42ae4105097d815949c11029e1598a32cd2e978963f11"
-translationRevision: "428631380bdd7ec1bd66987025794817a1925260664c8574914f2169c9b81fa6"
+sourceRevision: "cb641d861de9695872dcf68b8f5da0c56916364120be5a72729757e7d9327bc8"
+translationRevision: "abc37d6542c5b550a190f86bb0d72e4ff232275415cb75667cc720beb1a009f2"
 order: 50
 ---
 
@@ -58,3 +58,5 @@ Cada operação deste guia também está disponível na CLI — offline, script�
 <!--@include: ../../../../.generated/cli-domain-template.pt.md-->
 
 Consulte a [referência completa de comandos](../../developer/cli.md) para as convenções, a saída JSON e os marcadores de operações destrutivas.
+
+<TourFrame id="automationTemplates" locale="pt" title="Guia interativo: Modelos de regras" />

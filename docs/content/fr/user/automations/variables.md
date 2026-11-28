@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "afcdc4049fccbd2bc17c1040a9f84efb749a8d6291212cfe8809c22728e5c0fb"
-translationRevision: "1aeb8d2a32819be9341a987deab1fdc5ede05fbc87e59b8645cf5561ca78f731"
+sourceRevision: "1c64b76271cba5b5bb23ef1f671be2bd5bf6c286afb710d2bf85ccf8cecc66b0"
+translationRevision: "9c7fac0598a0783e2b10c106668f1201325bdbac4735a6cdb1533365cc1efb07"
 order: 40
 ---
 
@@ -58,3 +58,5 @@ Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne,
 <!--@include: ../../../../.generated/cli-domain-globals.fr.md-->
 
 Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.
+
+<TourFrame id="automationVariables" locale="fr" title="Guide interactif : Automatisations : variables" />

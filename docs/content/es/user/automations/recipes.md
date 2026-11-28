@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "965a59a41c6330f1329be6e35858a2984a01be9515d373ed184b0c4ae8be2f23"
-translationRevision: "8531aa930b09116a8380d67cba4d728e903eedef0d35e5e684c089c59d7788a3"
+sourceRevision: "1486a39572d9a4151216f867dbe4dd5c448905678d962a58faedf0685e2978fb"
+translationRevision: "ea2897f307d960c9855abdd3687b27c6b78f0dac4e6325e325e5d1ecbd5d0cf2"
 order: 30
 ---
 
@@ -56,3 +56,14 @@ Pruébalo interactivamente antes de tocar tu configuración real:
 
 <DemoFrame scenario="automation" locale="es" panel="automation" title="Prueba el espacio de automatizaciones" />
 
+<TourFrame id="automationEventChat" locale="es" title="Guía interactiva: Eventos de chat y comandos" />
+
+<TourFrame id="automationEventGift" locale="es" title="Guía interactiva: Eventos de regalo" />
+
+<TourFrame id="automationEventSocial" locale="es" title="Guía interactiva: Eventos sociales" />
+
+<TourFrame id="automationEventRoom" locale="es" title="Guía interactiva: Eventos de sala" />
+
+<TourFrame id="automationActionHttp" locale="es" title="Guía interactiva: Acciones webhook (HTTP)" />
+
+<TourFrame id="automationActionVars" locale="es" title="Guía interactiva: Variables en acciones" />

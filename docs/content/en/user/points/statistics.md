@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a7333d75baa9aec6e0c4afb69d1c773575a56ee8da982f0fa5a11a73b903ec2d"
-translationRevision: "a7333d75baa9aec6e0c4afb69d1c773575a56ee8da982f0fa5a11a73b903ec2d"
+sourceRevision: "605f8a666c941b82692838af03c00bf6e679e9e39e8d66f974505884e812c5e8"
+translationRevision: "605f8a666c941b82692838af03c00bf6e679e9e39e8d66f974505884e812c5e8"
 order: 20
 ---
 
@@ -42,3 +42,5 @@ If data seems absent, clear the contributor search, widen the date range, confir
 ## Operational details {#operational-details}
 
 Analytics currently requests 10 top contributors for the selected creator/date range. Its search filters the received subset; it is not a global viewer lookup. These persisted aggregates have a different period and unit from the feed’s session diamond/like rankings and from saved points balances. Keep the creator, dates and metric visible when exporting or comparing results.
+
+<TourFrame id="analytics" locale="en" title="Guided tour: Analytics" />

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "2892162f1f2ec94f8e5072f6689382b3c32c8546f2ad667a4651c721f597e84a"
-translationRevision: "1c35b20ff7f1ce9a75f795ec6dfd5e73ed344a4265f0428c5831359e6cab8d66"
+sourceRevision: "6a7e7179831fc08751d9c6c96c573e518610f7aa6dedddc2e18de2a9fb2a2e3a"
+translationRevision: "2b00c072b8fb3c90b63b2b58751f325b7c3da3506bc556688f2dfbf56920674f"
 order: 10
 ---
 
@@ -50,3 +50,5 @@ order: 10
 <!--@include: ../../../../.generated/cli-domain-processor.ja.md-->
 
 規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。
+
+<TourFrame id="pluginSetup" locale="ja" title="インタラクティブガイド: プラグインを設定" />

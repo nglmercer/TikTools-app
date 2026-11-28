@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "965a59a41c6330f1329be6e35858a2984a01be9515d373ed184b0c4ae8be2f23"
-translationRevision: "073e5863c383c2eaf7bc7f92552a0577c43700b5b6fbb38e8d123503950a6ed9"
+sourceRevision: "1486a39572d9a4151216f867dbe4dd5c448905678d962a58faedf0685e2978fb"
+translationRevision: "5eaed9fa21ad50f8746ec73bda6db02ba42863a45cbfd4f7e5fd99457335c322"
 order: 30
 ---
 
@@ -56,3 +56,14 @@ order: 30
 
 <DemoFrame scenario="automation" locale="ja" panel="automation" title="自動化ワークスペースを試す" />
 
+<TourFrame id="automationEventChat" locale="ja" title="インタラクティブガイド: チャットイベントとコマンド" />
+
+<TourFrame id="automationEventGift" locale="ja" title="インタラクティブガイド: ギフトイベント" />
+
+<TourFrame id="automationEventSocial" locale="ja" title="インタラクティブガイド: ソーシャルイベント" />
+
+<TourFrame id="automationEventRoom" locale="ja" title="インタラクティブガイド: ルームイベント" />
+
+<TourFrame id="automationActionHttp" locale="ja" title="インタラクティブガイド: Webhookアクション (HTTP)" />
+
+<TourFrame id="automationActionVars" locale="ja" title="インタラクティブガイド: アクション内の変数" />

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a7333d75baa9aec6e0c4afb69d1c773575a56ee8da982f0fa5a11a73b903ec2d"
-translationRevision: "7c3770e4190c05abb3a91210f4474d18a8f26b6dc5e9ba104cb60cca8a635f0e"
+sourceRevision: "605f8a666c941b82692838af03c00bf6e679e9e39e8d66f974505884e812c5e8"
+translationRevision: "e2a82f49ba7f0d03e314d744a63b36e66f9f49e4b070eb8c9e402cd4dafcc0c9"
 order: 20
 ---
 
@@ -42,3 +42,5 @@ Se os dados parecerem ausentes, limpe a pesquisa de contribuidores, amplie o int
 ## Detalhes de operação {#operational-details}
 
 O Analytics solicita atualmente 10 principais contribuidores para o criador e período escolhidos. A busca filtra esse subconjunto, sem pesquisar todos os espectadores. Esses agregados persistidos têm período e unidade diferentes dos rankings de diamantes/likes da sessão e dos saldos de pontos. Preserve criador, datas e métrica ao exportar ou comparar.
+
+<TourFrame id="analytics" locale="pt" title="Guia interativo: Análises" />

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a7333d75baa9aec6e0c4afb69d1c773575a56ee8da982f0fa5a11a73b903ec2d"
-translationRevision: "65a78c17935897b77577b4ac2f50610122de509350e14d8f1e7addced9a13e84"
+sourceRevision: "605f8a666c941b82692838af03c00bf6e679e9e39e8d66f974505884e812c5e8"
+translationRevision: "8a15289d38f3f860b55992179a8e5afde9b0f229c258a23532b312f0b3d587bf"
 order: 20
 ---
 
@@ -42,3 +42,5 @@ order: 20
 ## 运行细节 {#operational-details}
 
 Analytics 当前请求所选主播及日期范围内的前 10 位贡献者。搜索仅筛选收到的子集，不是全局观众查询。这些持久聚合的时间范围与单位不同于动态流会话内的钻石/点赞榜单，也不同于积分余额。导出或比较结果时，请同时保留主播、日期和指标。
+
+<TourFrame id="analytics" locale="zh" title="交互式指南：数据分析" />

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "965a59a41c6330f1329be6e35858a2984a01be9515d373ed184b0c4ae8be2f23"
-translationRevision: "965a59a41c6330f1329be6e35858a2984a01be9515d373ed184b0c4ae8be2f23"
+sourceRevision: "1486a39572d9a4151216f867dbe4dd5c448905678d962a58faedf0685e2978fb"
+translationRevision: "1486a39572d9a4151216f867dbe4dd5c448905678d962a58faedf0685e2978fb"
 order: 30
 ---
 
@@ -56,3 +56,14 @@ Try it interactively before touching your real setup:
 
 <DemoFrame scenario="automation" locale="en" panel="automation" title="Try the automations workspace" />
 
+<TourFrame id="automationEventChat" locale="en" title="Guided tour: Chat events and commands" />
+
+<TourFrame id="automationEventGift" locale="en" title="Guided tour: Gift events" />
+
+<TourFrame id="automationEventSocial" locale="en" title="Guided tour: Social events" />
+
+<TourFrame id="automationEventRoom" locale="en" title="Guided tour: Room events" />
+
+<TourFrame id="automationActionHttp" locale="en" title="Guided tour: Webhook actions (HTTP)" />
+
+<TourFrame id="automationActionVars" locale="en" title="Guided tour: Variables in actions" />

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "13b4b7b3cb8eba95257ec9738934813266414f504eec8b43090b73e74ad50c10"
-translationRevision: "13b4b7b3cb8eba95257ec9738934813266414f504eec8b43090b73e74ad50c10"
+sourceRevision: "64e2d140d4c3150730dbfd25b908ed58cb44ff8d7471ddc719aa15637c24f83a"
+translationRevision: "64e2d140d4c3150730dbfd25b908ed58cb44ff8d7471ddc719aa15637c24f83a"
 order: 20
 ---
 
@@ -68,3 +68,7 @@ Confirm the active profile, enabled action, enabled event, matching message and 
 ## Recovery {#recovery}
 
 If a sample stops matching after adding the filter, its supplied comment may differ from `!hello`. Check the real event fields, active profile and enabled states instead of repeatedly firing. Tests can run effects; keeping this rule log-only makes its effect predictable. Disable the event when finished, or continue with [recipes](recipes.md).
+
+<TourFrame id="automationEvents" locale="en" title="Guided tour: Automations: events" />
+
+<TourFrame id="automationActions" locale="en" title="Guided tour: Automations: actions" />

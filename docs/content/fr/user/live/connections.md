@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "446118d4c202b645dd93867f1715484cbd9876f940ba229ac26e4b7f24bc4cbc"
-translationRevision: "20f0c5aed39f39927d1743b1760ee52eda296227c609ad9ed0ae63f81ab1a9bc"
+sourceRevision: "e0d1fec65d919e7ca9946024142bbbe1bca8b3851f7e66246dcaddd101cd5215"
+translationRevision: "8d7a1c6ad7af68d3c9a28e9fa620d3c830e1986dfc67baba9ef06fa5cb64580d"
 order: 10
 ---
 
@@ -49,3 +49,11 @@ Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne,
 <!--@include: ../../../../.generated/cli-domain-live.fr.md-->
 
 Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.
+
+<TourFrame id="feed" locale="fr" title="Guide interactif : Flux en direct" />
+
+<TourFrame id="feedInspector" locale="fr" title="Guide interactif : Inspecteur du flux" />
+
+<TourFrame id="connection" locale="fr" title="Guide interactif : Connecter un créateur" />
+
+<TourFrame id="connectionRecovery" locale="fr" title="Guide interactif : Récupération de connexion" />

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e0e5014682213e36dda2e4c02293b8f960f3c107bdb1679327fb00b92e02604b"
-translationRevision: "05b9dff6907496f0bc93911166a17cbe61809ee2fcd06b705fb1eb7886a55622"
+sourceRevision: "116cd7a6c7a48b62cb5ec92b41e8bc3869652ef552f920a92b97722c68779b9d"
+translationRevision: "676b671e286ed930f18ad5ac7a9ecacb7d966bed728ff4b4b6504fbf53260382"
 order: 20
 ---
 
@@ -45,3 +45,7 @@ Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne,
 <!--@include: ../../../../.generated/cli-domain-media.fr.md-->
 
 Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.
+
+<TourFrame id="automationActionMedia" locale="fr" title="Guide interactif : Actions overlay et son" />
+
+<TourFrame id="automationActionTts" locale="fr" title="Guide interactif : Actions vocales (TTS)" />

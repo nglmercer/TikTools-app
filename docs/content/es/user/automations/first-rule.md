@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "13b4b7b3cb8eba95257ec9738934813266414f504eec8b43090b73e74ad50c10"
-translationRevision: "f3af951e93e22a65a789e0dba7088fbc65c1631697324f093687fec126ae47e1"
+sourceRevision: "64e2d140d4c3150730dbfd25b908ed58cb44ff8d7471ddc719aa15637c24f83a"
+translationRevision: "d86c92b66fae2e8d36f8f9859178f10c40df4cbbbe84ffa9aa587e665f1e3204"
 order: 20
 ---
 
@@ -68,3 +68,7 @@ Si la muestra deja de coincidir tras añadir el filtro, su comentario puede ser 
 Las pruebas de acciones y el disparo de un evento pueden ejecutar efectos. Esta regla solo escribe un registro, por lo que su efecto es previsible. Desactívala al terminar o continúa con las [recetas](recipes.md).
 
 </DocCallout>
+
+<TourFrame id="automationEvents" locale="es" title="Guía interactiva: Automatizaciones: eventos" />
+
+<TourFrame id="automationActions" locale="es" title="Guía interactiva: Automatizaciones: acciones" />

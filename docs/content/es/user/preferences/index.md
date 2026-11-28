@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "6790ab7171a90bda1df882c0f88626a5875da68bf4f624968b0e54815842030f"
-translationRevision: "557ac7d37d8f3a516e9b48f5722120d36bfdb33c1aab8b8fce56191e4cfc9ad3"
+sourceRevision: "1e1917dbdb8b579aad4195e79adda85a75466b1c827319e13f57b03ca609fe5e"
+translationRevision: "cec7cd739e129e2d1c235faa9a15cd818947d504662296bcfab55029670c432c"
 order: 10
 ---
 
@@ -39,3 +39,5 @@ Escape cierra el menú lateral estrecho si otro control no lo ha consumido. Los 
 Estos ajustes e interacciones locales están disponibles; no se acredita aceptación completa de accesibilidad ni de todas las plataformas. Prefiere botones etiquetados, tamaños legibles y pausar el feed si su movimiento distrae. Si falta un ajuste, comprueba su página y la capacidad del host antes de borrar datos. Consulta [solución de problemas](troubleshooting.md) y las [preguntas frecuentes](faq.md).
 
 <DemoFrame scenario="settings" locale="es" title="Demo de settings" />
+
+<TourFrame id="settings" locale="es" title="Guía interactiva: Configuración" />

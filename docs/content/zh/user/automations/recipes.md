@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "965a59a41c6330f1329be6e35858a2984a01be9515d373ed184b0c4ae8be2f23"
-translationRevision: "748da8e1a2b19176f98f5c6be019c5c1ed2785b62f34a22839fab3e43480db79"
+sourceRevision: "1486a39572d9a4151216f867dbe4dd5c448905678d962a58faedf0685e2978fb"
+translationRevision: "24e11595077be066e49f18e33f3419455d3dcf4287d6c441f42c4800242dbd67"
 order: 30
 ---
 
@@ -56,3 +56,14 @@ order: 30
 
 <DemoFrame scenario="automation" locale="zh" panel="automation" title="试用自动化工作区" />
 
+<TourFrame id="automationEventChat" locale="zh" title="交互式指南：聊天事件和命令" />
+
+<TourFrame id="automationEventGift" locale="zh" title="交互式指南：礼物事件" />
+
+<TourFrame id="automationEventSocial" locale="zh" title="交互式指南：社交事件" />
+
+<TourFrame id="automationEventRoom" locale="zh" title="交互式指南：房间事件" />
+
+<TourFrame id="automationActionHttp" locale="zh" title="交互式指南：webhook 操作 (HTTP)" />
+
+<TourFrame id="automationActionVars" locale="zh" title="交互式指南：操作中的变量" />

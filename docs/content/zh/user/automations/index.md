@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "08bb26a20687b58094e908a4e8395abeae3b9adc3932c86d9c3b08f5ebbf8ce3"
-translationRevision: "f9ccfae0d2905076b3688226f55ef6869fafcf3b17065e8f9e82085364aafc75"
+sourceRevision: "4b3afb8ff9602033e4ffeba505da980bc2a9d617796853f59645c0f40eaf53ad"
+translationRevision: "f72362421b6a21ef29d2a1b8165f728946e703620acf2fbc57982688607fd2eb"
 order: 10
 ---
 
@@ -58,3 +58,7 @@ order: 10
 <!--@include: ../../../../.generated/cli-domain-workflow.zh.md-->
 
 查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。
+
+<TourFrame id="automationFilters" locale="zh" title="交互式指南：过滤器和条件" />
+
+<TourFrame id="automationCooldowns" locale="zh" title="交互式指南：冷却和运行模式" />

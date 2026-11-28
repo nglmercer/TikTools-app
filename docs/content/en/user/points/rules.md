@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "ab201868f1511c20d8d26bb222e53b871620b44d591f083abf2d1b61bb340e31"
-translationRevision: "ab201868f1511c20d8d26bb222e53b871620b44d591f083abf2d1b61bb340e31"
+sourceRevision: "7a5005919428a41f471ef978adcefa865ab0ffb09f8d80cff8fee2b0464773ef"
+translationRevision: "7a5005919428a41f471ef978adcefa865ab0ffb09f8d80cff8fee2b0464773ef"
 order: 10
 ---
 
@@ -72,3 +72,5 @@ Every operation in this guide is also available from the CLI — offline, script
 <!--@include: ../../../../.generated/cli-domain-points.en.md-->
 
 See the [full command reference](../../developer/cli.md) for conventions, JSON output and destructive-operation markers.
+
+<TourFrame id="points" locale="en" title="Guided tour: Points" />

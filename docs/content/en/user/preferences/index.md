@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "6790ab7171a90bda1df882c0f88626a5875da68bf4f624968b0e54815842030f"
-translationRevision: "6790ab7171a90bda1df882c0f88626a5875da68bf4f624968b0e54815842030f"
+sourceRevision: "1e1917dbdb8b579aad4195e79adda85a75466b1c827319e13f57b03ca609fe5e"
+translationRevision: "1e1917dbdb8b579aad4195e79adda85a75466b1c827319e13f57b03ca609fe5e"
 order: 10
 ---
 
@@ -39,3 +39,5 @@ Escape closes the narrow navigation drawer when another control has not consumed
 These settings and local keyboard interactions are available; complete accessibility/platform acceptance is not claimed. Prefer labeled buttons, readable window sizes and paused feed scrolling when movement is distracting. If a setting appears missing, check its owning page and host capability before resetting data. See [troubleshooting](troubleshooting.md) for unavailable controls and [FAQ](faq.md) for common distinctions.
 
 <DemoFrame scenario="settings" locale="en" title="Demo: settings" />
+
+<TourFrame id="settings" locale="en" title="Guided tour: Settings" />

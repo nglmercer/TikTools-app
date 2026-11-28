@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "13b4b7b3cb8eba95257ec9738934813266414f504eec8b43090b73e74ad50c10"
-translationRevision: "2e729493ef97d5d0a234d34af7407b4b0ed93783f1c80b406fbb24a0f9649b60"
+sourceRevision: "64e2d140d4c3150730dbfd25b908ed58cb44ff8d7471ddc719aa15637c24f83a"
+translationRevision: "03fe13fccc8898ccfeebf51cdc1214e45378999a5a5fd3b769f547e3c9324f24"
 order: 20
 ---
 
@@ -68,3 +68,7 @@ Confirmez le profil actif, l’action et l’événement activés, le message co
 ## Récupération {#recovery}
 
 Si un échantillon ne correspond plus après l’ajout du filtre, son commentaire fourni peut différer de `!bonjour`. Vérifiez les champs de l’événement réel, le profil actif et les états d’activation plutôt que de déclencher à répétition. Les tests peuvent exécuter des effets ; limiter cette règle au journal rend son effet prévisible. Désactivez l’événement après utilisation ou poursuivez avec les [recettes](recipes.md).
+
+<TourFrame id="automationEvents" locale="fr" title="Guide interactif : Automatisations : événements" />
+
+<TourFrame id="automationActions" locale="fr" title="Guide interactif : Automatisations : actions" />

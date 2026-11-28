@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { contentRoot, metadataErrors, readArticles } from './content.ts';
 import { migrationErrors } from './migration.ts';
 import { parseDemoOptions } from '../../src/web/demo/scenarios.ts';
-import { demoTourScenarios, type DemoTourId } from '../../src/web/demo/tours.ts';
+import { demoTourScenarios, demoTutorialIds, type DemoTourId } from '../../src/web/demo/tours.ts';
 import { checkControlContract } from './control-contract.ts';
 
 const args = process.argv.slice(2);
@@ -12,6 +12,7 @@ const articles = await readArticles();
 await checkControlContract();
 const errors = metadataErrors(articles);
 const byPath = new Map(articles.map((article) => [article.path, article]));
+const embeddedTours = new Map<string, Set<string>>();
 let internalLinks = 0;
 let externalLinks = 0;
 for (const article of articles) {
@@ -27,6 +28,8 @@ for (const article of articles) {
     const id = attributes.get('id') as DemoTourId | undefined;
     if (!attributes.get('title')) errors.push(`${article.relativePath}: tour iframe needs an accessible title`);
     if (!id || !Object.hasOwn(demoTourScenarios, id)) { errors.push(`${article.relativePath}: unknown or unsupported TourFrame id`); continue; }
+    const locale = article.relativePath.split('/')[0] ?? '';
+    embeddedTours.set(locale, (embeddedTours.get(locale) ?? new Set()).add(id));
     const parameters = new URLSearchParams({ scenario: demoTourScenarios[id], tour: id });
     if (attributes.get('locale')) parameters.set('locale', attributes.get('locale')!);
     try { parseDemoOptions(parameters.toString()); } catch { errors.push(`${article.relativePath}: invalid TourFrame parameters`); }
@@ -53,6 +56,10 @@ for (const article of articles) {
     }
     internalLinks += 1;
   }
+}
+// Every tour the in-app catalog offers in the demo must also be explained in the docs, in every language.
+for (const [locale, ids] of embeddedTours) {
+  for (const id of demoTutorialIds) if (!ids.has(id)) errors.push(`${locale}: guided tour ${id} is not embedded in any article (add a <TourFrame id="${id}">)`);
 }
 if (!args.includes('--content-only')) {
   errors.push(...await migrationErrors(resolve(import.meta.dirname, '../..')));

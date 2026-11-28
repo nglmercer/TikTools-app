@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "3141f778f3bf0e5c9e01415122e7863e9342c266a57bee9811d7a6b75b2c842b"
-translationRevision: "13421eb11b0523733e2dbe6c14b6ee186fc2602ea88fd79320980121ee0abf29"
+sourceRevision: "adcc61cea71f04065e245e5e618c285a2956f57d07b2015b87c30cef39e56236"
+translationRevision: "97d654da9afeabbb84ab0d1b5a3b7513547ab031cb8263bf516ab084fcfc8f96"
 order: 10
 ---
 
@@ -56,3 +56,7 @@ A demonstração permite explorar o design sem abrir o OBS. No seu computador, c
 ## Detalhes de operação {#operational-details}
 
 Instale Event Gateway separadamente, habilite e confira execução antes das fontes OBS LIVE. Estados: missing → instalar; disabled → habilitar/conferir disponibilidade; stopped → iniciar; credentialUnavailable → reiniciar gateway uma vez; assetsMissing → reparar/reconstruir assets empacotados; starting → aguardar brevemente; unreachable → conferir porta/serviço loopback. Use credencial de widget da URL gerada. Ready ou prévia local não provam LIVE nem recepção OBS: confira com teste inofensivo na fonte pretendida.
+
+<TourFrame id="overlay" locale="pt" title="Guia interativo: Overlays" />
+
+<TourFrame id="overlayObs" locale="pt" title="Guia interativo: Overlay para o OBS" />

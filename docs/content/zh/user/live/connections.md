@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "446118d4c202b645dd93867f1715484cbd9876f940ba229ac26e4b7f24bc4cbc"
-translationRevision: "8424562b5daf6456792d7c1035b284535552166887f745d2079e4511f8a31db1"
+sourceRevision: "e0d1fec65d919e7ca9946024142bbbe1bca8b3851f7e66246dcaddd101cd5215"
+translationRevision: "b20f0323f197b1296421a54544439d98eb7caf7bd99ecfd23531e85c27caf521"
 order: 10
 ---
 
@@ -49,3 +49,11 @@ order: 10
 <!--@include: ../../../../.generated/cli-domain-live.zh.md-->
 
 查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。
+
+<TourFrame id="feed" locale="zh" title="交互式指南：实时 Feed" />
+
+<TourFrame id="feedInspector" locale="zh" title="交互式指南：直播动态检查器" />
+
+<TourFrame id="connection" locale="zh" title="交互式指南：连接创作者" />
+
+<TourFrame id="connectionRecovery" locale="zh" title="交互式指南：连接恢复" />

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "3141f778f3bf0e5c9e01415122e7863e9342c266a57bee9811d7a6b75b2c842b"
-translationRevision: "c8223076fba0cf25b93837f2a62ce346feac639d1f45d0a5522a471eb2f86ea2"
+sourceRevision: "adcc61cea71f04065e245e5e618c285a2956f57d07b2015b87c30cef39e56236"
+translationRevision: "67de5c5baa119876b2ee37bab671cb2e597b87574514d31058ed21b761565d4b"
 order: 10
 ---
 
@@ -66,3 +66,7 @@ Ne publiez jamais son jeton dans des captures d’écran ou des demandes d’ass
 ## Détails de fonctionnement {#operational-details}
 
 Installez le plugin Event Gateway séparément, activez-le et vérifiez son exécution avant d’ajouter des sources OBS LIVE. Les états guident la récupération : missing → installer ; disabled → activer/vérifier la disponibilité ; stopped → démarrer ; credentialUnavailable → redémarrer une fois ; assetsMissing → réparer/reconstruire les ressources de widgets empaquetées ; starting → réessayer brièvement ; unreachable → vérifier le port et le service de bouclage. Un état prêt ou un aperçu local ne prouvent ni un événement LIVE réel ni la réception dans OBS.
+
+<TourFrame id="overlay" locale="fr" title="Guide interactif : Overlays" />
+
+<TourFrame id="overlayObs" locale="fr" title="Guide interactif : Overlay vers OBS" />

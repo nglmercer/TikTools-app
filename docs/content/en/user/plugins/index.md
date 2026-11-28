@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "2892162f1f2ec94f8e5072f6689382b3c32c8546f2ad667a4651c721f597e84a"
-translationRevision: "2892162f1f2ec94f8e5072f6689382b3c32c8546f2ad667a4651c721f597e84a"
+sourceRevision: "6a7e7179831fc08751d9c6c96c573e518610f7aa6dedddc2e18de2a9fb2a2e3a"
+translationRevision: "6a7e7179831fc08751d9c6c96c573e518610f7aa6dedddc2e18de2a9fb2a2e3a"
 order: 10
 ---
 
@@ -50,3 +50,5 @@ Every operation in this guide is also available from the CLI — offline, script
 <!--@include: ../../../../.generated/cli-domain-processor.en.md-->
 
 See the [full command reference](../../developer/cli.md) for conventions, JSON output and destructive-operation markers.
+
+<TourFrame id="pluginSetup" locale="en" title="Guided tour: Configure a plugin" />

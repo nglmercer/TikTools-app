@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "2892162f1f2ec94f8e5072f6689382b3c32c8546f2ad667a4651c721f597e84a"
-translationRevision: "f44907654d53f5e696aa6044ac481d64d84947c293809c9dbda53b9d127a4b8d"
+sourceRevision: "6a7e7179831fc08751d9c6c96c573e518610f7aa6dedddc2e18de2a9fb2a2e3a"
+translationRevision: "e1560ff702abce6bb47afc225b0b6948251ce76c9861a804a8ff728190ddca9c"
 order: 10
 ---
 
@@ -50,3 +50,5 @@ Cada operación de esta guía también está disponible desde la CLI: sin conexi
 <!--@include: ../../../../.generated/cli-domain-processor.es.md-->
 
 Consulta la [referencia completa de comandos](../../developer/cli.md) para las convenciones, la salida JSON y los marcadores de operaciones destructivas.
+
+<TourFrame id="pluginSetup" locale="es" title="Guía interactiva: Configurar un plugin" />

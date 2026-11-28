@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "446118d4c202b645dd93867f1715484cbd9876f940ba229ac26e4b7f24bc4cbc"
-translationRevision: "446118d4c202b645dd93867f1715484cbd9876f940ba229ac26e4b7f24bc4cbc"
+sourceRevision: "e0d1fec65d919e7ca9946024142bbbe1bca8b3851f7e66246dcaddd101cd5215"
+translationRevision: "e0d1fec65d919e7ca9946024142bbbe1bca8b3851f7e66246dcaddd101cd5215"
 order: 10
 ---
 
@@ -49,3 +49,11 @@ Every operation in this guide is also available from the CLI — offline, script
 <!--@include: ../../../../.generated/cli-domain-live.en.md-->
 
 See the [full command reference](../../developer/cli.md) for conventions, JSON output and destructive-operation markers.
+
+<TourFrame id="feed" locale="en" title="Guided tour: Live feed" />
+
+<TourFrame id="feedInspector" locale="en" title="Guided tour: Feed inspector" />
+
+<TourFrame id="connection" locale="en" title="Guided tour: Connect a creator" />
+
+<TourFrame id="connectionRecovery" locale="en" title="Guided tour: Connection recovery" />

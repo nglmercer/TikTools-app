@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "74217892395ddea29ed42ae4105097d815949c11029e1598a32cd2e978963f11"
-translationRevision: "34d9b0cf04ea43e9f065d4c34caa50a67e8548b04d092404617fe2510a2e851b"
+sourceRevision: "cb641d861de9695872dcf68b8f5da0c56916364120be5a72729757e7d9327bc8"
+translationRevision: "9f2e5265865f2fafb8e0a8a80770cd2000fec5e7d815f69e1ee0a2a1bdf96ac9"
 order: 50
 ---
 
@@ -58,3 +58,5 @@ JSON 无效时，请依据报告的解析错误及预期文档类型修正；重
 <!--@include: ../../../../.generated/cli-domain-template.zh.md-->
 
 查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。
+
+<TourFrame id="automationTemplates" locale="zh" title="交互式指南：规则模板" />

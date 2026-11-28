@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e0e5014682213e36dda2e4c02293b8f960f3c107bdb1679327fb00b92e02604b"
-translationRevision: "e0e5014682213e36dda2e4c02293b8f960f3c107bdb1679327fb00b92e02604b"
+sourceRevision: "116cd7a6c7a48b62cb5ec92b41e8bc3869652ef552f920a92b97722c68779b9d"
+translationRevision: "116cd7a6c7a48b62cb5ec92b41e8bc3869652ef552f920a92b97722c68779b9d"
 order: 20
 ---
 
@@ -45,3 +45,7 @@ Every operation in this guide is also available from the CLI — offline, script
 <!--@include: ../../../../.generated/cli-domain-media.en.md-->
 
 See the [full command reference](../../developer/cli.md) for conventions, JSON output and destructive-operation markers.
+
+<TourFrame id="automationActionMedia" locale="en" title="Guided tour: Overlay and sound actions" />
+
+<TourFrame id="automationActionTts" locale="en" title="Guided tour: Voice actions (TTS)" />

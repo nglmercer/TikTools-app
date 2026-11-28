@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "3141f778f3bf0e5c9e01415122e7863e9342c266a57bee9811d7a6b75b2c842b"
-translationRevision: "3141f778f3bf0e5c9e01415122e7863e9342c266a57bee9811d7a6b75b2c842b"
+sourceRevision: "adcc61cea71f04065e245e5e618c285a2956f57d07b2015b87c30cef39e56236"
+translationRevision: "adcc61cea71f04065e245e5e618c285a2956f57d07b2015b87c30cef39e56236"
 order: 10
 ---
 
@@ -66,3 +66,7 @@ Never publish its token in screenshots or support requests. Use the widget-scope
 ## Operational details {#operational-details}
 
 Install the separate Event Gateway plugin, enable it and confirm it is running before adding live OBS sources. Widget status guides recovery: missing → install; disabled → enable/check availability; stopped → start; credentialUnavailable → restart the gateway once; assetsMissing → repair/rebuild its packaged widget assets; starting → retry briefly; unreachable → inspect loopback port/service. A ready status or local preview proves neither a real LIVE event nor OBS reception.
+
+<TourFrame id="overlay" locale="en" title="Guided tour: Overlays" />
+
+<TourFrame id="overlayObs" locale="en" title="Guided tour: Overlay to OBS" />

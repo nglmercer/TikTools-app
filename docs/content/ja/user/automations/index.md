@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "08bb26a20687b58094e908a4e8395abeae3b9adc3932c86d9c3b08f5ebbf8ce3"
-translationRevision: "162a454d168e0cc1cd00af24d3c72645f9aa44762f8fad19cba79a5cfb943a45"
+sourceRevision: "4b3afb8ff9602033e4ffeba505da980bc2a9d617796853f59645c0f40eaf53ad"
+translationRevision: "29d23959712e99b98be429a94df9647bb9b94c408a24f4b3a7905aaac0c4969e"
 order: 10
 ---
 
@@ -58,3 +58,7 @@ LIVE のイベントに反応する、小さく分かりやすいライブラリ
 <!--@include: ../../../../.generated/cli-domain-workflow.ja.md-->
 
 規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。
+
+<TourFrame id="automationFilters" locale="ja" title="インタラクティブガイド: フィルタと条件" />
+
+<TourFrame id="automationCooldowns" locale="ja" title="インタラクティブガイド: クールダウンとモード" />

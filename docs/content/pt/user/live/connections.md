@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "446118d4c202b645dd93867f1715484cbd9876f940ba229ac26e4b7f24bc4cbc"
-translationRevision: "3ae40efa9092ddd84617691210e508f77685e8c58839b8f4e3a89904adaa80bc"
+sourceRevision: "e0d1fec65d919e7ca9946024142bbbe1bca8b3851f7e66246dcaddd101cd5215"
+translationRevision: "c584d641d03933786c85e5db7afcc78c9164bc02ba28c62fc0bc2565c28c5732"
 order: 10
 ---
 
@@ -49,3 +49,11 @@ Cada operação deste guia também está disponível na CLI — offline, script�
 <!--@include: ../../../../.generated/cli-domain-live.pt.md-->
 
 Consulte a [referência completa de comandos](../../developer/cli.md) para as convenções, a saída JSON e os marcadores de operações destrutivas.
+
+<TourFrame id="feed" locale="pt" title="Guia interativo: Feed ao vivo" />
+
+<TourFrame id="feedInspector" locale="pt" title="Guia interativo: Inspetor do feed" />
+
+<TourFrame id="connection" locale="pt" title="Guia interativo: Conectar um criador" />
+
+<TourFrame id="connectionRecovery" locale="pt" title="Guia interativo: Recuperação de conexão" />

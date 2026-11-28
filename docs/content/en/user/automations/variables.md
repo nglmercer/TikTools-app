@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "afcdc4049fccbd2bc17c1040a9f84efb749a8d6291212cfe8809c22728e5c0fb"
-translationRevision: "afcdc4049fccbd2bc17c1040a9f84efb749a8d6291212cfe8809c22728e5c0fb"
+sourceRevision: "1c64b76271cba5b5bb23ef1f671be2bd5bf6c286afb710d2bf85ccf8cecc66b0"
+translationRevision: "1c64b76271cba5b5bb23ef1f671be2bd5bf6c286afb710d2bf85ccf8cecc66b0"
 order: 40
 ---
 
@@ -58,3 +58,5 @@ Every operation in this guide is also available from the CLI — offline, script
 <!--@include: ../../../../.generated/cli-domain-globals.en.md-->
 
 See the [full command reference](../../developer/cli.md) for conventions, JSON output and destructive-operation markers.
+
+<TourFrame id="automationVariables" locale="en" title="Guided tour: Automations: variables" />

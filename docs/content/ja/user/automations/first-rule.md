@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "13b4b7b3cb8eba95257ec9738934813266414f504eec8b43090b73e74ad50c10"
-translationRevision: "1308b4b60854d7be37f38e319e13b87f95b0efc16820d001c3504bc3c6215c10"
+sourceRevision: "64e2d140d4c3150730dbfd25b908ed58cb44ff8d7471ddc719aa15637c24f83a"
+translationRevision: "d6fc6b7d68d8d6fc0e0cba5009226775265ef893aaae879427654727483fa712"
 order: 20
 ---
 
@@ -68,3 +68,7 @@ order: 20
 ## 問題が起きたとき {#recovery}
 
 フィルター追加後にサンプルが一致しなくなった場合、サンプルのコメントが `!こんにちは` と異なる可能性があります。繰り返し実行せず、実イベントのフィールド、アクティブなプロファイル、有効状態を確認します。テストでも実際の処理が動くため、ログだけに限定すると影響を予測できます。終了時にイベントを無効にするか、[実用例](recipes.md) に進んでください。
+
+<TourFrame id="automationEvents" locale="ja" title="インタラクティブガイド: オートメーション:イベント" />
+
+<TourFrame id="automationActions" locale="ja" title="インタラクティブガイド: オートメーション:アクション" />

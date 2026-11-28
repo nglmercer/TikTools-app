@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "3141f778f3bf0e5c9e01415122e7863e9342c266a57bee9811d7a6b75b2c842b"
-translationRevision: "8c177b6a08ad3beed33350fc8049032fa340f500296b8ada36a1a3be547b853e"
+sourceRevision: "adcc61cea71f04065e245e5e618c285a2956f57d07b2015b87c30cef39e56236"
+translationRevision: "e16671a10c779e69852c697556d8580234867736e3aa57876aaf616468c38a5e"
 order: 10
 ---
 
@@ -66,3 +66,7 @@ order: 10
 ## 運用の詳細 {#operational-details}
 
 LIVE 用 OBS ソースを追加する前に、別配布の Event Gateway プラグインを導入・有効化し、実行中であることを確認します。状態ごとの対処は、`missing` → 導入、`disabled` → 有効化・対応状況の確認、`stopped` → 起動、`credentialUnavailable` → ゲートウェイを一度再起動、`assetsMissing` → 同梱ウィジェットアセットの修復・再構築、`starting` → 少し待って再試行、`unreachable` → ループバックのポートとサービスを確認、です。準備完了の状態やローカルプレビューだけでは、実際の LIVE イベントや OBS での受信を確認できません。
+
+<TourFrame id="overlay" locale="ja" title="インタラクティブガイド: オーバーレイ" />
+
+<TourFrame id="overlayObs" locale="ja" title="インタラクティブガイド: オーバーレイをOBSへ" />

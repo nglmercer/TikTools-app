@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "afcdc4049fccbd2bc17c1040a9f84efb749a8d6291212cfe8809c22728e5c0fb"
-translationRevision: "f69aaeef5f6fa10bf2255eb8acaf8bec74a662aca482790e3a6f8c2bbf09fa59"
+sourceRevision: "1c64b76271cba5b5bb23ef1f671be2bd5bf6c286afb710d2bf85ccf8cecc66b0"
+translationRevision: "89c0172d7deb3ca3b7407eb44f5286b560d663f7a5d3af6814cc5fc8bb880208"
 order: 40
 ---
 
@@ -58,3 +58,5 @@ order: 40
 <!--@include: ../../../../.generated/cli-domain-globals.zh.md-->
 
 查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。
+
+<TourFrame id="automationVariables" locale="zh" title="交互式指南：自动化:变量" />

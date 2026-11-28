@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "2892162f1f2ec94f8e5072f6689382b3c32c8546f2ad667a4651c721f597e84a"
-translationRevision: "e7902639e11eaa32139763ad0821b1493f0ce5a9dd26f8a307b287d642fa47fa"
+sourceRevision: "6a7e7179831fc08751d9c6c96c573e518610f7aa6dedddc2e18de2a9fb2a2e3a"
+translationRevision: "387c51aa59296dec3944dd3e078bba5f1cbc2f1f6284b88413aa2d6dd1e5991d"
 order: 10
 ---
 
@@ -50,3 +50,5 @@ Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne,
 <!--@include: ../../../../.generated/cli-domain-processor.fr.md-->
 
 Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.
+
+<TourFrame id="pluginSetup" locale="fr" title="Guide interactif : Configurer un plugin" />

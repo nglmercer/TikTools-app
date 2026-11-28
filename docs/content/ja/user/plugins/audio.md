@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e0e5014682213e36dda2e4c02293b8f960f3c107bdb1679327fb00b92e02604b"
-translationRevision: "6e4d0299813535c37c19bdd42b223f965e91ebdc7a203cb5fd5091642468400c"
+sourceRevision: "116cd7a6c7a48b62cb5ec92b41e8bc3869652ef552f920a92b97722c68779b9d"
+translationRevision: "4fa28b34ccc9e6d65441fcc0df94e9dd55a2546360ef0902ee58355635bac19b"
 order: 20
 ---
 
@@ -45,3 +45,7 @@ SonicBoom では合成、再生受付、聞こえるまでの完了は別の結�
 <!--@include: ../../../../.generated/cli-domain-media.ja.md-->
 
 規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。
+
+<TourFrame id="automationActionMedia" locale="ja" title="インタラクティブガイド: オーバーレイと音声アクション" />
+
+<TourFrame id="automationActionTts" locale="ja" title="インタラクティブガイド: 音声アクション (TTS)" />

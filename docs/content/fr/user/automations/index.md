@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "08bb26a20687b58094e908a4e8395abeae3b9adc3932c86d9c3b08f5ebbf8ce3"
-translationRevision: "21418d5e43873d05197f9291010893eed584cc38ca18832ec1d3ad859f59c1a4"
+sourceRevision: "4b3afb8ff9602033e4ffeba505da980bc2a9d617796853f59645c0f40eaf53ad"
+translationRevision: "7ccff94642f17ea4133e151aa38b46b527a282e08879006f8d75e8a95a1c7fa1"
 order: 10
 ---
 
@@ -58,3 +58,7 @@ Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne,
 <!--@include: ../../../../.generated/cli-domain-workflow.fr.md-->
 
 Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.
+
+<TourFrame id="automationFilters" locale="fr" title="Guide interactif : Filtres et conditions" />
+
+<TourFrame id="automationCooldowns" locale="fr" title="Guide interactif : Cooldowns et modes" />

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "6790ab7171a90bda1df882c0f88626a5875da68bf4f624968b0e54815842030f"
-translationRevision: "48c7e05eee7dde90ae5d819d5b58067138e316a6ad074ee9aa13bf1bd4973449"
+sourceRevision: "1e1917dbdb8b579aad4195e79adda85a75466b1c827319e13f57b03ca609fe5e"
+translationRevision: "351ce9f3c89fbcc9ef97bdadafb863fd1416a17c633a06a8ee14c6f376d5789b"
 order: 10
 ---
 
@@ -39,3 +39,5 @@ Tab と Shift+Tab で通常の操作欄間を移動し、Enter/Space でフォ�
 これらの設定とローカルキーボード操作を利用できますが、アクセシビリティや各環境の完全な適合は主張しません。ラベル付きボタン、読みやすいウィンドウサイズを使い、動きが気になるならフィードを停止します。設定が見えなければリセット前に担当ページとホスト機能を確認します。操作不能は[トラブルシューティング](troubleshooting.md)、よくある違いは [FAQ](faq.md) を参照します。
 
 <DemoFrame scenario="settings" locale="ja" title="デモ: 設定" />
+
+<TourFrame id="settings" locale="ja" title="インタラクティブガイド: 設定" />
