@@ -151,6 +151,8 @@ fn seconds(name: &str, default: u64) -> Duration {
 
 #[test]
 fn native_live_matrix() {
+    // Test binaries do not run main(), where the application installs the provider.
+    tiktools_tls::ensure_default_crypto_provider();
     let Ok(case) = std::env::var("TIKTOOLS_BENCH_CASE") else {
         eprintln!("skipped: set TIKTOOLS_BENCH_CASE and isolated TIKTOOLS_HOME");
         return;
