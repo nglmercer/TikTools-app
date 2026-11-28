@@ -487,40 +487,15 @@ async fn native_owner_edits_and_enablement_preserve_delegated_provenance_and_qua
     config.enabled = true;
     config.advertised_origin = Some("http://127.0.0.1:8788".into());
     service.configure(config).unwrap();
-    let invitation = service
-        .create_invitation(InviteCreate {
-            grant: Grant {
-                capabilities: [Capability::AutomationRead, Capability::AutomationEdit].into(),
-                ..Grant::default()
-            },
-        })
-        .unwrap();
-    let exchange = "d".repeat(64);
-    let pending = service
-        .redeem(
-            Redeem {
-                invite_id: invitation.invite_id,
-                secret: invitation.secret,
-                client_label: "Definition fixture author".into(),
-                client_kind: ClientKind::Agent,
-                exchange_secret_hash: hash_secret(&exchange),
-            },
-            "fixture",
-        )
-        .unwrap();
-    service.decide_request(&pending.request_id, true).unwrap();
-    let credentials = service
-        .collect(
-            Collect {
-                request_id: pending.request_id,
-                exchange_secret: exchange,
-            },
-            "fixture",
-        )
-        .unwrap();
-    let author = service
-        .authenticate_live(&credentials.access_token, false, false)
-        .unwrap();
+    let author = crate::control::test_support::pair_service(
+        &service,
+        Grant {
+            capabilities: [Capability::AutomationRead, Capability::AutomationEdit].into(),
+            ..Grant::default()
+        },
+        "Definition fixture author",
+        'd',
+    );
     core.automation_command(
         CommandCaller::Remote(author),
         CommandRequest {

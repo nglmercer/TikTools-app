@@ -2,9 +2,7 @@
 //! arbitrary subscribed plugin code cannot observe or amplify them.
 use super::*;
 use crate::{
-    collaboration::{
-        hash_secret, Capability, ClientKind, Collect, CommandRequest, Grant, InviteCreate, Redeem,
-    },
+    collaboration::{Capability, CommandRequest, Grant},
     control::{
         ApprovalActivateParams, ApprovalEnablement, AutomationKind, AutomationMutation,
         CommandCaller,
@@ -31,47 +29,22 @@ async fn approved_points_and_run_outcomes_never_invoke_plugins_but_owner_events_
     config.enabled = true;
     config.advertised_origin = Some("http://127.0.0.1:8788".into());
     service.configure(config).unwrap();
-    let invite = service
-        .create_invitation(InviteCreate {
-            grant: Grant {
-                capabilities: [
-                    Capability::AutomationRead,
-                    Capability::AutomationEdit,
-                    Capability::LiveRead,
-                    Capability::PointsRead,
-                    Capability::PointsAdjust,
-                ]
-                .into(),
-                ..Grant::default()
-            },
-        })
-        .unwrap();
-    let exchange = "a".repeat(64);
-    let pending = service
-        .redeem(
-            Redeem {
-                invite_id: invite.invite_id,
-                secret: invite.secret,
-                client_label: "Restricted observer author".into(),
-                client_kind: ClientKind::Agent,
-                exchange_secret_hash: hash_secret(&exchange),
-            },
-            "fixture",
-        )
-        .unwrap();
-    service.decide_request(&pending.request_id, true).unwrap();
-    let credentials = service
-        .collect(
-            Collect {
-                request_id: pending.request_id,
-                exchange_secret: exchange,
-            },
-            "fixture",
-        )
-        .unwrap();
-    let author = service
-        .authenticate_live(&credentials.access_token, false, false)
-        .unwrap();
+    let author = crate::control::test_support::pair_service(
+        &service,
+        Grant {
+            capabilities: [
+                Capability::AutomationRead,
+                Capability::AutomationEdit,
+                Capability::LiveRead,
+                Capability::PointsRead,
+                Capability::PointsAdjust,
+            ]
+            .into(),
+            ..Grant::default()
+        },
+        "Restricted observer author",
+        'a',
+    );
     let request = |base: &str| CommandRequest {
         command_id: format!("observer-proof-{}", fastrand::u64(..)),
         host_instance_id: service.instance_id().into(),
