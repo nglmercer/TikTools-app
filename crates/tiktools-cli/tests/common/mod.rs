@@ -8,6 +8,7 @@ use std::{
 };
 use tokio::process::Command;
 
+#[allow(dead_code)] // shared helpers are compiled into each integration-test binary
 pub fn command(home: &Path) -> Command {
     command_with_cloud(home, "")
 }
@@ -33,6 +34,7 @@ pub fn command_with_cloud(home: &Path, cloud: &str) -> Command {
     command.kill_on_drop(true).stderr(Stdio::null());
     command
 }
+#[allow(dead_code)] // shared helpers are compiled into each integration-test binary
 pub async fn rpc(
     home: &Path,
     method: &str,

@@ -1,3 +1,4 @@
+#[cfg(not(target_os = "linux"))]
 use crate::event::CoalescedSignals;
 use tray_icon::{
     menu::{Menu, MenuItem},
@@ -7,10 +8,10 @@ use tray_icon::{
 use tray_icon::{MouseButton, MouseButtonState, TrayIconEvent};
 use winit::event_loop::EventLoopProxy;
 
+#[cfg(not(target_os = "linux"))]
+use crate::event::DesktopCommand;
 use crate::{
-    event::{
-        DesktopCommand, DesktopEvent, TRAY_MENU_DEVTOOLS_ID, TRAY_MENU_QUIT_ID, TRAY_MENU_SHOW_ID,
-    },
+    event::{DesktopEvent, TRAY_MENU_DEVTOOLS_ID, TRAY_MENU_QUIT_ID, TRAY_MENU_SHOW_ID},
     icon,
 };
 
@@ -79,6 +80,7 @@ impl TrayController {
     }
 }
 
+#[cfg(not(target_os = "linux"))]
 fn send_command(
     proxy: &EventLoopProxy<DesktopEvent>,
     command: DesktopCommand,

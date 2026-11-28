@@ -436,7 +436,7 @@ fn stage_product_fixture(
     coordinator.bootstrap(&[], None).unwrap();
     guard_product_fixture(coordinator);
     let target = key("plugin-selections", "acme.plugin");
-    let decision = standard_decision(&server);
+    let decision = standard_decision(server);
     coordinator
         .stage_product_decision(
             target.clone(),
