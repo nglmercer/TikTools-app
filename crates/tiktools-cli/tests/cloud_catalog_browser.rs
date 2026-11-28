@@ -2,7 +2,7 @@
 #![cfg(all(target_os = "linux", feature = "local-web", debug_assertions))]
 
 mod common;
-use common::{command_with_cloud as command, port};
+use common::command_with_cloud as command;
 use serde_json::{json, Value};
 use std::{
     path::Path,
@@ -158,34 +158,8 @@ async fn packaged_cloud_catalog_uses_native_http_and_pinned_pagination() {
         .await
         .expect("catalog IPC host did not start");
         assert_eq!(info["home"].as_str(), home.to_str());
-        let web_port = port();
-        let owner_url = format!("http://127.0.0.1:{web_port}");
-        let mut web = command(&home, &cloud)
-            .args([
-                "web",
-                "--assets",
-                assets.to_str().unwrap(),
-                "--port",
-                &web_port.to_string(),
-            ])
-            .env("TIKTOOLS_PAIRING_FIXTURE", "948231")
-            .stdout(Stdio::null())
-            .spawn()
-            .unwrap();
-        tokio::time::timeout(Duration::from_secs(10), async {
-            loop {
-                assert!(web.try_wait().unwrap().is_none(), "catalog adapter stopped");
-                if tokio::net::TcpStream::connect(("127.0.0.1", web_port))
-                    .await
-                    .is_ok()
-                {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(25)).await;
-            }
-        })
-        .await
-        .expect("catalog browser adapter did not start");
+        let (mut web, owner_url) =
+            common::start_web_adapter(command(&home, &cloud), &assets, "catalog").await;
         let output = Command::new("bun")
             .args([
                 "x",

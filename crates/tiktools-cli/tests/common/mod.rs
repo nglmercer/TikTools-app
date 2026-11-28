@@ -1,12 +1,15 @@
 //! Shared harness for the packaged owner browser integration tests: the
 //! isolated `tiktools` command environment and the JSON-RPC call helper.
 
+#![allow(dead_code)] // each browser test uses a different subset of the harness
+
 use serde_json::Value;
+use std::time::Duration;
 use std::{
     path::{Path, PathBuf},
     process::Stdio,
 };
-use tokio::process::Command;
+use tokio::process::{Child, Command};
 
 pub fn command(home: &Path) -> Command {
     command_with_cloud(home, "")
@@ -90,4 +93,34 @@ pub fn packaged_home(temporary: &Path) -> (PathBuf, PathBuf, PathBuf) {
         "build the packaged web frontend first"
     );
     (home, assets, repo)
+}
+
+/// Starts the packaged web adapter with `base` (an isolated `command(...)`),
+/// serving `assets` on a free port, and waits until it accepts connections.
+/// Returns the child and the owner URL the browser specs are pointed at.
+pub async fn start_web_adapter(mut base: Command, assets: &Path, what: &str) -> (Child, String) {
+    let port = port();
+    let mut web = base
+        .args(["web", "--assets"])
+        .arg(assets)
+        .args(["--port", &port.to_string()])
+        .env("TIKTOOLS_PAIRING_FIXTURE", "948231")
+        .stdout(Stdio::null())
+        .spawn()
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            assert!(web.try_wait().unwrap().is_none(), "{what} adapter stopped");
+            if tokio::net::TcpStream::connect(("127.0.0.1", port))
+                .await
+                .is_ok()
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("{what} browser adapter did not start"));
+    (web, format!("http://127.0.0.1:{port}"))
 }

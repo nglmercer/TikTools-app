@@ -3,7 +3,7 @@
 use serde_json::{json, Value};
 use std::{path::Path, process::Stdio, time::Duration};
 mod common;
-use common::{command, port};
+use common::command;
 use tokio::process::Command;
 
 async fn rpc(home: &Path, method: &str, params: Value) -> Option<Value> {
@@ -46,13 +46,7 @@ async fn actual_owner_library_transactions_recover_original_identity_and_preserv
         }
         let initial=rpc(&home,"automation.library.get",json!({})).await.unwrap();
         assert!(initial["pending"].is_null());assert_eq!(initial["recent"],json!([]),"fixture seed is outside native UI intents");
-        let web_port=port();let owner_url=format!("http://127.0.0.1:{web_port}");
-        let mut web=command(&home).args(["web","--assets",assets.to_str().unwrap(),"--port",&web_port.to_string()]).env("TIKTOOLS_PAIRING_FIXTURE","948231").stdout(Stdio::null()).spawn().unwrap();
-        tokio::time::timeout(Duration::from_secs(10),async {loop {
-            assert!(web.try_wait().unwrap().is_none(),"library adapter stopped");
-            if tokio::net::TcpStream::connect(("127.0.0.1",web_port)).await.is_ok(){break;}
-            tokio::time::sleep(Duration::from_millis(25)).await;
-        }}).await.expect("library adapter failed to listen");
+        let (mut web, owner_url) = common::start_web_adapter(command(&home), &assets, "library").await;
         let output=Command::new("bun").args(["x","--no-install","playwright","test","--config","tests/helpers/owner-library-playwright.config.ts"]).current_dir(&repo)
             .env("TIKTOOLS_OWNER_LIBRARY_URL",&owner_url).env("TIKTOOLS_OWNER_LIBRARY_HOME",&home).env("TIKTOOLS_OWNER_LIBRARY_BINARY",env!("CARGO_BIN_EXE_tiktools"))
             .kill_on_drop(true).output().await.unwrap();

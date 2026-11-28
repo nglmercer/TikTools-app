@@ -3,7 +3,7 @@
 use serde_json::{json, Value};
 use std::{path::Path, process::Stdio, time::Duration};
 mod common;
-use common::{command, port};
+use common::command;
 use tokio::process::Command;
 
 async fn rpc(home: &Path, method: &str, params: Value) -> Option<Value> {
@@ -75,37 +75,8 @@ async fn actual_owner_definition_writes_reload_and_recovery_keep_original_result
             "fixture seed writes are separate from native UI intents"
         );
 
-        let web_port = port();
-        let owner_url = format!("http://127.0.0.1:{web_port}");
-        let mut web = command(&home)
-            .args([
-                "web",
-                "--assets",
-                assets.to_str().unwrap(),
-                "--port",
-                &web_port.to_string(),
-            ])
-            .env("TIKTOOLS_PAIRING_FIXTURE", "948231")
-            .stdout(Stdio::null())
-            .spawn()
-            .unwrap();
-        tokio::time::timeout(Duration::from_secs(10), async {
-            loop {
-                assert!(
-                    web.try_wait().unwrap().is_none(),
-                    "definition owner adapter stopped"
-                );
-                if tokio::net::TcpStream::connect(("127.0.0.1", web_port))
-                    .await
-                    .is_ok()
-                {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(25)).await;
-            }
-        })
-        .await
-        .expect("definition owner browser adapter did not start");
+        let (mut web, owner_url) =
+            common::start_web_adapter(command(&home), &assets, "definition owner").await;
         let output = Command::new("bun")
             .args([
                 "x",
