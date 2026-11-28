@@ -4812,6 +4812,7 @@ name = "tiktools-desktop"
 version = "4.5.3"
 dependencies = [
  "gtk",
+ "muda",
  "open",
  "percent-encoding",
  "rcgen",

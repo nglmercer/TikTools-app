@@ -5,6 +5,13 @@ use std::sync::{Arc, Mutex};
 use tiktools_core::{ipc::messages::HostMessage, HostEmitter};
 use winit::event_loop::EventLoopProxy;
 
+// Muda uses one process-global flat menu-event namespace. Reserve explicit
+// tray ids so a frontend-owned shell menu entry can never be mistaken for a
+// tray command when both native menus coexist.
+pub(crate) const TRAY_MENU_SHOW_ID: &str = "tiktools:tray:show";
+pub(crate) const TRAY_MENU_DEVTOOLS_ID: &str = "tiktools:tray:devtools";
+pub(crate) const TRAY_MENU_QUIT_ID: &str = "tiktools:tray:quit";
+
 #[derive(Debug)]
 #[allow(dead_code)]
 pub enum DesktopCommand {
@@ -25,6 +32,10 @@ pub enum DesktopCommand {
     /// Frontend-owned native menu model: rebuild the shell menu bar.
     ShellMenuModel {
         menus: serde_json::Value,
+    },
+    /// Frontend-owned native menu command emitted by a host menu.
+    ShellMenuAction {
+        id: String,
     },
     ShowWindow,
     HideWindow,
@@ -355,6 +366,40 @@ impl HostEmitter for EventLoopEmitter {
 
 pub fn shared_emitter(proxy: EventLoopProxy<DesktopEvent>) -> Arc<EventLoopEmitter> {
     Arc::new(EventLoopEmitter::new(proxy))
+}
+
+/// Muda has one process-global menu event handler shared by the tray and the
+/// Windows window menu. Install one dispatcher before either menu exists:
+/// tray-owned ids become desktop commands, while every frontend-owned id is
+/// forwarded to the page with the same `shell-menu-action` contract the GTK
+/// shell uses.
+pub(crate) fn install_menu_event_handler(
+    proxy: EventLoopProxy<DesktopEvent>,
+    emitter: Arc<EventLoopEmitter>,
+) {
+    tray_icon::menu::MenuEvent::set_event_handler(Some(
+        move |event: tray_icon::menu::MenuEvent| {
+            let id = event.id().as_ref().to_owned();
+            let command = match id.as_str() {
+                TRAY_MENU_SHOW_ID => Some(DesktopCommand::ShowWindow),
+                TRAY_MENU_DEVTOOLS_ID => Some(DesktopCommand::OpenDevtools),
+                TRAY_MENU_QUIT_ID => Some(DesktopCommand::Quit),
+                _ => None,
+            };
+            if let Some(command) = command {
+                if let Err(error) = proxy.send_coalesced(DesktopEvent::Command(command)) {
+                    tracing::debug!(%error, %id, "could not forward native menu command");
+                }
+            } else if let Err(error) =
+                proxy.send_coalesced(DesktopEvent::Command(DesktopCommand::ShellMenuAction {
+                    id: id.clone(),
+                }))
+            {
+                tracing::debug!(%error, %id, "could not forward shell menu action");
+                emitter.emit(HostMessage::ShellMenuAction { id });
+            }
+        },
+    ));
 }
 
 // The desktop owns one Winit event loop per process. These shared flags also

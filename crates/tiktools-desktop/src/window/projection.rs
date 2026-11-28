@@ -125,15 +125,17 @@ impl MainPageProjection {
     }
 
     pub fn view(&self) -> PageView {
-        let mut view = *self.view.lock().unwrap_or_else(|e| e.into_inner());
+        let view = *self.view.lock().unwrap_or_else(|e| e.into_inner());
         // Host visibility no longer suspends forwarding: users expect the
         // feed complete and live when they return to a hidden window, not a
         // backfill gap. The presentation handshake is the sole authority and
         // the feed journal stays as the recovery net for real transport loss.
         #[cfg(feature = "live-benchmark")]
-        {
+        let view = {
+            let mut view = view;
             view.points &= !self.disable_points.load(Ordering::Relaxed);
-        }
+            view
+        };
         view
     }
     pub fn retire(&self, generation: u64) {

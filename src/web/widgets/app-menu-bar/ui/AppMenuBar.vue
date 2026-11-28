@@ -77,7 +77,7 @@ const menus = computed<MenuBarMenu[]>(() => [
   },
 ]);
 
-// The desktop shell renders these menus natively in the GTK header bar.
+// The desktop shell renders these menus natively on Linux and Windows.
 // The frontend stays the single owner of the menu model (connection state,
 // plugin pages, locale) and ships it serialized; the host only renders and
 // reports activations back. Icons are Vue components and cannot cross.

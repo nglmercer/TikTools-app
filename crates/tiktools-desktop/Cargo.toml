@@ -60,6 +60,7 @@ x11-dl = "2.21.0"
 winresource = "0.1.31"
 
 [target.'cfg(target_os = "windows")'.dependencies]
+muda = { version = "0.21.2", default-features = false }
 windows-sys = { version = "0.61.2", features = [
     "Win32_Foundation",
     "Win32_System_Threading",

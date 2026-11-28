@@ -89,7 +89,7 @@ impl DesktopApp {
         #[cfg(not(target_os = "linux"))]
         let confirmed = {
             let dialog = rfd::MessageDialog::new()
-                .set_title(title.clone())
+                .set_title(title)
                 .set_description(description.clone())
                 .set_level(rfd::MessageLevel::Warning)
                 .set_buttons(rfd::MessageButtons::YesNo);

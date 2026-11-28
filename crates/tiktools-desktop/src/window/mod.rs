@@ -67,6 +67,10 @@ pub struct DesktopApp {
     /// Last frontend-owned menu model, re-applied when the shell window is
     /// recreated after a hide/show cycle.
     native_menu_model: Option<serde_json::Value>,
+    /// Live Win32 menu bar. Muda detaches the menu when this handle drops, so
+    /// replacement deliberately drops the old handle before attaching the new one.
+    #[cfg(target_os = "windows")]
+    windows_menu: Option<muda::Menu>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
