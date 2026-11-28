@@ -73,6 +73,30 @@ fn connected(creator: &str) -> ClientEvent {
     })
 }
 
+/// Feeds `events` (all generation 0) through the ingress queue and runs the
+/// worker until the queue drains.
+async fn run_ingress(core: &Arc<AppCore>, events: impl IntoIterator<Item = ClientEvent>) {
+    let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
+    for event in events {
+        admit_stamped_event(
+            core,
+            &sender,
+            tiktools_tiktok::StampedClientEvent {
+                generation: 0,
+                event,
+            },
+        )
+        .await;
+    }
+    drop(sender);
+    run_ingress_worker(
+        Arc::clone(core),
+        receiver,
+        tokio_util::sync::CancellationToken::new(),
+    )
+    .await;
+}
+
 #[tokio::test]
 async fn saturated_ingress_attributes_gap_to_stamped_creator_across_reconnect() {
     let core = isolated_core(Arc::new(NoopEmitter));
@@ -181,29 +205,11 @@ async fn unresolved_shed_loss_is_bound_only_after_matching_connected_event() {
 #[tokio::test]
 async fn unverified_connected_label_never_authorizes_scoped_feed_or_execution_context() {
     let core = isolated_core(Arc::new(NoopEmitter));
-    let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
     let mut unverified = connected("alice");
     if let ClientEvent::Connected(info) = &mut unverified {
         info.verified_creator = None;
     }
-    for event in [unverified, ClientEvent::Event(chat())] {
-        admit_stamped_event(
-            &core,
-            &sender,
-            tiktools_tiktok::StampedClientEvent {
-                generation: 0,
-                event,
-            },
-        )
-        .await;
-    }
-    drop(sender);
-    run_ingress_worker(
-        Arc::clone(&core),
-        receiver,
-        tokio_util::sync::CancellationToken::new(),
-    )
-    .await;
+    run_ingress(&core, [unverified, ClientEvent::Event(chat())]).await;
     assert!(!core.events.is_verified_live_generation(0, "alice"));
     assert!(
         !core
@@ -234,25 +240,7 @@ async fn unverified_connected_label_never_authorizes_scoped_feed_or_execution_co
 async fn contradictory_connected_identity_never_authorizes_lifecycle_events() {
     let core = isolated_core(Arc::new(NoopEmitter));
     let mut projection = core.events.subscribe_projection();
-    let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
-    for event in [connected("alice"), connected("bob")] {
-        admit_stamped_event(
-            &core,
-            &sender,
-            tiktools_tiktok::StampedClientEvent {
-                generation: 0,
-                event,
-            },
-        )
-        .await;
-    }
-    drop(sender);
-    run_ingress_worker(
-        Arc::clone(&core),
-        receiver,
-        tokio_util::sync::CancellationToken::new(),
-    )
-    .await;
+    run_ingress(&core, [connected("alice"), connected("bob")]).await;
     let context = recover_rwlock_read(&core.connection_context, "test context")
         .clone()
         .unwrap();

@@ -183,24 +183,7 @@ fn reusable_preflight_uses_current_saved_grant_and_does_not_activate() {
     let identity = auth.snapshot().unwrap();
     delegated(f.core(), &auth, "proposal");
     let service = f.core().collaboration().unwrap();
-    let mut grant = Grant {
-        capabilities: [
-            Capability::AutomationRead,
-            Capability::AutomationEdit,
-            Capability::AutomationToggle,
-            Capability::LiveRead,
-        ]
-        .into(),
-        automation_delegation: Some(AutomationDelegation {
-            effects: [DelegatedAutomationEffect::Log].into(),
-            allow_dynamic_targets: false,
-            allow_owner_edits: false,
-            allow_owner_source: false,
-            allow_other_author_edits: false,
-            allow_other_author_source: false,
-        }),
-        ..Grant::default()
-    };
+    let mut grant = log_delegation_grant();
     let mut no_policy = grant.clone();
     no_policy.automation_delegation = None;
     service
