@@ -116,14 +116,17 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
                 self.plugin_ui.open_devtools_for_window(window_id)
             }
             DesktopEvent::Command(DesktopCommand::ShellMenuModel { menus }) => {
-                #[cfg(target_os = "linux")]
+                #[cfg(any(target_os = "linux", target_os = "windows"))]
                 {
                     self.native_menu_model = Some(menus.clone());
+                    #[cfg(target_os = "linux")]
                     if let Some(menubar) = self.window.as_ref().and_then(|w| w.gtk_menubar()) {
                         crate::shell::rebuild_native_menu(menubar, &menus, &self.emitter);
                     }
+                    #[cfg(target_os = "windows")]
+                    self.rebuild_windows_menu(&menus);
                 }
-                #[cfg(not(target_os = "linux"))]
+                #[cfg(not(any(target_os = "linux", target_os = "windows")))]
                 let _ = menus;
             }
             DesktopEvent::Command(DesktopCommand::MainWindowCloseRequested) => {

@@ -1,8 +1,9 @@
 //! Platform window shell. On Linux the shell window is a native GTK window
 //! and the webview embeds as a regular GTK widget inside it, so input,
 //! focus, compositing and resizing follow GTK's own paths on both X11 and
-//! Wayland — no XWayland child-window translation. Other platforms keep
-//! the Winit window with the native child embedding.
+//! Wayland — no XWayland child-window translation. Windows keeps the Winit
+//! window with the native child embedding and receives the same frontend-owned
+//! menu model through a Win32 menu bar.
 //!
 //! The Winit event loop still drives application logic on every platform
 //! (command delivery, batching ticks); only window ownership differs.
@@ -11,6 +12,10 @@
 use gtk::prelude::*;
 #[cfg(target_os = "linux")]
 use tiktools_core::HostEmitter as _;
+#[cfg(target_os = "windows")]
+use winit::raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
+
+pub(crate) const TOGGLE_SIDEBAR_MENU_ID: &str = "toggle-sidebar";
 
 pub enum ShellWindow {
     #[cfg(target_os = "linux")]
@@ -131,7 +136,7 @@ pub fn create_gtk_shell_window(
         let emitter = emitter.clone();
         sidebar_button.connect_clicked(move |_| {
             emitter.emit(tiktools_core::ipc::messages::HostMessage::ShellMenuAction {
-                id: "toggle-sidebar".to_owned(),
+                id: TOGGLE_SIDEBAR_MENU_ID.to_owned(),
             });
         });
     }
@@ -236,5 +241,106 @@ fn append_native_items(
             });
         }
         menu.append(&item);
+    }
+}
+
+/// Rebuilds the Windows menu bar from the same frontend-owned wire model as
+/// the GTK shell. The returned menu must be stored by the caller: dropping it
+/// detaches it from the window. Malformed entries are skipped, matching the
+/// Linux policy that window chrome must survive a broken menu model.
+#[cfg(target_os = "windows")]
+pub fn rebuild_native_menu(
+    window: &winit::window::Window,
+    model: &serde_json::Value,
+) -> Result<muda::Menu, String> {
+    let menu = muda::Menu::new();
+    // Match the GTK header's sidebar button. A Win32 menu bar cannot carry a
+    // standalone button, so the same chrome control is a compact command at
+    // the front of the bar and reports the identical opaque frontend action.
+    let sidebar = muda::MenuItem::with_id(TOGGLE_SIDEBAR_MENU_ID, "☰", true, None);
+    menu.append(&sidebar)
+        .map_err(|error| format!("could not append Windows sidebar menu item: {error}"))?;
+    if let Some(menus) = model.as_array() {
+        for menu_model in menus {
+            let Some(label) = menu_model.get("label").and_then(serde_json::Value::as_str) else {
+                continue;
+            };
+            let enabled = !menu_model
+                .get("disabled")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
+            let Some(id) = menu_model.get("id").and_then(serde_json::Value::as_str) else {
+                continue;
+            };
+            let top = muda::Submenu::with_id(id, label, enabled);
+            if let Some(items) = menu_model
+                .get("items")
+                .and_then(serde_json::Value::as_array)
+            {
+                append_windows_items(&top, items);
+            }
+            menu.append(&top)
+                .map_err(|error| format!("could not append Windows shell menu: {error}"))?;
+        }
+    }
+    let hwnd = windows_hwnd(window)?;
+    // SAFETY: the raw handle comes from the live Winit window owned by this
+    // UI thread, and the menu is stored for the window's lifetime by the caller.
+    unsafe { menu.init_for_hwnd(hwnd) }
+        .map_err(|error| format!("could not attach Windows shell menu: {error}"))?;
+    Ok(menu)
+}
+
+#[cfg(target_os = "windows")]
+fn windows_hwnd(window: &winit::window::Window) -> Result<isize, String> {
+    let handle = window
+        .window_handle()
+        .map_err(|error| format!("could not read Windows window handle: {error}"))?;
+    match handle.as_raw() {
+        RawWindowHandle::Win32(handle) => Ok(handle.hwnd.get()),
+        other => Err(format!("expected a Win32 window handle, got {other:?}")),
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn append_windows_items(menu: &muda::Submenu, entries: &[serde_json::Value]) {
+    for entry in entries {
+        if entry.get("type").and_then(serde_json::Value::as_str) == Some("separator") {
+            append_windows_item(menu, &muda::PredefinedMenuItem::separator());
+            continue;
+        }
+        let (Some(id), Some(label)) = (
+            entry.get("id").and_then(serde_json::Value::as_str),
+            entry.get("label").and_then(serde_json::Value::as_str),
+        ) else {
+            continue;
+        };
+        let enabled = !entry
+            .get("disabled")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+        let children = entry.get("children").and_then(serde_json::Value::as_array);
+        if let Some(children) = children.filter(|list| !list.is_empty()) {
+            let submenu = muda::Submenu::with_id(id, label, enabled);
+            append_windows_items(&submenu, children);
+            append_windows_item(menu, &submenu);
+        } else if entry.get("checked").is_some() {
+            let checked = entry
+                .get("checked")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
+            let item = muda::CheckMenuItem::with_id(id, label, enabled, checked, None);
+            append_windows_item(menu, &item);
+        } else {
+            let item = muda::MenuItem::with_id(id, label, enabled, None);
+            append_windows_item(menu, &item);
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn append_windows_item(menu: &muda::Submenu, item: &dyn muda::IsMenuItem) {
+    if let Err(error) = menu.append(item) {
+        tracing::warn!(%error, "could not append Windows shell menu item");
     }
 }

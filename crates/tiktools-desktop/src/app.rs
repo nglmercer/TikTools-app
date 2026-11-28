@@ -25,6 +25,7 @@ pub fn run(log_path: std::path::PathBuf) -> Result<(), Box<dyn std::error::Error
     let event_loop = event_loop_builder.build()?;
     let proxy = event_loop.create_proxy();
     let emitter = crate::event::shared_emitter(proxy.clone());
+    crate::event::install_menu_event_handler(proxy.clone(), emitter.clone());
     let media = Arc::new(crate::media::DesktopMediaHost);
     let core = Arc::new(AppCore::with_media_host(emitter.clone(), media));
     core.set_sync_origin("ui");

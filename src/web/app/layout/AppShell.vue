@@ -86,10 +86,11 @@ function connect(): void {
   }
 }
 
-// The desktop shell renders the menu bar natively in the GTK header bar and
-// reports activations back as pushes; dispatch them through the exact same
-// handlers the in-page menu uses. The in-page bar stays mounted (hidden) so
-// the menu model keeps shipping, but only one of the two is ever visible.
+// The desktop shell renders the menu bar natively (GTK header bar on Linux,
+// Win32 menu bar on Windows) and reports activations back as pushes; dispatch
+// them through the exact same handlers the in-page menu uses. The in-page bar
+// stays mounted (hidden) so the menu model keeps shipping, but only one of
+// the two is ever visible.
 const desktopShell = typeof window !== 'undefined' && !!window.ipc;
 if (desktopShell) {
   useControlClient().onPush('shell-menu-action', (message) => {

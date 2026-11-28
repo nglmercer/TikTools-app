@@ -169,6 +169,8 @@ impl DesktopApp {
             update_ready_for_handoff: false,
             restart_requested: None,
             native_menu_model: None,
+            #[cfg(target_os = "windows")]
+            windows_menu: None,
         }
     }
 
@@ -215,6 +217,10 @@ impl DesktopApp {
 
         self.window = Some(crate::shell::ShellWindow::Winit(window));
         self.finish_window_creation(webview);
+        #[cfg(target_os = "windows")]
+        if let Some(model) = self.native_menu_model.clone() {
+            self.rebuild_windows_menu(&model);
+        }
         Ok(())
     }
 

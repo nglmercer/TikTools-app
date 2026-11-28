@@ -79,6 +79,31 @@ impl DesktopApp {
         }
     }
 
+    /// Replace the live Win32 menu bar. The old muda handle must detach before
+    /// the new one initializes: dropping it after a successful attach would
+    /// call `SetMenu(hwnd, null)` and remove the replacement with it.
+    #[cfg(target_os = "windows")]
+    pub(super) fn rebuild_windows_menu(&mut self, menus: &serde_json::Value) {
+        self.windows_menu = None;
+        let Some((result, size)) = self.window.as_ref().map(|window| {
+            let window = window.winit_window();
+            let result = crate::shell::rebuild_native_menu(window, menus);
+            let size = window.inner_size();
+            (result, size)
+        }) else {
+            return;
+        };
+        match result {
+            Ok(menu) => {
+                self.windows_menu = Some(menu);
+                self.resize_webview(size);
+            }
+            Err(error) => {
+                tracing::warn!(%error, "could not rebuild Windows shell menu");
+            }
+        }
+    }
+
     #[cfg(not(target_os = "linux"))]
     pub(super) fn handle_window_event(
         &mut self,
